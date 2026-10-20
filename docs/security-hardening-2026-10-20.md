@@ -140,7 +140,7 @@ pnpm -r typecheck    ✅ exit 0（7 包）
 pnpm design:check    ✅ exit 0（4 道子检查）
 pnpm -r build        ✅ exit 0（5 包；designer-web 1,233.98 kB / gzip 400.09 kB，体积告警非阻断）
 pnpm -r test         ✅ 1057 passed / 68 文件（server 201）
-pnpm coverage        ✅ 96.2 / 88.17 / 95.94 / 96.2（阈值 90/85/90/90，exit 0）
+pnpm coverage        ✅ 96.2 / 88.14 / 95.94 / 96.2（阈值 90/85/90/90，exit 0）
 ```
 
 ---
