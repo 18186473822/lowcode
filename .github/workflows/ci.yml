@@ -1,12 +1,14 @@
 # Phase 0 CI —— 与本地验证等价（typecheck → build → test → coverage 阈值 → 服务端冒烟）
-# ⚠️ 状态：本仓库尚未推送远端，workflow **未在真实 CI 跑过**（台账 D-13 / L-8）。
+# ⚠️ 状态：代码已推送到 Gitee；Gitee 不执行 GitHub Actions，workflow **仍未在真实 CI 跑过**（台账 D-13 / L-8）。
+# 触发分支同时覆盖 master（Gitee 默认）与 main（GitHub 默认），并保留手动触发。
 # 未引入 Turborepo（D-4）：用 pnpm -r 递归替代 `turbo build`。
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
