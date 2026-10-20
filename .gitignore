@@ -8,6 +8,8 @@ coverage/
 
 # 本地运行数据（页面/记录/流程/RBAC/ops 事件/上传文件）—— 不入库
 apps/server/data/
+# 服务端从仓库根启动时默认落 <cwd>/data（CI 冒烟即此路径）
+/data/
 
 # 本地环境变量与私有密钥（示例文件可保留）
 .env
