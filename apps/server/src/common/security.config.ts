@@ -1,5 +1,5 @@
 /**
- * 安全生产配置解析（JWT / CORS / 限流）。
+ * 生产安全配置解析（JWT / CORS / 限流）。
  *
  * 原则：
  * - **生产 fail-closed**：`NODE_ENV=production` 时没有 `LC_JWT_SECRET` 直接拒绝启动；
@@ -153,7 +153,7 @@ function readBoolean(env: NodeJS.ProcessEnv, key: string): boolean {
   const raw = env[key]?.trim().toLowerCase()
   if (!raw || ['0', 'false', 'no', 'off'].includes(raw)) return false
   if (['1', 'true', 'yes', 'on'].includes(raw)) return true
-  throw new Error(`${key} 只接受 true/false/1/0（当前：${raw}）`)
+  throw new Error(`${key} 只接受 true/false/1/0/yes/no/on/off（当前：${raw}）`)
 }
 
 /**
