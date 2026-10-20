@@ -6,7 +6,8 @@
  *   这样 main.ts 与测试都经由 AppModule 加载时元数据多 polyfill 已就绪。
  */
 import 'reflect-metadata'
-import { Module } from '@nestjs/common'
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { RateLimitMiddleware } from './common/rate-limit.js'
 import { StorageModule } from './common/storage.module.js'
 import { IdentityModule } from './identity/identity.module.js'
 import { PageModule } from './page/page.module.js'
@@ -19,4 +20,9 @@ import { OpsModule } from './ops/ops.module.js'
 @Module({
   imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    // 全部 API 共用限流；登录接口在中间件内额外套更严的 loginMax。
+    consumer.apply(RateLimitMiddleware).forRoutes('*')
+  }
+}

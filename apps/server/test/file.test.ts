@@ -53,7 +53,7 @@ async function upload(file: { name: string; type: string; bytes: Buffer }, withT
 beforeAll(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'lc-file-test-'))
   process.env.LC_DATA_DIR = dataDir
-  process.env.LC_JWT_SECRET = 'test-secret'
+  process.env.LC_JWT_SECRET = 'test-secret-0123456789-abcdefghij'
 
   app = await NestFactory.create(AppModule, { logger: false })
   app.setGlobalPrefix('api/v1')

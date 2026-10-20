@@ -10,11 +10,11 @@
 
 | Phase | 名称 | 计划周期 | 状态 | 说明 |
 |---|---|---|---|---|
-| Phase 0 | 协议与地基 | 2 周 | 🟡 **接近收口（8 个工作项已完成 7 个）** | 协议包、表达式引擎、渲染引擎（逻辑层 + uni 组件层 H5 实测）、`apps/server`、`protocol.md`、uni-app 运行时壳、**覆盖率 95.53% 强制门禁、CI workflow、组件层冒烟测试、ADR** 均已完成；仅剩：Turborepo（可选项）、mp 真机验证（无微信开发者工具）、CI 未实跑（未推送远端） |
+| Phase 0 | 协议与地基 | 2 周 | 🟡 **接近收口（8 个工作项已完成 7 个）** | 协议包、表达式引擎、渲染引擎（逻辑层 + uni 组件层 H5 实测）、`apps/server`、`protocol.md`、uni-app 运行时壳、**覆盖率 95.53% 强制门禁、CI workflow、组件层冒烟测试、ADR** 均已完成；仅剩：Turborepo（可选项）、mp 真机验证（无微信开发者工具）、CI 未实跑（已推送 Gitee，但 Gitee 托管 CI 无法跑 Node 22） |
 | Phase 1 | 最小闭环 MVP | 4 周 | 🟡 **主线收口（物料 12 个 ✅ + 设计器批 1~5 ✅ + 服务端动态 CRUD ✅ + 运行时壳 ✅ → 出口判据全通）** | 物料库 12 个归位并 H5 实测 ✅（2026-10-09）；**设计器批 1「画布能渲染」✅ + 批 2「能拖入删除」✅ + 批 3「能配置保存」✅**（批 3 于 2026-10-10）+ **批 4「页面↔模型字段绑定」✅**（2026-10-12，D-A11 双层配置，见「已实现 16」）+ **批 5「出口判据闭环」✅**（2026-10-14，D-A12 必填联动 + D-A13 动作绑定 + textarea setter，见「已实现 18」）；**服务端动态 CRUD ✅**（2026-10-10，9 接口 + 真实启动冒烟 18/18，见「已实现 15」）；**运行时壳（登录/菜单/`pageId` 路由）✅**（2026-10-12，见「已实现 17」）；**主方案 Phase 1 出口判据 1/2/3 全通 ✅**（2026-10-14）—— Phase 1 主线就此收口，余项为环境/可选（mp 真机、CI 实跑）与 Phase 2 归属 |
 | Phase 2 | 企业级能力 | 6 周 | 🟢 **全线收口（批 1~7 全部 ✅，出口判据全通）** | 拆 7 批见 `lowcode/docs/phase2-plan.md`；**批 1「模型可视化建模」✅**（2026-10-14，D-P2-1 视图切换 + ModelPanel/model-ops + putModel，服务端零改动，见「已实现 19」）；**批 2「列表/详情标准页」✅**（2026-10-14，D-P2-2 协议补 `DetailPageConfig` + lc-list/detail-page + runtime 按 type 分发 + 设计器配置面板，见「已实现 20」）；**批 3「物料 12→30」✅**（2026-10-14，18 新物料对齐 `FieldType` 全集 + optionList/color setter + demo 30 全量演示，服务端零改动，见「已实现 21」）；**批 4「设计器可用性」✅**（2026-10-14，D-P2-7 快照双栈撤销重做 + 大纲树 + 跨页剪贴板 + D-P2-3 修复，服务端零改动，见「已实现 22」）；**批 5「版本管理 UI」✅**（2026-10-14，D-P2-8 补 `GET /pages/:id/versions` + D-P2-9 自研结构化 diff + HistoryDialog 历史/回滚/对比，见「已实现 23」）；**批 6「权限 RBAC」✅**（2026-10-15，D-P2-10 单文件配置 + D-P2-11 四层判定单一事实源 + D-P2-12 权限管理视图/节点 perm/模型数据权限，双账号 DoD 四点全过，见「已实现 24」）；**批 7「出口判据 Demo + 多端打包」✅**（2026-10-15，请假申请三页 Demo 全流程十步留档 + B-41 物料默认值残留清理 + D-P2-13 受控回显兜底 + mp 分包产物验证，见「已实现 25」）—— **Phase 2 七批全部收口，出口判据「30 分钟搭出申请-列表-详情；小程序端跑通（产物级，真机受环境限制）」达成** |
 | Phase 3 | 流程与体验 | 4 周 | 🟢 **全线收口（批 1~5 全部 ✅）** | 拆 5 批见 `lowcode/docs/phase3-plan.md`（2026-10-15 立项，与负责人对齐：导出/消息裁剪）；出口判据（拟定已确认）：**带审批的申请应用**（提交 → 待办 → 同意 → 状态变更 + 时间轴可见；门户图表 + 主题换色）；**批 1「流程引擎核心」✅**（2026-10-15，D-P3-1 FlowSchema 协议 + `validateFlow` + 服务端 flow 模块 7 接口 + 记录提交联动启动实例 + assignee 判定 D-P3-2 + 依赖方向 D-P3-3，见「已实现 26」）；**批 2「审批物料 + 待办中心」✅**（2026-10-16，D-P3-4 物料数据通道 + D-P3-4b `$expr` recordId 绑定 + D-P3-5 待办两页 + D-P3-6 单实例接口 + **B-44** optimizeDeps 双实例教训，见「已实现 27」）；**批 3「本地草稿 + 主题配置」✅**（2026-10-19，D-P3-7 草稿时机/存储分层 + D-P3-8 apps.json 配置与档位覆盖主题 + D-P3-9 dark 配置优先，见「已实现 28」）；**批 4「图表物料 + Portal 页型」✅**（2026-10-20，D-P3-10 Chart 三形态纯 SVG + Statistic + 客户端聚合，D-P3-11 `PortalPageConfig` 卡片导航与拖拽区共存，H5 + 设计器双实测，见「已实现 29」）；**批 5「埋点与错误上报 + Profiler」✅**（2026-10-20，D-P3-12 ops 事件表/三接口、D-P3-13 上报队列 + 不白屏、D-P3-14 Profiler 双端可见，H5 DoD + 冒烟 23/23，见「已实现 30」）—— **Phase 3 五批全部收口** |
-| Phase 4 | 生产化与开放 | 4 周 | ⬜ 未开始 | — |
+| Phase 4 | 生产化与开放 | 4 周 | 🟡 **安全加固首批完成** | 2026-10-20：JWT 生产 fail-closed、CORS 白名单、普通/登录限流已完成并回归（见 `docs/security-hardening-2026-10-20.md`）；数据库/用户体系、可观测性/部署、开放集成、多环境/远程物料/压测、导出打印/消息/文档仍未开始 |
 
 **图例**：✅ 已完成并验证 ｜ 🟡 部分完成 ｜ ⬜ 未开始 ｜ ❌ 阻塞/放弃
 
@@ -1283,6 +1283,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | 2026-10-20 | Phase 3 · 批 5 埋点与错误上报 + Schema Profiler | **Phase 3 批 5 收口（五批全完）**：**D-P3-12 服务端 `ops/` 五件套** —— `<DATA_DIR>/ops/events.json` 原子写 + 环形 500（丢最旧计 `dropped`）；`POST /ops/events` 登录即可 / 1~50 条 / `{accepted,total,dropped}`；`GET /ops/events` + `GET /ops/summary` 仅 `'*'`（倒序 + type/pageId/since/limit；summary 出 byType/errors/perf avg·p95·max）；**写开放读收紧**、`userId/at` 服务端覆盖、**结构错 400 `OPS_INVALID`（带 `events[i]`）/ 数据超限截断**（message 500、detail 2000 → `{truncated,preview}`）+ **D-P3-13 上报链**（renderer `core/ops.ts` `createOpsQueue` 批量/定时/失败保留/丢最旧；runtime `src/ops.ts` `createUniOpsReporter` + view 页 5 类事件接线 + onHide/onUnload flush；不白屏沿用 `exprError` 兜底 + `skipped`）+ **D-P3-14 Profiler**（controller `stats` 计时计数 + `core/perf.ts` `formatPerf/countNodes` 共享；runtime `?perf=1` 角标 + schema-load/render 上报；设计器顶栏常驻徽标 + `LcCanvas @rendered` → `store.markRender`）；修复首帧 `mountMs=0` 误显示；`exports.test.ts` 40→**44** 同步锁；protocol.md **§10.1 运维事件三接口** + `OPS_INVALID`；`phase3-plan §8`、「总览 / 未实现表 / 下一步 / 已实现 30」已回写 | typecheck ✅ exit 0（7 包）/ build ✅ exit 0（5 包 Done）/ test ✅ **1006 passed**（renderer 289→**309**〔ops 7 + perf 7 + controller-stats 6〕、server 146→**161**〔ops 15〕、designer 318→**324**〔perf 6〕；schema 90 + expression 117 + tokens 5 不变）/ coverage ✅ **96.17/87.84/95.83/96.17** exit 0（65 文件 52.4s）/ 冒烟 ✅ `smoke-p3b5.mjs` **23/23 PASS** / H5 DoD ✅（`pgc_ops_bad` 坏表达式仍渲染「正常节点可见」+ 服务端 2 条 `expr` 事件；角标 `加载 91ms · 构建 2ms · 渲染 40ms · 3 节点`；`summary perf{count:2,avgMs:48,p95Ms:69,maxMs:69}`；`pgc_demo&perf=1` 门户回归全在、无参数时角标不渲染）/ 设计器 ✅ 徽标 `加载 331ms · 渲染 73ms · 34 节点`（title 含采样 JSON） |
 | 2026-10-20 | 修复台账 · A1/A2/B1/B2 收口 | **独立核查发现的门禁红灯 + 页面枚举缺口全部收口**（详见 `docs/remediation-plan-2026-10-20.md`）：**A1** Profiler 角标 2 处硬编码色值改令牌（`--lc-bg-inverse`/`--lc-text-inverse`）→ `design:check` 转绿；**A2** 新增根 `README.md`；**B1** 服务端 `GET /pages`（RBAC 可见性过滤）+ `DELETE /pages/:id`（仅 `'*'`，连带清版本）+ `protocol.md` §10.1；**B2** 设计器消费端：`listPages()` 改走 `GET /pages` + `deletePage()`、store `pages/loadPages/deletePage`（删当前页自动切换/最后页落新草稿/下一页失败也回落，防已删页被 upsert 回来）、顶栏页面下拉 + 两步删除（10s 复位）+ datalist、保存/发布刷新列表、窄屏隐藏重复徽标；新增 `page-list.test.ts` 11 例 | typecheck ✅ exit 0（7 包）/ design:check ✅ exit 0 / build ✅ exit 0（5 包；designer-web 1,233.98 kB / gzip 400.09 kB）/ test ✅ **1032 passed / 67 文件**（server 161→176、designer 324→335）/ coverage ✅ **96.17/87.96/95.87/96.17** exit 0（78.18s）/ 浏览器 DoD ✅（10 页下拉 → 换页 → 两步删除临时页 → 自动切 `pgc_ops_bad` → 服务端 0 残留、现有 10 页未动、console 0 error） |
 | 2026-10-20 | P1 · 仓库初始化 + Gitee 远端 | **按授权执行 `git init` + 首次提交**：补 `.gitignore`（`apps/server/data/`、`/data/`、`.env*`、`.workbuddy/`、`probe-out.txt`）与 `.gitattributes`（`eol=lf`）；提交 `1e89977`（334 文件 / 57,011 行）→ `20de245`；本地身份 `一念 <919037107@qq.com>`；分支改 `master` 对齐 Gitee。远端 `origin` 已配置，`ls-remote/fetch` 成功，合并 Gitee 初始 README（删除模板 `README.en.md`）；首次 push 因 Windows 旧凭据失败（`18186473822: Incorrect username or password`），更新凭据后**推送成功**（首次推送 `4da460c`，`master` 已跟踪 `origin/master`）。CI workflow 静态核对 + 本地等价冒烟通过；**Gitee 不执行 GitHub Actions；Gitee Go 的 Node 插件最高仅 15.12.0，无法跑 Node 22，远端 CI 仍未实跑**。详见 `docs/p1-git-ci-2026-10-20.md` | 本地/远端 `master` 一致、工作区干净 / 秘密扫描 0 命中 / CI 冒烟本地等价 ✅ / **推送 ✅、CI 实跑 ❌** |
+| 2026-10-20 | Phase 4 · 安全加固首批（JWT / CORS / 限流） | **挂账 #5 收口**：① JWT 密钥 `LC_JWT_SECRET` 生产 fail-closed（未设置/＜32 字符/等于仓库内置开发值 → 启动 exit 1；非生产未设置才回退开发密钥并告警）；② CORS 白名单 `LC_CORS_ORIGINS`（逗号分隔完整源，拒绝 `*`/路径/查询/凭据/非 http(s)；production 未设置=不发 ACAO；开发默认放行 5173/5174 四个 localhost 源）；③ 固定窗口限流（普通 600/min/IP、登录 20/min/IP，超限 `429 RATE_LIMITED` + `Retry-After`，OPTIONS 不计；`LC_TRUST_PROXY` 支持一层反代）；④ 启动期聚合自检 `assertSecurityConfig()`，任何非法配置不监听端口；⑤ 新增 `apps/server/src/common/security.config.ts`、`rate-limit.ts`，改 `jwt.service.ts`/`app.module.ts`/`main.ts`，测试密钥统一 ≥32 字符；⑥ `security.test.ts` 25 例 + 真实启动冒烟 10/10。**未做**：多实例 Redis 限流、安全审计、账号锁定、令牌轮换。详见 `docs/security-hardening-2026-10-20.md` | typecheck ✅ exit 0（7 包）/ design:check ✅ exit 0 / build ✅ exit 0（5 包，designer-web 1,233.98 kB / gzip 400.09 kB）/ test ✅ **1057 passed / 68 文件**（server 176→201）/ coverage ✅ **96.2/88.17/95.94/96.2** exit 0 / 安全冒烟 ✅ **10/10 PASS**（含生产缺密钥/短密钥/CORS `*` 均 exit 1） |
 
 ---
 
@@ -1293,8 +1294,8 @@ cd D:\mimo\lowcode
 pnpm install          # 首次需 pnpm approve-builds esbuild（vue-demi 已在 allowBuilds 白名单）
 pnpm typecheck        # 期望：7 个包全部 Done（tokens/schema/expression/renderer/server/designer/designer-web）
 pnpm build            # 期望：5 包 Done（packages/{schema,expression,renderer}/dist + apps/server/dist + apps/designer-web/dist）
-pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 309 + server 176 + designer 335 = 1032 passed
-pnpm coverage         # 期望：96.17/87.96/95.87/96.17（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
+pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 309 + server 201 + designer 335 = 1057 passed
+pnpm coverage         # 期望：96.2/88.17/95.94/96.2（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
                       # B-45/B-46 更正：脚本内含 --no-file-parallelism；vitest 2.1.9 **无 rpcTimeout 选项**（birpc 默认 60s），
                       #      各包 vitest.config.ts 里的 rpcTimeout 为惰性配置 —— 真解法是消除日志洪泛（B-46）+ 串行/限并发
                       # 分包实测（批 2 自 coverage-final.json 聚合）：designer panel 99.91/core 99.46、renderer core 97.24/uni 95.05、server flow 94.79/81.20（stmts 均 ≥90；分包 branch 不设阈值，以总 branch 过 85）
@@ -1303,13 +1304,19 @@ pnpm coverage         # 期望：96.17/87.96/95.87/96.17（阈值 90/85/90/90 �
                       #     CLI 显式 `npx vitest run --coverage --workspace config/vitest.projects.ts --maxWorkers=4 --minWorkers=1`
                       #     （B-42 参数升级：46 文件 8/2 可用；48 文件起 8 worker 复发 fetch/snapshotSaved 超时 → 降 4/1；
                       #      60 文件 965 例实测 59.53s / exit 0；批 5 后 65 文件 1006 例 52.38s / exit 0；
-                      #      2026-10-20 修复台账收口后 67 文件 1032 例 78.18s / exit 0）
+                      #      2026-10-20 修复台账收口后 67 文件 1032 例 78.18s / exit 0；
+                      #      2026-10-20 安全加固后 68 文件 1057 例 / exit 0）
 
 # 批 4 冒烟（门户页配置校验 + 落库回读 B-35；需服务端已启动）：
 node apps/server/scripts/smoke-p3b4.mjs   # 期望：13/13 PASS、exit 0（含非法卡片 400 SCHEMA_INVALID path 精确断言 + 复原）
 
 # 批 5 冒烟（运维事件上报/查询/汇总 + 权限；需服务端已启动）：
 node apps/server/scripts/smoke-p3b5.mjs   # 期望：23/23 PASS、exit 0（时间戳 pageId 隔离、可重复执行）
+
+# Phase 4 安全加固冒烟（独立起停 3100/3103/3199 端口）：
+node apps/server/scripts/smoke-security.mjs
+                                          # 期望：10/10 PASS（CORS 允许/拒绝、登录 429、开发回退警告、
+                                          #       production 缺密钥/短密钥、CORS * 均 exit 1）
 
 # 服务端真实启动冒烟（验证构建产物运行时，B-15/B-28 教训）：
 pnpm -F @lc/server build                  # ★ 改码后必须重建 —— B-28 曾出现 dist 与 src 不一致导致路由 404

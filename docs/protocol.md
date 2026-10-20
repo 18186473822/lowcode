@@ -471,7 +471,7 @@
 
 ## 10. 服务端接口契约（REST，前缀 `/api/v1`）
 
-事实源：`apps/server/src/`。**鉴权**：除登录外全部要求 `Authorization: Bearer <JWT>`（HS256，8 小时，密钥 `LC_JWT_SECRET`）。
+事实源：`apps/server/src/`。**鉴权**：除登录外全部要求 `Authorization: Bearer <JWT>`（HS256，8 小时）。密钥 `LC_JWT_SECRET` **生产必填且 ≥32 字符**；生产缺失/过短/使用仓库内置开发值会拒绝启动。跨域与限流见 §10.5。
 
 ### 10.1 接口清单
 
@@ -642,6 +642,20 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 - **系统字段**（可参与 `filter`/`sort`，但**不可出现在写入 payload**）：`id` `createdAt` `updatedAt` `createdBy` `updatedBy` `deletedAt`；
 - **软删**：`DELETE` 只置 `deletedAt`，列表默认排除，记录再读/再改/再删均 `404 RECORD_NOT_FOUND`；
 - **审计字段服务端权威**：请求体伪造 `createdAt/createdBy` 无效（保存时覆盖）。
+
+### 10.5 安全与限流（Phase 4 安全加固）
+
+| 项 | 契约 |
+|---|---|
+| JWT 密钥 | `LC_JWT_SECRET` ≥32 字符；`NODE_ENV=production` 未设置/过短/等于仓库内置开发值 → 启动失败（exit 1）。非生产未设置才回退开发密钥并打印警告 |
+| CORS | `LC_CORS_ORIGINS` 逗号分隔的完整源；拒绝 `*`、路径、查询、凭据、非 http(s)。生产未设置=不发送 `Access-Control-Allow-Origin`；开发默认放行 `localhost:5173` / `127.0.0.1:5173` / `localhost:5174` / `127.0.0.1:5174` |
+| 普通限流 | 默认 600 次/分钟/IP；窗口 `LC_RATE_LIMIT_WINDOW_MS`，上限 `LC_RATE_LIMIT_MAX` |
+| 登录限流 | `POST /auth/login` 默认 20 次/分钟/IP（成功与失败都计数）；上限 `LC_LOGIN_RATE_LIMIT_MAX` |
+| 超限响应 | `429 { code: 'RATE_LIMITED', message: '请求过于频繁，请稍后再试' }`；响应头 `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`，超限加 `Retry-After`（秒） |
+| 代理 | `LC_TRUST_PROXY=true` 启用 Express `trust proxy`（仅一层），按 `X-Forwarded-For` 识别客户端 IP；直接暴露时保持 false，防伪造 |
+| 预检 | `OPTIONS` 不计入限流 |
+
+> 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`security-hardening-2026-10-20.md`](security-hardening-2026-10-20.md)。
 
 ---
 

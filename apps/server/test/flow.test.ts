@@ -160,7 +160,7 @@ function pendingTask(inst: any): any {
 beforeAll(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'lc-flow-test-'))
   process.env.LC_DATA_DIR = dataDir
-  process.env.LC_JWT_SECRET = 'test-secret'
+  process.env.LC_JWT_SECRET = 'test-secret-0123456789-abcdefghij'
 
   app = await NestFactory.create(AppModule, { logger: ['error'] })
   app.setGlobalPrefix('api/v1')

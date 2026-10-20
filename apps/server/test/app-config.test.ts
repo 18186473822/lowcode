@@ -43,7 +43,7 @@ async function login(username: string, password: string): Promise<string> {
 beforeAll(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'lc-appcfg-test-'))
   process.env.LC_DATA_DIR = dataDir
-  process.env.LC_JWT_SECRET = 'test-secret'
+  process.env.LC_JWT_SECRET = 'test-secret-0123456789-abcdefghij'
   app = await NestFactory.create(AppModule, { logger: false })
   app.setGlobalPrefix('api/v1')
   await app.listen(0, '127.0.0.1')

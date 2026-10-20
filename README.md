@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成），Phase 4「生产化与开放」未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固首批（JWT / CORS / 限流）完成，其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -37,6 +37,27 @@ pnpm -F @lc/runtime dev:h5
 ```
 
 > 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
+
+### 安全配置（Phase 4）
+
+服务端**不自动加载 `.env`**，需在启动前注入环境变量。生产至少设置：
+
+```bash
+export NODE_ENV=production
+export LC_JWT_SECRET="$(openssl rand -base64 48)"   # ≥32 字符
+export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行跨域
+```
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `LC_JWT_SECRET` | 非生产回退开发密钥 | 生产必填，≥32 字符；禁止仓库内置开发值 |
+| `LC_CORS_ORIGINS` | 开发 `localhost:5173/5174` | 逗号分隔的完整源；拒绝 `*`、路径、查询 |
+| `LC_RATE_LIMIT_WINDOW_MS` | `60000` | 限流窗口 |
+| `LC_RATE_LIMIT_MAX` | `600` | 普通接口每 IP 每窗口上限 |
+| `LC_LOGIN_RATE_LIMIT_MAX` | `20` | 登录接口每 IP 每窗口上限 |
+| `LC_TRUST_PROXY` | `false` | 反向代理后设 `true`（仅信任一层） |
+
+超限返回 `429 { code: 'RATE_LIMITED' }` 与 `Retry-After`。当前为单进程内存限流，多实例部署需换 Redis；详见 [`docs/security-hardening-2026-10-20.md`](docs/security-hardening-2026-10-20.md)。
 
 开发账号（内存种子，**仅限本地**）：
 

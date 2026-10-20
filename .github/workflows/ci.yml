@@ -61,6 +61,10 @@ jobs:
           curl -sf http://localhost:3000/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
           kill $SERVER_PID
 
+      # 安全加固冒烟：JWT fail-closed / CORS 白名单 / 登录限流（独立端口 3100/3103/3199）
+      - name: Security smoke
+        run: node apps/server/scripts/smoke-security.mjs
+
       # 体积阈值告警（方案 9.2：超阈值只告警不失败）
       - name: Bundle size warning
         run: |
