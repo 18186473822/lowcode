@@ -36,6 +36,8 @@ pnpm -F @lc/runtime dev:h5
 #    → http://127.0.0.1:5173
 ```
 
+> 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
+
 开发账号（内存种子，**仅限本地**）：
 
 | 账号 | 密码 | 角色 |
