@@ -1,0 +1,19 @@
+{
+  "name": "@lc/materials",
+  "version": "0.1.0",
+  "private": true,
+  "description": "低代码物料库（uni-app 组件 + meta 元数据）—— 由 easycom 按 `^lc-(.*)$` → `src/$1/index.vue` 解析，不独立编译（宿主 vite 直接消费源码）",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*"
+  },
+  "dependencies": {
+    "@lc/schema": "workspace:*",
+    "@lc/tokens": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "低代码运行时壳",
+  "appid": "",
+  "description": "低代码平台 uni-app 运行时壳（Phase 1）",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "vueVersion": "3",
+  "h5": {
+    "title": "低代码运行时壳",
+    "router": {
+      "mode": "hash",
+      "base": "/"
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true
+  }
+}

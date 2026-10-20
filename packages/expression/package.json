@@ -1,0 +1,22 @@
+{
+  "name": "@lc/expression",
+  "version": "0.1.0",
+  "description": "受限表达式引擎：词法 → 语法(递归下降) → AST 求值，零 eval/new Function，天然沙箱",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

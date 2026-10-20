@@ -1,0 +1,34 @@
+{
+  "name": "@lc/designer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "设计器核心包：uni-shim（PC 渲染 uni 物料，D-A1）+ 物料静态映射 + 画布组件 + schema 树操作（纯函数）",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./shim.css": "./src/shim/shim.css",
+    "./panel.css": "./src/styles/panel.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lc/materials": "workspace:*",
+    "@lc/renderer": "workspace:*",
+    "@lc/schema": "workspace:*",
+    "@lc/tokens": "workspace:*",
+    "pinia": "^2.3.0"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/test-utils": "^2.5.1",
+    "jsdom": "^25.0.1",
+    "typescript": "5.9.3"
+  }
+}

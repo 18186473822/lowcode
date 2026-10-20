@@ -1,0 +1,400 @@
+/**
+ * panel.css —— 设计器面板共用件（**非 scoped**，跨组件复用）
+ *
+ * 规范：docs/design-system.md §3（组件规格）/ §7.1（面板布局：标签列 72 · 属性行高 30 · 字号 13）
+ * 令牌：./tokens.css
+ *
+ * 为什么单独成文件：`.setter` / `.op-btn` / `.panel-err` 原先在 PropsPanel / ModelPanel /
+ * RbacPanel 各有一份 `<style scoped>` 副本，且取值还不一致（标签列 84 / 64px、字号 12 / 13px）。
+ * 收敛为一份共享样式后，改一处即三面板同步。
+ *
+ * 约定：本文件只放**跨面板复用**的共用件；单面板特有的布局类（`.lc-props-panel__*` /
+ *      `.model-*` / `.rbac-*`）仍留在各自组件的 scoped 块里。
+ *      scoped 选择器带 `[data-v-*]` 属性，优先级高于本文件 —— 面板需要局部改写时
+ *      在自己的 scoped 块里覆盖即可（见 PropsPanel 的 `.lc-props-panel__ops .op-btn`）。
+ */
+
+/* ============================================================
+ * 面板标题 / 说明
+ * ============================================================ */
+
+.panel-title {
+  margin: 0 0 var(--lc-space-3);
+  font-size: var(--lc-font-body-sm);
+  font-weight: 600;
+  color: var(--lc-text-primary);
+}
+
+/* 面板头部：标题 + 可选元信息（计数等）。
+   三个面板共用同一形态，不再各自实现 __head —— 否则同一层级会出现两种字号与描边。 */
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lc-space-2);
+  margin: 0 0 var(--lc-space-3);
+}
+.panel-head > .panel-title {
+  margin: 0;
+  min-width: 0;
+}
+.panel-head__meta {
+  flex-shrink: 0;
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-tertiary);
+}
+
+.panel-note {
+  margin: var(--lc-space-3) 0 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-tertiary);
+  line-height: 1.6;
+}
+
+/* ============================================================
+ * 轻量操作按钮（表格内 / 面板内 / 表单底部）
+ * 注意：不含 flex 布局 —— 需要等宽平铺的面板自行在 scoped 块里覆盖。
+ * ============================================================ */
+
+.op-btn {
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  line-height: 1.4;
+  border: var(--lc-border-width) solid var(--lc-border-strong);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-surface);
+  color: var(--lc-text-label);
+  cursor: pointer;
+  transition:
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.op-btn:hover:not(:disabled) {
+  border-color: var(--lc-action-primary);
+  color: var(--lc-action-primary);
+}
+/* 点击态（§3.2 六态之「点击」）—— 次级按钮用画布底压下，主/危险按钮用更深一档的同色 */
+.op-btn:active:not(:disabled) {
+  background: var(--lc-bg-canvas);
+}
+.op-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.op-btn:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.op-btn--primary {
+  border-color: var(--lc-action-primary);
+  background: var(--lc-action-primary);
+  color: var(--lc-action-primary-text);
+}
+.op-btn--primary:hover:not(:disabled) {
+  background: var(--lc-action-primary-hover);
+  border-color: var(--lc-action-primary-hover);
+  color: var(--lc-action-primary-text);
+}
+.op-btn--primary:active:not(:disabled) {
+  background: var(--lc-action-primary-active);
+  border-color: var(--lc-action-primary-active);
+}
+.op-btn--danger:hover:not(:disabled) {
+  border-color: var(--lc-status-danger);
+  color: var(--lc-status-danger);
+}
+.op-btn--danger:active:not(:disabled) {
+  background: var(--lc-status-danger-active);
+  border-color: var(--lc-status-danger-active);
+  color: var(--lc-action-primary-text);
+}
+.op-btn--icon {
+  padding: 5px 7px;
+}
+/* 加载态（§3.2）：文案转透明但**保留占位宽度**（按钮不跳动），同时配合 disabled 阻断重复提交 */
+.op-btn--loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+.op-btn--loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--lc-border-default);
+  border-top-color: var(--lc-action-primary);
+  border-radius: 50%;
+  animation: lc-spin 800ms linear infinite;
+}
+
+/* ============================================================
+ * 表单行 setter（标签列 72 · 行高 30）
+ * ============================================================ */
+
+.setter {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 3px var(--lc-space-2);
+  align-items: center;
+  font-size: var(--lc-font-body-sm);
+  cursor: default;
+}
+.setter__label {
+  color: var(--lc-text-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setter__req {
+  color: var(--lc-status-danger);
+  font-style: normal;
+  margin-left: 2px;
+}
+.setter__ctl {
+  min-width: 0;
+}
+.setter__input,
+.setter__select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 5px var(--lc-space-2);
+  font-family: inherit;
+  font-size: var(--lc-font-body-sm);
+  border: var(--lc-border-width) solid var(--lc-border-strong);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-surface);
+  color: var(--lc-text-primary);
+  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.setter__input:focus,
+.setter__select:focus {
+  outline: none;
+  border-color: var(--lc-border-focus);
+  box-shadow: var(--lc-focus-ring);
+}
+.setter__switch {
+  justify-self: start;
+  cursor: pointer;
+}
+.setter__help {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--lc-font-caption);
+  line-height: 1.6;
+  color: var(--lc-text-tertiary);
+}
+
+/* optionList setter */
+.setter__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  width: 100%;
+}
+.setter__option-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+  width: 100%;
+}
+.setter__option-label,
+.setter__option-value {
+  flex: 1;
+  min-width: 0;
+}
+.setter__option-del {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--lc-text-tertiary);
+  font-size: var(--lc-font-body);
+  line-height: 1;
+  cursor: pointer;
+}
+.setter__option-del:hover {
+  color: var(--lc-status-danger);
+}
+.setter__option-add {
+  align-self: flex-start;
+  padding: 3px var(--lc-space-2);
+  border: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-strong);
+  border-radius: var(--lc-radius-xs);
+  background: none;
+  color: var(--lc-text-link);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  cursor: pointer;
+  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.setter__option-add:hover {
+  border-color: var(--lc-action-primary);
+}
+
+/* color setter */
+.setter__color {
+  justify-self: start;
+  width: 42px;
+  height: 26px;
+  padding: 1px;
+  border: var(--lc-border-width) solid var(--lc-border-strong);
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-bg-surface);
+  cursor: pointer;
+}
+
+/* 未实现的 setter 占位（不静默丢配置，D-A4） */
+.setter-unsupported {
+  display: inline-block;
+  padding: 3px var(--lc-space-2);
+  border: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-strong);
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-bg-subtle);
+  color: var(--lc-text-tertiary);
+  font-size: var(--lc-font-micro);
+  cursor: not-allowed;
+}
+
+/* ============================================================
+ * 就地错误块
+ * ============================================================ */
+
+.panel-err {
+  margin: 6px 0 0;
+  padding: 6px var(--lc-space-2);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-status-danger-bg);
+  color: var(--lc-status-danger);
+  font-size: var(--lc-font-caption);
+  line-height: 1.6;
+}
+.panel-err + .panel-err {
+  margin-top: 6px;
+}
+
+/* ============================================================
+ * 状态视图 —— 空 / 加载 / 错误（design-system.md §5）
+ * 每个数据驱动的表面三态必须齐备；空态必须有出口，不写「暂无数据」了事。
+ * ============================================================ */
+
+.lc-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lc-space-2);
+  padding: var(--lc-space-6) var(--lc-space-3);
+  text-align: center;
+}
+.lc-state--inline {
+  padding: var(--lc-space-4) var(--lc-space-2);
+}
+.lc-state__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--lc-text-tertiary);
+}
+.lc-state--error .lc-state__icon {
+  color: var(--lc-status-danger);
+}
+.lc-state__title {
+  margin: 0;
+  font-size: var(--lc-font-body-sm);
+  font-weight: 600;
+  color: var(--lc-text-primary);
+}
+.lc-state--error .lc-state__title {
+  color: var(--lc-status-danger);
+}
+.lc-state__text {
+  margin: 0;
+  font-size: var(--lc-font-caption);
+  line-height: 1.6;
+  color: var(--lc-text-secondary);
+}
+.lc-state__action {
+  margin-top: var(--lc-space-1);
+  padding: 5px 12px;
+  border: var(--lc-border-width) solid var(--lc-action-primary);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-surface);
+  color: var(--lc-action-primary);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    border-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.lc-state__action:hover {
+  background: var(--lc-action-primary-subtle);
+}
+.lc-state__action:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+
+/* 内联加载指示（行内、按钮旁等窄场景） */
+.lc-state__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--lc-border-default);
+  border-top-color: var(--lc-action-primary);
+  border-radius: 50%;
+  animation: lc-spin 800ms linear infinite;
+}
+@keyframes lc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 骨架屏（1.2s 线性循环，不整屏遮罩） */
+.lc-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: var(--lc-space-2) 0;
+}
+.lc-skeleton__bar {
+  height: 12px;
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-bg-subtle);
+  animation: lc-skeleton-pulse 1.2s linear infinite;
+}
+.lc-skeleton__bar--title {
+  height: 16px;
+  background: var(--lc-border-default);
+}
+.lc-skeleton__bar--short {
+  width: 62%;
+}
+.lc-skeleton__bar--mid {
+  width: 82%;
+}
+@keyframes lc-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* 尊重系统「减少动态效果」偏好（design-system.md §8.2） */
+@media (prefers-reduced-motion: reduce) {
+  .lc-skeleton__bar,
+  .lc-state__spinner,
+  .op-btn--loading::after {
+    animation: none;
+  }
+}

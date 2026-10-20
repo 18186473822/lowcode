@@ -1,0 +1,108 @@
+/* uni-shim PC 样式（D-A1 · B-22 修正版）
+ *
+ * 分层：
+ *  ① 直出型标签兜底（view/text 是 SVG 标签被 Vue 直出，组件 shim 无效 → CSS 修语义）；
+ *  ② switch/image 直出元素的视觉（行为由 enhance.ts 增强器驱动 attribute/事件）；
+ *  ③ 组件 shim 控件（picker/radio-group，组件 shim 生效组）。
+ * 物料样式是 rpx，经 designer-web 的 rpx→px postcss 插件按 375/750 → ×0.5 转换。
+ * 色值一律引用 @lc/designer/tokens.css 令牌，亮暗主题自动生效。 */
+
+/* ---- ① view / text 语义修正（uni：view=块级、text=行内） ---- */
+view {
+  display: block;
+}
+text {
+  display: inline;
+}
+
+/* ---- ② switch（直出元素 + 增强器：checked attribute 驱动视觉） ---- */
+switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  background: var(--lc-border-strong);
+  border-radius: 13px;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background var(--lc-duration-base) var(--lc-ease-standard);
+  flex-shrink: 0;
+}
+/* :not 排除 Vue 对未知元素写的 checked="false"（它不是真 boolean-attr patch） */
+switch[checked]:not([checked='false']) {
+  background: var(--lc-action-primary);
+}
+switch[disabled]:not([disabled='false']) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+switch::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: var(--lc-action-primary-text);
+  border-radius: 50%;
+  transition: transform var(--lc-duration-base) var(--lc-ease-standard);
+  box-shadow: var(--lc-shadow-e2);
+}
+switch[checked]:not([checked='false'])::before {
+  transform: translateX(18px);
+}
+
+/* ---- ② image（直出元素 + 增强器把 src 同步为背景图） ---- */
+image {
+  display: block;
+  min-height: 40px;
+  background-color: var(--lc-canvas-shell);
+}
+
+/* ---- ③ picker（组件 shim） ---- */
+.lc-shim-picker {
+  display: block;
+}
+.lc-shim-picker__cell {
+  box-sizing: border-box;
+}
+.lc-shim-picker__cell--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lc-shim-picker__dropdown {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  padding: var(--lc-space-1) 0;
+  list-style: none;
+  min-width: 160px;
+  background: var(--lc-bg-surface);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-md);
+  box-shadow: var(--lc-shadow-e3);
+}
+.lc-shim-picker__option {
+  padding: var(--lc-space-2) 14px;
+  font-size: var(--lc-font-body);
+  color: var(--lc-text-primary);
+  cursor: pointer;
+}
+.lc-shim-picker__option:hover {
+  background: var(--lc-action-primary-subtle);
+}
+.lc-shim-picker__option--active {
+  color: var(--lc-action-primary);
+  font-weight: 600;
+}
+
+/* ---- ③ radio（组件 shim：原生 input，accent-color 上色） ---- */
+.lc-shim-radio {
+  accent-color: var(--lc-action-primary);
+  margin: 0 6px 0 0;
+}
+.lc-shim-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lc-space-3) 28px;
+}

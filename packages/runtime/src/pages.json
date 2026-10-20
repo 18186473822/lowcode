@@ -1,0 +1,76 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^lc-renderer$": "@lc/renderer/uni/lc-renderer.vue",
+      "^lc-node$": "@lc/renderer/uni/lc-node.vue",
+      "^lc-list-page$": "@lc/renderer/uni/lc-list-page.vue",
+      "^lc-detail-page$": "@lc/renderer/uni/lc-detail-page.vue",
+      "^lc-portal-page$": "@lc/renderer/uni/lc-portal-page.vue",
+      "^lc-(.*)$": "@lc/materials/src/$1/index.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "低代码平台",
+        "navigationBarBackgroundColor": "#2b6de8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationBarBackgroundColor": "#1746a2",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/view/index",
+      "style": {
+        "navigationBarTitleText": "页面",
+        "navigationBarBackgroundColor": "#2b6de8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/todo/index",
+      "style": {
+        "navigationBarTitleText": "待办中心",
+        "navigationBarBackgroundColor": "#2b6de8",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/todo/detail",
+      "style": {
+        "navigationBarTitleText": "审批详情",
+        "navigationBarBackgroundColor": "#2b6de8",
+        "navigationBarTextStyle": "white"
+      }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "pages-demo",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationBarTitleText": "物料演示",
+            "navigationBarBackgroundColor": "#2b6de8",
+            "navigationBarTextStyle": "white"
+          }
+        }
+      ]
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "低代码运行时壳",
+    "navigationBarBackgroundColor": "#2b6de8",
+    "backgroundColor": "#f5f6f7"
+  }
+}

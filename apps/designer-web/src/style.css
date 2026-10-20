@@ -1,0 +1,573 @@
+/**
+ * designer-web 全局布局样式
+ *
+ * 规范：docs/design-system.md §7.1（Web 设计器布局说明）
+ * 令牌：@lc/designer/tokens.css —— 本文件**不得出现任何硬编码色值**，
+ *       一律引用 --lc-* 语义层 / 组件层令牌，亮暗主题自动生效。
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  font-family: var(--lc-font-ui);
+  font-size: var(--lc-font-body);
+  line-height: var(--lc-lh-body);
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-canvas);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.designer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ---------------- 顶栏（深色 chrome，亮暗主题下都保持深色） ---------------- */
+
+.designer__top {
+  height: var(--lc-topbar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--lc-space-4);
+  background: var(--lc-topbar-bg);
+  color: var(--lc-topbar-text);
+  flex-shrink: 0;
+}
+.designer__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-3);
+  min-width: 0;
+}
+.designer__logo {
+  font-size: var(--lc-font-body-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* 页面标识：当前 pageId + 发布状态（design-system.md §7.1 顶栏） */
+.designer__page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+  padding: 3px var(--lc-space-2);
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-topbar-btn-bg);
+  font-size: var(--lc-font-micro);
+  white-space: nowrap;
+}
+.designer__page-id {
+  font-family: var(--lc-font-mono);
+  color: var(--lc-topbar-btn-text);
+}
+.designer__page-state {
+  color: var(--lc-topbar-text-muted);
+}
+/* 批 5 Profiler 徽标：等宽字体 + 弱化底色，悬浮 title 看 JSON */
+.designer__perf {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px var(--lc-space-2);
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-topbar-btn-bg);
+  color: var(--lc-topbar-text-muted);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  white-space: nowrap;
+  cursor: help;
+}
+
+.designer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+}
+
+/* 页面 ID 输入 */
+.pid-input {
+  width: 150px;
+  padding: 5px var(--lc-space-2);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-topbar-input-bg);
+  color: var(--lc-topbar-text);
+  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.pid-input:focus {
+  outline: none;
+  border-color: var(--lc-border-focus);
+}
+
+/* 页面列表下拉（2026-10-20）：与 pid-input 同款深色 chrome 控件 */
+.page-select {
+  min-width: 130px;
+  max-width: 190px;
+  padding: 5px var(--lc-space-2);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-topbar-input-bg);
+  color: var(--lc-topbar-text);
+}
+.page-select:focus {
+  outline: none;
+  border-color: var(--lc-border-focus);
+}
+.page-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 删除两步确认的第二态：危险色 chip（令牌随亮暗主题切换） */
+.top-btn--danger {
+  background: var(--lc-status-danger-bg);
+  border-color: var(--lc-text-danger);
+  color: var(--lc-text-danger);
+}
+.top-btn--danger:hover:not(:disabled) {
+  border-color: var(--lc-text-danger);
+  color: var(--lc-text-danger);
+}
+
+/* 顶栏按钮：两类 —— 工具栏·深色（次要） / 主（主操作） */
+.top-btn {
+  padding: 5px var(--lc-space-3);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-topbar-btn-bg);
+  color: var(--lc-topbar-btn-text);
+  cursor: pointer;
+  transition:
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.top-btn:hover:not(:disabled) {
+  border-color: var(--lc-brand-400);
+  color: var(--lc-topbar-text);
+}
+.top-btn--primary {
+  background: var(--lc-action-primary);
+  border-color: var(--lc-action-primary);
+  color: var(--lc-action-primary-text);
+}
+.top-btn--primary:hover:not(:disabled) {
+  background: var(--lc-action-primary-hover);
+  border-color: var(--lc-action-primary-hover);
+  color: var(--lc-action-primary-text);
+}
+/* 点击态（§3.2）：深色顶栏上的次要按钮用更深一档压下 */
+.top-btn:active:not(:disabled) {
+  background: var(--lc-topbar-input-bg);
+}
+.top-btn--primary:active:not(:disabled) {
+  background: var(--lc-action-primary-active);
+  border-color: var(--lc-action-primary-active);
+}
+.top-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.top-btn:focus-visible,
+.pid-input:focus-visible,
+.page-select:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.top-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--lc-topbar-sep);
+  margin: 0 2px;
+}
+
+/* 保存状态徽标 */
+.save-badge {
+  padding: var(--lc-space-1) 10px;
+  font-size: var(--lc-font-micro);
+  border-radius: var(--lc-radius-pill);
+  white-space: nowrap;
+  background: var(--lc-topbar-badge-idle-bg);
+  color: var(--lc-topbar-badge-idle-text);
+}
+.save-badge--dirty {
+  background: var(--lc-topbar-badge-dirty-bg);
+  color: var(--lc-topbar-badge-dirty-text);
+}
+.save-badge--saving,
+.save-badge--loading {
+  background: var(--lc-topbar-badge-busy-bg);
+  color: var(--lc-topbar-badge-busy-text);
+}
+.save-badge--error {
+  background: var(--lc-topbar-badge-error-bg);
+  color: var(--lc-topbar-badge-error-text);
+}
+.save-badge--idle {
+  background: var(--lc-topbar-badge-idle-bg);
+  color: var(--lc-topbar-badge-idle-text);
+}
+
+/* ---------------- 三栏主体 ---------------- */
+
+.designer__body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+.designer__aside {
+  width: var(--lc-aside-w-left);
+  background: var(--lc-bg-surface);
+  padding: var(--lc-space-3);
+  overflow: auto;
+  flex-shrink: 0;
+}
+.designer__aside--left {
+  border-right: var(--lc-border-width) solid var(--lc-border-default);
+}
+.designer__aside--right {
+  width: var(--lc-aside-w-right);
+  border-left: var(--lc-border-width) solid var(--lc-border-default);
+}
+.designer__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--lc-bg-canvas);
+}
+
+/* 标准页（list/detail）提示条 */
+.std-hint {
+  flex-shrink: 0;
+  padding: var(--lc-space-2) var(--lc-space-4);
+  font-size: var(--lc-font-caption);
+  line-height: 1.5;
+  color: var(--lc-text-link);
+  background: var(--lc-status-info-bg);
+  border-bottom: var(--lc-border-width) solid var(--lc-brand-200);
+}
+.std-hint strong {
+  margin-right: var(--lc-space-1);
+}
+
+/* ---------------- 画布工具条（§7.1 高 40 · 白底 · 左设备 / 右缩放与标尺） ---------------- */
+
+.canvas-bar {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-4);
+  padding: 0 var(--lc-space-4);
+  background: var(--lc-bg-surface);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.canvas-bar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+}
+.canvas-bar__zoom {
+  min-width: 44px;
+  text-align: center;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+.canvas-chip {
+  padding: 4px var(--lc-space-2);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-sm);
+  background: none;
+  color: var(--lc-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.canvas-chip:hover:not(:disabled) {
+  background: var(--lc-bg-subtle);
+  color: var(--lc-text-primary);
+}
+.canvas-chip:active:not(:disabled) {
+  background: var(--lc-bg-canvas);
+}
+.canvas-chip--on {
+  background: var(--lc-action-primary-subtle);
+  border-color: var(--lc-brand-200);
+  color: var(--lc-action-primary);
+  font-weight: 600;
+}
+.canvas-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.canvas-chip:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+
+/* 标尺 · 参考线（§7.1）：开启时用 20px 双轴网格，左上角留空白角块 */
+.canvas-stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.canvas-stage__main {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.canvas-stage--ruler {
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: 20px minmax(0, 1fr);
+}
+.canvas-stage--ruler .canvas-ruler--corner {
+  grid-area: 1 / 1;
+}
+.canvas-stage--ruler .canvas-ruler--x {
+  grid-area: 1 / 2;
+}
+.canvas-stage--ruler .canvas-ruler--y {
+  grid-area: 2 / 1;
+}
+.canvas-stage--ruler .canvas-stage__main {
+  grid-area: 2 / 2;
+}
+
+/* 刻度：8px 细刻度（短）+ 40px 粗刻度（长），均贴内侧边缘 */
+.canvas-ruler {
+  background-color: var(--lc-bg-surface);
+}
+.canvas-ruler--corner {
+  border-right: var(--lc-border-width) solid var(--lc-border-default);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.canvas-ruler--x {
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+  background-image:
+    repeating-linear-gradient(to right, var(--lc-border-strong) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(to right, var(--lc-text-tertiary) 0 1px, transparent 1px 40px);
+  background-size:
+    100% 5px,
+    100% 10px;
+  background-position:
+    0 100%,
+    0 100%;
+  background-repeat: repeat-x;
+}
+.canvas-ruler--y {
+  border-right: var(--lc-border-width) solid var(--lc-border-default);
+  background-image:
+    repeating-linear-gradient(to bottom, var(--lc-border-strong) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(to bottom, var(--lc-text-tertiary) 0 1px, transparent 1px 40px);
+  background-size:
+    5px 100%,
+    10px 100%;
+  background-position:
+    100% 0,
+    100% 0;
+  background-repeat: repeat-y;
+}
+
+/* 数据模型 / 权限管理视图（与画布互斥，占满 body 区域） */
+.designer__models {
+  flex: 1;
+  overflow: auto;
+  background: var(--lc-bg-surface);
+  padding: var(--lc-space-4) var(--lc-space-5);
+}
+.designer__models > .lc-model-panel,
+.designer__models > .lc-rbac-panel {
+  max-width: 720px;
+}
+
+/* ---------------- 面板通用 ---------------- */
+/*
+ * `.panel-title` / `.panel-note` / `.setter*` / `.op-btn*` / `.panel-err` / `.lc-state*` /
+ * `.lc-skeleton*` 已收敛到 @lc/designer/panel.css（跨面板唯一实现，见文档 §3），
+ * 此处不再重复定义 —— 避免同一共用件在多处取值漂移。
+ */
+
+/* 左栏「物料 / 大纲」页签 */
+.left-tabs {
+  display: flex;
+  gap: 0;
+  margin: calc(var(--lc-space-3) * -1) calc(var(--lc-space-3) * -1) var(--lc-space-2);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+  background: var(--lc-bg-subtle);
+}
+.left-tabs__btn {
+  flex: 1;
+  padding: 7px 0;
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--lc-text-secondary);
+  cursor: pointer;
+  transition: color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.left-tabs__btn:hover {
+  color: var(--lc-text-primary);
+}
+.left-tabs__btn--on {
+  border-bottom-color: var(--lc-action-primary);
+  background: var(--lc-bg-surface);
+  color: var(--lc-text-primary);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* ---------------- 底栏（校验摘要 + 操作状态） ---------------- */
+
+.designer__bottom {
+  min-height: var(--lc-bottombar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-4);
+  padding: var(--lc-space-1) var(--lc-space-4);
+  font-size: var(--lc-font-caption);
+  background: var(--lc-bg-surface);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+  color: var(--lc-text-secondary);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.bottom__errors {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  color: var(--lc-status-danger);
+  overflow: hidden;
+}
+.bottom__err {
+  padding: 1px 6px;
+  background: var(--lc-status-danger-bg);
+  border-radius: var(--lc-radius-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.bottom__ok {
+  color: var(--lc-status-success);
+}
+.bottom__status {
+  color: var(--lc-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ---------------- 响应式（design-system.md §6） ----------------
+ * 栅格用 min-width 递进（移动优先）；抽屉形态是「窄屏才需要」的降级，
+ * 故用 max-width 表达，与递进策略不冲突。 */
+
+.designer__body {
+  position: relative;
+}
+
+/* Tablet 及以下（< 1024）：左右栏折叠为抽屉，浮在画布之上，不挤压画布宽度 */
+@media (max-width: 1023px) {
+  /* 顶栏进入抽屉形态后控件已很多：页面/性能徽标与「页面下拉」信息重复，优先让位 */
+  .designer__page,
+  .designer__perf {
+    display: none;
+  }
+  .designer__aside--drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: var(--lc-shadow-e3);
+    transition: transform var(--lc-duration-base) var(--lc-ease-standard);
+  }
+  .designer__aside--drawer.designer__aside--left {
+    left: 0;
+    transform: translateX(-101%); /* 101% 避开亚像素缝 */
+  }
+  .designer__aside--drawer.designer__aside--right {
+    right: 0;
+    transform: translateX(101%);
+  }
+  .designer__aside--drawer.designer__aside--open {
+    transform: translateX(0);
+  }
+}
+
+/* 抽屉遮罩：点击任意处收起 */
+.designer__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--lc-overlay-scrim);
+}
+
+/* Wide（≥ 1440）：左右栏加宽 —— 就地覆盖组件层令牌，令牌定义仍只在 tokens.css */
+@media (min-width: 1440px) {
+  .designer {
+    --lc-aside-w-left: 280px;
+    --lc-aside-w-right: 340px;
+  }
+}
+
+/* Mobile（< 640）：设计器不提供完整编辑态 */
+.designer__gate {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lc-space-6);
+  background: var(--lc-bg-canvas);
+}
+.designer__gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--lc-space-3);
+  max-width: 420px;
+}
+.designer__gate-card h2 {
+  font-size: var(--lc-font-h2);
+  color: var(--lc-text-primary);
+}
+.designer__gate-card p {
+  font-size: var(--lc-font-body-sm);
+  line-height: 1.7;
+  color: var(--lc-text-secondary);
+}
+
+/* 尊重系统「减少动态效果」偏好（design-system.md §8.2） */
+@media (prefers-reduced-motion: reduce) {
+  .designer__aside--drawer {
+    transition: none;
+  }
+}

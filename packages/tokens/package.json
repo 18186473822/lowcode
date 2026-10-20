@@ -1,0 +1,22 @@
+{
+  "name": "@lc/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "跨端 UI 设计令牌（唯一真相源）：CSS 变量 + JS 字面量常量。规范见 docs/design-system.md",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./tokens.rpx.css": "./src/tokens.rpx.css",
+    "./src/*": "./src/*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "5.9.3"
+  }
+}

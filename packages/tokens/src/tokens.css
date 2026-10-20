@@ -1,0 +1,317 @@
+/**
+ * tokens.css —— 跨端 UI 设计系统 v1.0 · 设计令牌层（唯一真相源）
+ *
+ * 规范文档：docs/design-system.md（与本文档冲突时以文档为准，改完同步回文档）
+ * 设计稿：Ardot《LowCode 跨端 UI 设计系统》fileId 736943597329293
+ *
+ * 三层结构（单向依赖，页面只允许引用 L2 / L3）：
+ *   L1 原始层 Primitive/Scale —— 纯取值，无语义，只被 L2 引用
+ *   L2 语义层 Semantic        —— 按用途命名，含 Light / Dark 两套取值
+ *   L3 组件层 Component       —— 单组件可调项，粒度最细
+ *
+ * 主题切换：根节点加 `data-theme="dark"`（见 apps/designer-web/src/theme.ts），
+ * 组件与页面代码不感知主题，只引用语义 / 组件令牌。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ============================================================
+   * L1 原始层 · Primitive（色阶）
+   * ============================================================ */
+
+  --lc-brand-50: #eff5ff;
+  --lc-brand-100: #dbe8fe;
+  --lc-brand-200: #bfd7fe;
+  --lc-brand-300: #93bbfd;
+  --lc-brand-400: #6096fa;
+  --lc-brand-500: #2b6de8; /* 主品牌色（沿用现有主色） */
+  --lc-brand-600: #1e5ed0;
+  --lc-brand-700: #1a4ba8;
+  --lc-brand-800: #1a3f85;
+  --lc-brand-900: #16306a;
+
+  --lc-neutral-0: #ffffff;
+  --lc-neutral-50: #f7f9fb;
+  --lc-neutral-100: #eef1f5;
+  --lc-neutral-200: #e3e8ee;
+  --lc-neutral-300: #cbd3dc;
+  --lc-neutral-400: #9aa5b1;
+  --lc-neutral-500: #6b7684;
+  --lc-neutral-600: #4b5563;
+  --lc-neutral-700: #374151;
+  --lc-neutral-800: #1f2329; /* 一级文字 / 顶栏（沿用现有深色） */
+  --lc-neutral-900: #14181d;
+
+  --lc-success-50: #e9f5ee;
+  --lc-success-500: #1a9c4a;
+  --lc-success-600: #188038; /* 沿用现有成功色 */
+
+  --lc-warning-50: #fff8e6;
+  --lc-warning-500: #e08700;
+  --lc-warning-600: #b96f00;
+
+  --lc-danger-50: #fdecea;
+  --lc-danger-500: #d93025; /* 沿用现有错误色 */
+  --lc-danger-600: #b3261e;
+
+  /* 暗色底阶（仅暗色模式使用） */
+  --lc-dark-0: #0f1319;
+  --lc-dark-100: #171c24;
+  --lc-dark-200: #1e242e;
+  --lc-dark-300: #2a313c;
+  --lc-dark-400: #3d4757;
+
+  /* ============================================================
+   * L1 原始层 · Scale（数值刻度）
+   * ============================================================ */
+
+  --lc-space-0: 0;
+  --lc-space-1: 4px;
+  --lc-space-2: 8px;
+  --lc-space-3: 12px;
+  --lc-space-4: 16px;
+  --lc-space-5: 20px;
+  --lc-space-6: 24px;
+  --lc-space-8: 32px;
+  --lc-space-10: 40px;
+  --lc-space-12: 48px;
+  --lc-space-16: 64px;
+
+  --lc-radius-xs: 4px;
+  --lc-radius-sm: 6px;
+  --lc-radius-md: 8px;
+  --lc-radius-lg: 12px;
+  --lc-radius-xl: 16px;
+  --lc-radius-pill: 999px;
+
+  --lc-font-micro: 11px;
+  --lc-font-caption: 12px;
+  --lc-font-body-sm: 13px;
+  --lc-font-body: 14px; /* 全局基准 */
+  --lc-font-body-lg: 15px;
+  --lc-font-h3: 16px;
+  --lc-font-h2: 18px;
+  --lc-font-h1: 22px;
+  --lc-font-display: 28px;
+
+  --lc-lh-caption: 18px;
+  --lc-lh-body: 22px;
+  --lc-lh-h3: 24px;
+  --lc-lh-h2: 26px;
+  --lc-lh-h1: 30px;
+  --lc-lh-display: 36px;
+
+  --lc-weight-regular: 400;
+  --lc-weight-medium: 500;
+  --lc-weight-semibold: 600;
+  --lc-weight-bold: 700;
+
+  --lc-font-ui: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', -apple-system, 'Segoe UI',
+    sans-serif;
+  --lc-font-mono: 'Noto Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --lc-duration-fast: 120ms;
+  --lc-duration-base: 200ms;
+  --lc-duration-slow: 320ms;
+  --lc-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ============================================================
+   * L2 语义层 · Semantic（Light）
+   * ============================================================ */
+
+  --lc-bg-canvas: var(--lc-neutral-100); /* 画布底 / 页面底 */
+  --lc-bg-surface: var(--lc-neutral-0); /* 面板 / 卡片 / 输入框底 */
+  --lc-bg-subtle: var(--lc-neutral-50); /* 次级填充 / 表头 / 分组底 */
+  --lc-bg-raised: var(--lc-neutral-0);
+  --lc-bg-inverse: var(--lc-neutral-800);
+
+  --lc-text-primary: var(--lc-neutral-800); /* 一级文字 · 标题与正文主体 */
+  --lc-text-label: var(--lc-neutral-700); /* 二级文字 · 表单标签 / 面板字段名 */
+  --lc-text-secondary: var(--lc-neutral-500); /* 三级文字 · 说明 / 表格正文 */
+  --lc-text-tertiary: var(--lc-neutral-400); /* 辅助 · 占位符 / 时间戳 / 禁用 */
+  --lc-text-inverse: #ffffff;
+  --lc-text-link: var(--lc-brand-500);
+  --lc-text-danger: var(--lc-danger-500);
+  /* 品牌底上的文字（hero 渐变、蓝色卡片等）：亮暗模式一致，均为白 */
+  --lc-text-on-brand: #ffffff;
+  --lc-text-on-brand-muted: rgba(255, 255, 255, 0.8);
+
+  --lc-border-default: var(--lc-neutral-200);
+  --lc-border-strong: var(--lc-neutral-300);
+  --lc-border-focus: var(--lc-brand-500);
+
+  --lc-action-primary: var(--lc-brand-500);
+  --lc-action-primary-hover: var(--lc-brand-600);
+  --lc-action-primary-active: var(--lc-brand-700);
+  --lc-action-primary-subtle: var(--lc-brand-50);
+  --lc-action-primary-text: #ffffff;
+
+  --lc-status-success: var(--lc-success-600);
+  --lc-status-success-bg: var(--lc-success-50);
+  --lc-status-warning: var(--lc-warning-600);
+  --lc-status-warning-bg: var(--lc-warning-50);
+  --lc-status-danger: var(--lc-danger-500);
+  --lc-status-danger-active: var(--lc-danger-600); /* 危险操作的「点击」态（§3.2） */
+  --lc-status-danger-bg: var(--lc-danger-50);
+  --lc-status-info-bg: var(--lc-brand-50);
+
+  --lc-overlay-scrim: rgba(20, 24, 29, 0.45);
+
+  /* 阴影层级（暗色下改为 border-strong 描边区分，见下方覆盖） */
+  --lc-shadow-e1: 0 1px 3px rgba(16, 24, 40, 0.08);
+  --lc-shadow-e2: 0 4px 10px -2px rgba(16, 24, 40, 0.1);
+  --lc-shadow-e3: 0 10px 24px -6px rgba(16, 24, 40, 0.14);
+  --lc-shadow-e4: 0 20px 40px -12px rgba(16, 24, 40, 0.18);
+
+  /* ============================================================
+   * L3 组件层 · Component（Light）
+   * ============================================================ */
+
+  /* 按钮 */
+  --lc-btn-h-sm: 24px;
+  --lc-btn-h-md: 32px;
+  --lc-btn-h-lg: 36px;
+  --lc-btn-h-touch: 44px; /* 移动端触控 */
+  --lc-btn-radius: var(--lc-radius-sm);
+  --lc-btn-pad-y: 8px;
+  --lc-btn-pad-x: 16px;
+
+  /* 输入框 */
+  --lc-input-h: 32px;
+  --lc-input-radius: var(--lc-radius-sm);
+  --lc-input-pad-y: 4px;
+  --lc-input-pad-x: 8px;
+
+  /* 面板 / 卡片 */
+  --lc-panel-radius: var(--lc-radius-md) ;
+  --lc-border-width: 1px;
+  --lc-border-dashed: dashed;
+
+  /* 组件层颜色别名 —— 与设计稿 Component 变量集一一对应，供组件按设计稿命名取值。
+     取值一律指向语义层（组件层不新增颜色），故大部分无需在暗色块重复覆盖；
+     仅「暗色下语义角色不同」的两项在下方 Dark 区块单独覆盖（见 --lc-btn-default-*）。 */
+  --lc-btn-primary-bg: var(--lc-action-primary);
+  --lc-btn-primary-bg-hover: var(--lc-action-primary-hover);
+  --lc-btn-default-bg: var(--lc-bg-surface);
+  --lc-btn-default-border: var(--lc-border-strong);
+  --lc-btn-default-text: var(--lc-text-label);
+  --lc-input-bg: var(--lc-bg-surface);
+  --lc-input-border: var(--lc-border-strong);
+  --lc-input-border-focus: var(--lc-border-focus);
+  --lc-input-placeholder: var(--lc-text-tertiary);
+  --lc-panel-border: var(--lc-border-default);
+  --lc-table-header-bg: var(--lc-bg-subtle);
+  --lc-table-row-hover: var(--lc-bg-subtle);
+  --lc-table-border: var(--lc-border-default);
+
+  /* 设计器顶栏（深色 chrome，亮暗主题下都保持深色） */
+  --lc-topbar-bg: var(--lc-neutral-800);
+  --lc-topbar-text: #ffffff;
+  --lc-topbar-text-muted: #9ca3af;
+  --lc-topbar-btn-bg: var(--lc-neutral-700);
+  --lc-topbar-btn-border: var(--lc-neutral-600);
+  --lc-topbar-btn-text: #e5e7eb;
+  --lc-topbar-input-bg: #111827;
+  --lc-topbar-sep: var(--lc-neutral-600);
+  --lc-topbar-h: 48px;
+
+  /* 顶栏保存状态徽标（恒在深色顶栏上，不随主题翻转） */
+  --lc-topbar-badge-idle-bg: #14532d;
+  --lc-topbar-badge-idle-text: #bbf7d0;
+  --lc-topbar-badge-dirty-bg: #7c5e10;
+  --lc-topbar-badge-dirty-text: #fde68a;
+  --lc-topbar-badge-busy-bg: #1e3a8a;
+  --lc-topbar-badge-busy-text: #bfdbfe;
+  --lc-topbar-badge-error-bg: #7f1d1d;
+  --lc-topbar-badge-error-text: #fecaca;
+
+  /* 设计器外壳尺寸 */
+  --lc-aside-w-left: 220px;
+  --lc-aside-w-right: 280px;
+  --lc-bottombar-h: 30px;
+  --lc-device-w: 375px;
+  --lc-device-min-h: 620px;
+  --lc-device-radius: var(--lc-radius-xl); /* 16 —— §2.4 规定手机壳用 xl */
+  --lc-canvas-shell: var(--lc-neutral-0); /* 手机壳内底（画布内渲染色，等同 bg-surface） */
+
+  /* 拖拽插入指示线 */
+  --lc-drag-hint: var(--lc-brand-500);
+  --lc-drag-hint-bg: rgba(43, 109, 232, 0.08);
+
+  /* 品牌渐变（装饰，L3）：hero 卡等。内嵌 var 无法被令牌门禁解析，
+     故只在 CSS 侧定义，不进设计变量集（见 docs/design-system.md §9.2） */
+  --lc-gradient-brand: linear-gradient(135deg, var(--lc-brand-500) 0%, var(--lc-brand-400) 100%);
+
+  /* 焦点环 */
+  --lc-focus-ring: 0 0 0 2px var(--lc-brand-300);
+}
+
+/* ============================================================
+ * L2 / L3 · Dark 模式覆盖
+ * ============================================================ */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --lc-bg-canvas: var(--lc-dark-0);
+  --lc-bg-surface: var(--lc-dark-100);
+  --lc-bg-subtle: var(--lc-dark-200);
+  --lc-bg-raised: var(--lc-dark-200);
+  --lc-bg-inverse: var(--lc-neutral-50);
+
+  --lc-text-primary: #e8ecf2;
+  --lc-text-label: #c6cdd8;
+  --lc-text-secondary: var(--lc-neutral-400);
+  --lc-text-tertiary: var(--lc-neutral-500);
+  --lc-text-inverse: var(--lc-neutral-800);
+  --lc-text-link: var(--lc-brand-400);
+  --lc-text-danger: #f77370;
+
+  --lc-border-default: var(--lc-dark-300);
+  --lc-border-strong: var(--lc-dark-400);
+  --lc-border-focus: var(--lc-brand-400);
+
+  --lc-action-primary: #4d88f0;
+  --lc-action-primary-hover: var(--lc-brand-400);
+  --lc-action-primary-active: var(--lc-brand-500);
+  --lc-action-primary-subtle: var(--lc-brand-800);
+  --lc-action-primary-text: #ffffff;
+
+  --lc-status-success: #34d399;
+  --lc-status-success-bg: #10281a;
+  --lc-status-warning: #fbbf24;
+  --lc-status-warning-bg: #2b1f04;
+  --lc-status-danger: #f77370;
+  --lc-status-danger-active: var(--lc-danger-500); /* 暗色下「更强调」= 更饱和，而非更黑 */
+  --lc-status-danger-bg: #2c1412;
+  --lc-status-info-bg: #14213d;
+
+  --lc-overlay-scrim: rgba(0, 0, 0, 0.6);
+
+  /* 暗色下用描边区分层级，不叠加更黑的阴影 */
+  --lc-shadow-e1: none;
+  --lc-shadow-e2: none;
+  --lc-shadow-e3: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
+  --lc-shadow-e4: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+
+  --lc-topbar-bg: var(--lc-dark-0);
+  --lc-topbar-text: #e8ecf2;
+  --lc-topbar-text-muted: var(--lc-neutral-500);
+  --lc-topbar-btn-bg: var(--lc-dark-300);
+  --lc-topbar-btn-border: var(--lc-dark-400);
+  --lc-topbar-btn-text: #d6dce5;
+  --lc-topbar-input-bg: var(--lc-dark-0);
+  --lc-topbar-sep: var(--lc-dark-400);
+
+  --lc-canvas-shell: var(--lc-dark-100);
+
+  /* 暗色下「默认按钮」的语义角色与亮色不同：底要相对面板抬起、字要用一级文字色，
+     才能在有层级的暗色面板上读得出来（设计稿 Component 变量集同此取值）。 */
+  --lc-btn-default-bg: var(--lc-bg-raised);
+  --lc-btn-default-text: var(--lc-text-primary);
+
+  --lc-drag-hint: var(--lc-brand-400);
+  --lc-drag-hint-bg: rgba(96, 150, 250, 0.14);
+
+  --lc-focus-ring: 0 0 0 2px var(--lc-brand-700);
+}

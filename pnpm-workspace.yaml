@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# pnpm 12 起构建脚本默认被拦截，esbuild 需要执行 postinstall 下载二进制；
+# core-js 的 postinstall 仅打印版本提示，放行以通过安装
+allowBuilds:
+  core-js: true
+  core-js-pure: true
+  esbuild: true
+  vue-demi: true

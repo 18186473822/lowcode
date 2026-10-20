@@ -1,0 +1,53 @@
+{
+  "name": "@lc/renderer",
+  "version": "0.1.0",
+  "description": "渲染引擎：Schema → 页面。纯逻辑层（可单测）+ uni-app 组件层（需在 uni-app 工程中使用）",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./uni": {
+      "types": "./src/uni/material-map.ts"
+    },
+    "./uni/lc-renderer.vue": "./src/uni/lc-renderer.vue",
+    "./uni/lc-node.vue": "./src/uni/lc-node.vue",
+    "./uni/lc-list-page.vue": "./src/uni/lc-list-page.vue",
+    "./uni/lc-detail-page.vue": "./src/uni/lc-detail-page.vue",
+    "./uni/lc-portal-page.vue": "./src/uni/lc-portal-page.vue",
+    "./uni/lc-state-view.vue": "./src/uni/lc-state-view.vue",
+    "./uni/design": "./src/uni/design.ts",
+    "./uni/material-map.ts": "./src/uni/material-map.ts"
+  },
+  "files": [
+    "dist",
+    "src/uni"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@lc/expression": "workspace:*",
+    "@lc/materials": "workspace:*",
+    "@lc/schema": "workspace:*",
+    "@lc/tokens": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/test-utils": "^2.5.1",
+    "jsdom": "^25.0.1"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "lowcode",
+  "private": true,
+  "version": "0.1.0",
+  "description": "移动端低代码平台（uni-app + Vue3 全端）—— Monorepo 根",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "coverage": "vitest run --coverage --workspace config/vitest.projects.ts --no-file-parallelism",
+    "tokens:check": "node scripts/check-tokens.mjs",
+    "tokens:rpx": "node scripts/build-tokens-rpx.mjs",
+    "color:check": "node scripts/check-color-literals.mjs",
+    "contrast:check": "node scripts/check-contrast.mjs",
+    "icons:sheet": "node scripts/build-icon-sheet.mjs",
+    "design:check": "pnpm tokens:check && pnpm color:check && node scripts/build-tokens-rpx.mjs --check && pnpm contrast:check",
+    "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@12.6.0"
+}

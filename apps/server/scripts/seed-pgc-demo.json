@@ -1,0 +1,69 @@
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "pgc_demo",
+    "name": "运营工作台",
+    "type": "portal",
+    "meta": { "navigationBar": { "display": true, "title": "运营工作台", "style": "default" } },
+    "portal": {
+      "title": "运营工作台",
+      "columns": 2,
+      "cards": [
+        { "title": "请假申请", "desc": "发起请假流程", "icon": "date", "pageId": "leave_form", "badge": "3" },
+        { "title": "员工列表", "desc": "查看员工信息", "icon": "user", "pageId": "p_emp_list" },
+        { "title": "帮助中心", "desc": "外部文档", "url": "https://example.com/help" }
+      ]
+    },
+    "root": {
+      "id": "node_pgc_demo_root",
+      "componentName": "Page",
+      "props": { "padding": "24rpx", "background": "#f5f6f7" },
+      "children": [
+        {
+          "id": "n_chart_bar",
+          "componentName": "Chart",
+          "props": {
+            "chartType": "bar",
+            "title": "各部门人数（柱状）",
+            "modelId": "m_employee",
+            "dimension": "dept",
+            "metric": "count",
+            "limit": 8,
+            "height": 200
+          }
+        },
+        {
+          "id": "n_chart_line",
+          "componentName": "Chart",
+          "props": {
+            "chartType": "line",
+            "title": "各部门人数（折线）",
+            "modelId": "m_employee",
+            "dimension": "dept",
+            "metric": "count",
+            "height": 200
+          }
+        },
+        {
+          "id": "n_chart_pie",
+          "componentName": "Chart",
+          "props": {
+            "chartType": "pie",
+            "title": "部门占比（饼图）",
+            "modelId": "m_employee",
+            "dimension": "dept",
+            "metric": "count",
+            "height": 200
+          }
+        },
+        {
+          "id": "n_stat",
+          "componentName": "Statistic",
+          "props": { "label": "员工总数", "value": 3, "unit": "人", "precision": 0, "trend": "up" }
+        }
+      ]
+    },
+    "dataSources": [],
+    "defaultFormData": {}
+  }
+}
