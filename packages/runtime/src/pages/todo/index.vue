@@ -166,7 +166,7 @@ function goLogin(): void {
 }
 .todo__flow {
   font-size: var(--lc-font-body-lg);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .todo__node {

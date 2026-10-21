@@ -286,7 +286,7 @@ onMounted(() => {
   flex: 1;
   color: var(--lc-status-danger);
   font-size: var(--lc-font-caption);
-  line-height: 1.5;
+  line-height: var(--lc-leading-ui);
 }
 .lc-list-page__retry {
   flex-shrink: 0;

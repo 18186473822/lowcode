@@ -97,7 +97,7 @@ async function onSubmit(): Promise<void> {
 .login__title {
   color: var(--lc-text-on-brand);
   font-size: 48rpx;
-  font-weight: 700;
+  font-weight: var(--lc-weight-bold);
   letter-spacing: 4rpx;
 }
 .login__sub {

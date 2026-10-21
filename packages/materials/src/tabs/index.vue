@@ -76,7 +76,7 @@ function onPick(i: number): void {
 }
 .lc-tabs__tab--active .lc-tabs__label {
   color: var(--lc-action-primary);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 .lc-tabs__underline {
   position: absolute;

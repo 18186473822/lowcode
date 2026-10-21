@@ -54,6 +54,7 @@ const PAIRS = [
   ['--lc-status-success', '--lc-status-success-bg', '成功块内文字', 4.5],
   ['--lc-status-warning', '--lc-status-warning-bg', '警示块内文字', 4.5],
   ['--lc-status-danger-active', '--lc-bg-surface', '危险按下态文字', 4.5],
+  ['--lc-input-placeholder', '--lc-input-bg', '占位符 / 输入框底', 4.5],
   // 非文本（控件边界 / 焦点环）：3:1
   ['--lc-border-strong', '--lc-bg-surface', '控件边框（非文本）', 3],
   ['--lc-action-primary', '--lc-bg-canvas', '焦点环 / 主色块（非文本）', 3],

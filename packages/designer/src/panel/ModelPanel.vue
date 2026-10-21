@@ -319,7 +319,7 @@ function onOptions(key: string, e: Event): void {
 }
 
 .model-item + .model-item {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 
 .model-item__open {
@@ -327,7 +327,7 @@ function onOptions(key: string, e: Event): void {
   align-items: center;
   gap: var(--lc-space-2);
   width: 100%;
-  padding: var(--lc-space-2) 10px;
+  padding: var(--lc-space-2) var(--lc-space-2-5);
   text-align: left;
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
@@ -347,7 +347,7 @@ function onOptions(key: string, e: Event): void {
 
 .model-item__id,
 .model-head__id {
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   font-family: var(--lc-font-mono);
   font-size: var(--lc-font-caption);
   border-radius: var(--lc-radius-xs);
@@ -363,7 +363,7 @@ function onOptions(key: string, e: Event): void {
 
 .model-dirty {
   margin-left: var(--lc-space-2);
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   font-size: var(--lc-font-caption);
   border-radius: var(--lc-radius-xs);
   background: var(--lc-status-warning-bg);
@@ -375,14 +375,14 @@ function onOptions(key: string, e: Event): void {
   align-items: center;
   justify-content: space-between;
   margin: 14px 0 var(--lc-space-2);
-  padding-top: 10px;
+  padding-top: var(--lc-space-2-5);
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
   border-top: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-default);
 }
 
 .model-field {
-  margin-bottom: 10px;
+  margin-bottom: var(--lc-space-2-5);
   padding: var(--lc-space-2);
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
@@ -392,11 +392,11 @@ function onOptions(key: string, e: Event): void {
 .model-field__row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
 }
 
 .model-field__row + .model-field__row {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 
 .model-field__key {
@@ -421,7 +421,7 @@ function onOptions(key: string, e: Event): void {
 }
 
 .model-field__opts {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 
 .model-actions {
@@ -431,7 +431,7 @@ function onOptions(key: string, e: Event): void {
 }
 
 .model-errors {
-  margin: 10px 0 0;
+  margin: var(--lc-space-2-5) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -444,7 +444,7 @@ function onOptions(key: string, e: Event): void {
 /* 数据权限（dataScope + permissions） */
 .model-perms {
   margin: 14px 0;
-  padding: 10px;
+  padding: var(--lc-space-2-5);
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-md);
   background: var(--lc-bg-subtle);
@@ -453,7 +453,7 @@ function onOptions(key: string, e: Event): void {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 .model-perms__label {
   flex: 0 0 40px;

@@ -136,7 +136,7 @@ function remove(index: number): void {
 .lc-upload__plus {
   font-size: var(--lc-font-h1);
   color: var(--lc-text-tertiary);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
 }
 .lc-upload__add-text {
   font-size: var(--lc-font-micro);

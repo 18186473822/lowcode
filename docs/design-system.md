@@ -36,8 +36,8 @@
 
 命名规则：`层级域-用途[-状态]`，全小写连字符。语义层禁止出现颜色名（`blue-500`），组件层禁止跨组件复用（`btn-h-md` 不得被输入框引用）。
 
-**变量集总量**：Ardot 侧 **5 组 / 133 项** —— `Primitive` 35 · `Scale` 41 · `Semantic` 31 · `Component` 21 · `Effects` 5。
-**代码侧令牌**：`packages/tokens/src/tokens.css` 的 `:root` 共 **167 项**，暗色覆盖 **47 项**。两侧差额由 `pnpm tokens:check` 持续可见（§9.1）：多出的是**设计器 chrome 专属令牌**（`--lc-topbar-*` 含 4 态徽标、`--lc-device-*`、`--lc-drag-hint*`、`--lc-focus-ring`、`--lc-font-ui/mono`、`--lc-gradient-brand` 等实现侧扩展）；布局尺寸类见 §9.2 不计入令牌。
+**变量集总量**：Ardot 侧 **5 组 / 143 项** —— `Primitive` 37 · `Scale` 49 · `Semantic` 31 · `Component` 21 · `Effects` 5。
+**代码侧令牌**：`packages/tokens/src/tokens.css` 的 `:root` 共 **177 项**，暗色覆盖 **49 项**。两侧差额由 `pnpm tokens:check` 持续可见（§9.1）：多出的是**设计器 chrome 专属令牌**（`--lc-topbar-*` 含 4 态徽标、`--lc-device-*`、`--lc-drag-hint*`、`--lc-focus-ring`、`--lc-font-ui/mono`、`--lc-gradient-brand` 等实现侧扩展）；布局尺寸类见 §9.2 不计入令牌。
 
 **令牌包**：`@lc/tokens`（`packages/tokens`）—— 令牌的**唯一持有者**。设计器、渲染引擎、物料库、移动端运行时都依赖它，任何一端都不得自建色值。
 
@@ -52,7 +52,7 @@
 | `apps/designer-web/src/style.css` 令牌化 | ✅ 硬编码色值 **0** |
 | 7 个面板组件令牌化 | ✅ `MaterialPanel` / `OutlineTree` / `LcCanvas` / `HistoryDialog` / `PropsPanel` / `ModelPanel` / `RbacPanel` + `shim.css` |
 | 亮暗主题切换 | ✅ 顶栏「暗色 / 亮色」按钮，持久化到 `localStorage`，首帧前生效（无闪白） |
-| 面板共用件取值对齐 | ✅ `.setter` 标签列 72 · 属性行高 30 · 字号 13 三处统一 |
+| 面板共用件取值对齐 | ✅ `.setter` 标签列 72 · 属性行高 **32**（= `--lc-input-h`）· 字号 13 三处统一 |
 | 面板共用件去重 | ✅ 收敛到 `packages/designer/src/styles/panel.css`（原先 3 份 scoped 副本） |
 | 状态视图（空 / 加载 / 错误） | ✅ `packages/designer/src/components/PanelState.vue` + `.lc-state*` / `.lc-skeleton*`，接入 6 个面板 |
 | 面板头部统一 | ✅ `.panel-head` / `.panel-head__meta`（三个面板同一形态，去掉大纲树自带的 `__head` 与重复描边） |
@@ -81,10 +81,10 @@
 | 色阶 | 取值 |
 |---|---|
 | **brand** | 50 `#EFF5FF` · 100 `#DBE8FE` · 200 `#BFD7FE` · 300 `#93BBFD` · 400 `#6096FA` · **500 `#2B6DE8`（主色）** · 600 `#1E5ED0` · 700 `#1A4BA8` · 800 `#1A3F85` · 900 `#16306A` |
-| **neutral** | 0 `#FFFFFF` · 50 `#F7F9FB` · 100 `#EEF1F5`（画布底） · 200 `#E3E8EE`（默认边框） · 300 `#CBD3DC`（强边框） · 400 `#9AA5B1`（三级文字） · 500 `#6B7684`（二级文字） · 600 `#4B5563` · 700 `#374151` · 800 `#1F2329`（一级文字 / 顶栏） · 900 `#14181D` |
-| **success** | 50 `#E9F5EE` · 500 `#1A9C4A` · 600 `#188038` |
-| **warning** | 50 `#FFF8E6` · 500 `#E08700` · 600 `#B96F00` |
-| **danger** | 50 `#FDECEA` · 500 `#D93025` · 600 `#B3261E` |
+| **neutral** | 0 `#FFFFFF` · 50 `#F7F9FB` · 100 `#EEF1F5`（画布底） · 200 `#E3E8EE`（默认边框） · 300 `#CBD3DC` · 400 `#9AA5B1` · **450 `#8A94A6`（控件边界 / 辅助文字，≥3:1 的最低档）** · 500 `#6B7684`（二级文字） · 600 `#4B5563` · 700 `#374151` · 800 `#1F2329`（一级文字 / 顶栏） · 900 `#14181D` |
+| **success** | 50 `#E9F5EE` · 500 `#1A9C4A` · **600 `#157A33`** |
+| **warning** | 50 `#FFF8E6` · 500 `#E08700` · **600 `#A85C05`** |
+| **danger** | 50 `#FDECEA` · 500 `#D93025` · 600 `#B3261E` · **700 `#8F1E17`（按下态）** |
 | **dark（暗色底）** | 0 `#0F1319` · 100 `#171C24` · 200 `#1E242E` · 300 `#2A313C` · 400 `#3A434F` |
 
 #### 语义层 · Light / Dark 映射
@@ -98,21 +98,25 @@
 | `text-primary` | 标题与正文主体 | `#1F2329` | `#E8ECF2` |
 | `text-label` | 表单标签 / 面板字段名（高于次要文字，保证密集面板可读） | `#374151` | `#C6CDD8` |
 | `text-secondary` | 说明 / 表格正文 | `#6B7684` | `#9AA5B1` |
-| `text-tertiary` | 占位符 / 辅助 / 禁用文字 | `#9AA5B1` | `#6B7684` |
+| `text-tertiary` | 辅助 / 时间戳（**非正文**；正文级用 secondary） | `#8A94A6` | `#9AA5B1` |
 | `text-link` | 链接色 | `#2B6DE8` | `#6096FA` |
-| `text-danger` | 错误文字 | `#D93025` | `#F87171` |
+| `text-danger` | 错误文字（**别名 → `status-danger`**） | `#B3261E` | `#F77370` |
 | `border-default` | 面板描边 / 分割线 | `#E3E8EE` | `#2A313C` |
-| `border-strong` | 强边框 / 输入框描边 | `#CBD3DC` | `#3A434F` |
+| `border-strong` | 强边框 / 控件描边（≥3:1） | `#8A94A6` | `#6B7684` |
 | `border-focus` | 聚焦环 | `#2B6DE8` | `#6096FA` |
 | `action-primary` | 主按钮底 / 选中态 | `#2B6DE8` | `#4D88F0` |
 | `action-primary-hover` | 悬停 | `#1E5ED0` | `#6096FA` |
-| `action-primary-active` | 按下 | `#1A4BA8` | `#2B6DE8` |
+| `action-primary-active` | 按下（暗色下**更亮**：浅底配深墨标签） | `#1A4BA8` | `#93BBFD` |
 | `action-primary-subtle` | 弱化底 / 提示条 | `#EFF5FF` | `#1A3F85` |
-| `status-success` | 成功 | `#188038` | `#34D399` |
+| `action-primary-text` | 主按钮文字 | `#FFFFFF` | `#0F1319` |
+| `text-on-brand` | 品牌底文字 | `#FFFFFF` | `#0F1319` |
+| `text-on-brand-muted` | 品牌底次级文字（**不用透明度做层级**） | `#FFFFFF` | `#0F1319` |
+| `status-success` | 成功 | `#157A33` | `#34D399` |
 | `status-success-bg` | 成功底 | `#E9F5EE` | `#10281A` |
-| `status-warning` | 警示 | `#B96F00` | `#FBBF24` |
+| `status-warning` | 警示 | `#A85C05` | `#FBBF24` |
 | `status-warning-bg` | 警示底 | `#FFF8E6` | `#2B1F04` |
-| `status-danger` | 危险 / 错误 | `#D93025` | `#F87171` |
+| `status-danger` | 危险 / 错误 | `#B3261E` | `#F77370` |
+| `status-danger-active` | 危险按下 | `#8F1E17` | `#F09A98` |
 | `status-danger-bg` | 危险底 | `#FDECEA` | `#2C1412` |
 | `status-info-bg` | 信息底 | `#EFF6FF` | `#14213D` |
 | `overlay-scrim` | 遮罩 | `rgba(20,24,29,.45)` | `rgba(0,0,0,.60)` |
@@ -131,25 +135,34 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 门禁会长期红灯、被无视 —— 那比没有门禁更糟。所以策略是：**锁住不退化 + 如实列出缺口 +
 新增组合必须直接达标**（新增的不许带病进场）。缺口修完再加 `--strict`。
 
-**当前状态**：19 组 × 双模式 = 38 项，**达标 26 / 缺口 12 / 退化 0**。
+**当前状态**：20 组 × 双模式 = 40 项，**达标 39 / 缺口 1 / 退化 0**（2026-10-21 修复前为 26 / 12）。
 
-**12 处缺口与已验证的修复值**（括号内为改后实测比值，均已用实际令牌背景色验算）
+**2026-10-21 已修复 11 项**（含设计稿同步）
 
-| 模式 | 组合 | 现值 | 需 | 建议 |
+| 模式 | 组合 | 修复前 | 修复后 | 改的是什么 |
 |---|---|---|---|---|
-| 亮 | `status-danger` on `status-danger-bg` | 4.17 | 4.5 | danger → `#C42A20`（4.96） |
-| 亮 | `status-success` on `status-success-bg` | 4.48 | 4.5 | success → `#157A33`（4.86）；**差 0.02，纯取整级修正** |
-| 亮 | `status-warning` on `status-warning-bg` | 3.71 | 4.5 | warning → `#A85C05`（4.72） |
-| 亮 | `border-strong` on `bg-surface` | 1.51 | 3 | border-strong → `#8A94A6`（3.06）；输入框边界过淡是**可感知的真实可用性问题** |
-| 亮 | `text-tertiary` on `bg-surface` | 2.50 | 4.5 | ⚠️ 无解：达到 4.5 只能取 `#6B7684`（＝`text-secondary`，层级塌陷）。建议**约束用途**而非改色：tertiary 仅用于装饰 / 禁用态，占位与提示改用 secondary |
-| 亮 | `text-on-brand-muted` on `action-primary` | 3.60 | 4.5 | 需要可读的正文改用 `text-on-brand`（4.71）；muted 仅用于装饰性小字 |
-| 暗 | `action-primary-text` / `text-on-brand` on `action-primary` | 3.45 | 4.5 | **暗色下品牌面是浅蓝（`#4D88F0`），白字必然不够** —— 标签改深墨 `#0F151D`（5.32）。这正是 Material 3 的做法 |
-| 暗 | `text-on-brand-muted` on `action-primary` | 2.77 | 4.5 | 同上，改用不透明深墨 |
-| 暗 | `text-tertiary` on `bg-surface` | 3.70 | 4.5 | tertiary → `#8B96A3`（5.69） |
-| 暗 | `status-danger-active` on `bg-surface` | 3.58 | 4.5 | 按下态 → `#F09A98`（7.96） |
-| 暗 | `border-strong` on `bg-surface` | 1.82 | 3 | border-strong → `#6B7684`（3.70） |
+| 亮 | `status-danger` / `status-danger-bg` | 4.17 | **5.72** | `status-danger` → danger-600 `#B3261E` |
+| 亮 | `status-danger-active` / `bg-surface` | 6.54 | **8.88** | 新增 danger-700 `#8F1E17` 作按下态 |
+| 亮 | `status-success` / `status-success-bg` | 4.48 | **4.86** | success-600 → `#157A33` |
+| 亮 | `status-warning` / `status-warning-bg` | 3.71 | **4.72** | warning-600 → `#A85C05` |
+| 亮 | `border-strong` / `bg-surface` | 1.51 | **3.06** | 新增 neutral-450 `#8A94A6`；控件边界过淡是**可感知的真实可用性问题** |
+| 亮 | `text-on-brand-muted` / `action-primary` | 3.60 | **4.71** | 去掉透明度（`rgba(255,255,255,.8)` → `#FFFFFF`） |
+| 暗 | `action-primary-text` / `action-primary` | 3.45 | **5.41** | 暗色标签改深墨 `#0F1319`（Material 3 同款：浅底配深墨） |
+| 暗 | `text-on-brand` / `action-primary` | 3.45 | **5.41** | 同上 |
+| 暗 | `text-on-brand-muted` / `action-primary` | 2.77 | **5.41** | 同上（暗色显式覆盖，不再继承白字） |
+| 暗 | `text-tertiary` / `bg-surface` | 3.70 | **6.83** | 暗色 tertiary → neutral-400（暗底要**更亮**才有对比） |
+| 暗 | `status-danger-active` / `bg-surface` | 3.58 | **7.96** | → `#F09A98`（暗色「更强调」= 更亮，不是更黑） |
+| 暗 | `border-strong` / `bg-surface` | 1.82 | **3.70** | → neutral-500 |
+| 任 | 占位符 / 输入框底 | 2.50 | **4.62** | `--lc-input-placeholder` → `text-secondary`（占位符是**正文级**文本） |
 
-⚠️ **上表是建议，尚未落盘** —— 改配色会同时动 `tokens.css`、设计稿变量集与两端观感，需产品 / 设计确认后再改；确认后 `pnpm tokens:check` 与 `contrast:check --update` 各跑一次即可闭环。
+**连带调整**：暗色 `action-primary-active` 由 brand-500 改为 brand-300 `#93BBFD` ——
+标签改深墨后，按下态若仍用更深的蓝只有 3.95；暗色下「按下」应更亮。
+
+**剩余 1 项：亮色 `text-tertiary`（2.50 → 3.06，仍 < 4.5）**
+
+这条**无法只靠改色解决**：达到 4.5 只能取 `#6B7684`，而那就是 `text-secondary` —— 三级文字层级会直接塌陷。
+当前处理：提到 neutral-450（改善 22%），并**约束用途** —— `text-tertiary` 仅用于时间戳 / 装饰 / 禁用态，
+**正文级文本（含占位符）一律用 secondary**。若将来接受「只剩两级灰字」，把 tertiary 并入 secondary 即可让此项达标。
 
 > 另注：`text-secondary` 在亮色下是 4.62:1，**仅超出阈值 0.12** —— 任何对 `text-secondary` 或
 > `bg-surface` 的微调都可能把它推过线，改动后务必重跑 `contrast:check`。
@@ -178,9 +191,24 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 
 规则：不得自造字号；正文不低于 13px；单行文本超长必须省略号截断并 `title` 提示。
 
+#### 行高：两族令牌，别混用
+
+| 族 | 形态 | 用在哪 |
+|---|---|---|
+| `--lc-lh-*` | **绝对 px**（18 / 22 / 24 / 26 / 30 / 36） | **固定尺寸的展示型标题**、需要精确算高的控件（如 `.op-btn` 用 `lh-caption 18` + 内边距凑出 `btn-h-md 32`） |
+| `--lc-leading-*` | **无单位比率**（`label 1` · `compact 1.2` · `ui 1.5` · `readable 1.6` · `prose 1.7`） | **正文与 UI 文本一律用这一族** |
+
+**为什么正文必须用比率**：px 行高不随字号缩放 —— 用户把系统字号调到 200% 时，文字会撑出行高被裁切（WCAG 1.4.4 要求支持 200% 缩放）。比率会跟着字号一起放大。
+
+代码现状（2026-10-21 收敛后）：22 处行高比率已令牌化，仅 3 处刻意保留字面量 —— `2.4`（按钮用行高撑高度，反模式，待按钮几何改造）、`92rpx` / `16px`（固定高度的角标）。门禁 `pnpm dimensions:check` 会拦住回退。
+
 ### 2.4 间距 / 圆角 / 阴影 / 动效
 
-**间距**（4px 基准，只允许取刻度值）：`space-1 4` · `space-2 8` · `space-3 12` · `space-4 16` · `space-5 20` · `space-6 24` · `space-8 32` · `space-10 40` · `space-12 48` · `space-16 64`
+**间距**（4px 基准 + **2px 半档**，只允许取刻度值）：`space-0 0` · `space-0-5 2` · `space-1 4` · `space-1-5 6` · `space-2 8` · `space-2-5 10` · `space-3 12` · `space-4 16` · `space-5 20` · `space-6 24` · `space-8 32` · `space-10 40` · `space-12 48` · `space-16 64`
+
+> **为什么有半档**：只有 4px 步长时，设计器的密集 chrome 根本表达不出来 —— 实测 `6px` 出现了 32 次、`10px` 13 次、`2px` 7 次，全都只能写字面量。
+> 补 `0-5 / 1-5 / 2-5` 三档后这 52 处立刻可令牌化（`pnpm spacing:check` 强制）。
+> 仍保留为字面量的只有真正的光学微调（`3px` / `5px` / `7px` / `14px` / `18px`）—— 那些**不该**硬归并到最近刻度。
 
 **圆角**：`xs 4`（标签） · `sm 6`（按钮 / 输入框） · `md 8`（面板 / 卡片） · `lg 12`（大卡片 / 弹层） · `xl 16`（移动端卡片区 / 手机壳） · `pill 999`（徽标 / 头像 / 开关）
 
@@ -223,7 +251,10 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 
 ### 3.2 按钮规格与状态矩阵
 
-**尺寸**：`sm 24 高`（工具条 / 表格内） · `md 32 高`（默认，主操作用） · `lg 36–42 高`（表单底部） · 移动端主按钮 `44 高`。圆角 `sm 6`，内边距竖向 8 / 横向 16（lg 竖向 11 / 横向 20）。
+**尺寸**：`sm 24 高`（工具条 / 表格内） · `md 32 高`（默认，主操作用） · `lg 36–42 高`（表单底部） · 移动端主按钮 `44 高`。圆角 `sm 6`，内边距**竖向 6 / 横向 16**。
+
+> 竖向 6 是**算出来的**，不是拍的：`btn-pad-y 6` + `lh-caption 18` + 描边 `1×2` = **32 = `btn-h-md`**。
+> 原先写 8 —— 8 + 18 + 2 = 28，与「32 高」自相矛盾；实现侧当初用 `padding: 5px 10px` 凑出 29，也是同一个矛盾的不同妥协。现已统一：`.op-btn` 用 `min-height: var(--lc-btn-h-md)` + `padding: var(--lc-btn-pad-y) var(--lc-btn-pad-x)`，自然得到 32。
 
 | 状态 | 主按钮 | 次按钮 | 文字按钮 | 危险按钮 | 通用附加 |
 |---|---|---|---|---|---|
@@ -366,7 +397,7 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 | 画布工具条 | 高 40 · 白底 · 左设备切换（375 / 750 / H5）· 右缩放与标尺开关 · 与画布 1px 分隔 |
 | 左栏 物料面板 | 宽 240 · 白底 · 页签高 38 · 分组标题 12 `text-tertiary` · 物料项内边距 竖向 8 / 横向 10 · 项间距 8 · **每项 = 16px 线性图标 + 名称**（图标默认 `text-tertiary`，悬停随项变 `action-primary`） |
 | 中栏 画布 | 宽度自适应 · 底 `bg-canvas` · 手机壳 375×620 居中、圆角 16、1px 描边 · 选中节点用 2px 主色描边 + 左上角节点标签（标签置于描边上方，避免被裁剪） |
-| 右栏 属性面板 | 宽 300 · 白底 · 区块标题 13 SemiBold · 属性行高 30、标签列 72 · 区块间距 14，用 1px 分隔线分组 |
+| 右栏 属性面板 | 宽 300 · 白底 · 区块标题 13 SemiBold · 属性行高 **32**（由 `--lc-input-h` 决定，控件与行同高）· 标签列 72 · 区块间距 14，用 1px 分隔线分组 |
 | 底栏 | 高 32 · 白底 + 上描边 · 左校验摘要（危险色，最多 3 条后折叠）/ 右操作状态（三级文字，含上次发布时间） |
 
 **属性面板区块顺序**：提交模型（页面级，始终可见）→ 节点设置（`settings` 驱动）→ 事件（`events` 驱动）→ 权限点（按钮级）。
@@ -440,14 +471,17 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 ### 9.1 设计一致性门禁
 
 ```bash
-pnpm design:check                 # CI 用这条 = tokens:check + color:check + rpx 产物校验 + contrast:check
+pnpm design:check                 # CI 用这条 = tokens + color + dimensions + rpx 产物 + contrast 五道
 pnpm tokens:check [--verbose]     # 设计稿变量 ↔ tokens.css 值比对；漂移 exit 1
 pnpm color:check                  # 全仓硬编码色值扫描；有残留 exit 1
+pnpm dimensions:check             # px 间距 + 行高比率：仍落在刻度上的字面量 → exit 1
 pnpm contrast:check               # WCAG 对比度回归（基线见 docs/contrast.json，§2.2.1）
+pnpm tokens:audit                 # 令牌**应用度体检**（不是门禁）：死令牌 / 各目录密度 / 断链
 pnpm tokens:rpx                   # 由 tokens.css 派生移动端 rpx 变体
 # 机械替换器（幂等，可复跑；--dry 只报告不写盘）：
 node scripts/tokenize-colors.mjs [--dry]   # 硬编码色值 → var(--lc-*)
-node scripts/tokenize-rpx.mjs    [--dry]   # rpx 字面量 → var(--lc-*)，只替换落在刻度上的值
+node scripts/tokenize-rpx.mjs    [--dry]   # 移动端 rpx 字面量 → 令牌（只替换刻度上的值）
+node scripts/tokenize-dimensions.mjs [--dry] # px 间距 + 行高比率 → 令牌（同上口径）
 ```
 
 **① 令牌漂移门禁（`tokens:check`）**
@@ -481,7 +515,7 @@ node scripts/tokenize-rpx.mjs    [--dry]   # rpx 字面量 → var(--lc-*)，只
 
 | 设计内容 | 落点 | 验证 |
 |---|---|---|
-| 设计令牌三层（色彩 / 字体 / 间距 / 圆角 / 阴影 / 动效） | `packages/tokens/src/tokens.css`（`:root` 167 项 + 暗色 47 项） | `pnpm tokens:check` 133 项 / 185 处零漂移 |
+| 设计令牌三层（色彩 / 字体 / 间距 / 圆角 / 阴影 / 动效） | `packages/tokens/src/tokens.css`（`:root` 169 项 + 暗色 49 项） | `pnpm tokens:check` 135 项 / 187 处零漂移 |
 | 设计器外壳布局（§7.1 顶栏 / 三栏 / 底栏） | `apps/designer-web/src/style.css` + `App.vue` | **硬编码色值 0** |
 | 亮暗双主题 | `apps/designer-web/src/theme.ts` + 顶栏切换按钮 | 产物含两套值与 `data-theme` 块 |
 | 面板共用件 + 空/加载/错误三态 | `styles/panel.css` + `components/PanelState.vue` | 6 面板接入，14 条用例 |
@@ -497,7 +531,7 @@ node scripts/tokenize-rpx.mjs    [--dry]   # rpx 字面量 → var(--lc-*)，只
 
 | # | 项 | 现状 | 影响 |
 |---|---|---|---|
-| 1 | **组件库的复用边界** | 画布 B4/B5 的 18 个组件在代码里是「共享 CSS 类 + 原生标签」；`packages/designer/src/components/` 仅 `PanelState.vue` | **已按 ADR-007 定性，不再算缺陷**：跨端一致性由令牌承担（4 道门禁），结构复用只发生在同构宿主内（materials 走 uni，已零分支复用）。designer 内部抽 `LcButton` / `LcField` 属**包内复用**，触发条件是「面板数 > 10 或需被第二个 Web 应用复用」，而不是「应该更规范」 |
+| 1 | **组件库的复用边界** | 画布 B4/B5 的 18 个组件在代码里是「共享 CSS 类 + 原生标签」；`packages/designer/src/components/` 仅 `PanelState.vue` | **已按 ADR-007 定性，不再算缺陷**：跨端一致性由令牌承担（5 道门禁），结构复用只发生在同构宿主内（materials 走 uni，已零分支复用）。designer 内部抽 `LcButton` / `LcField` 属**包内复用**，触发条件是「面板数 > 10 或需被第二个 Web 应用复用」，而不是「应该更规范」 |
 | 2 | §5 异常状态族的**移动端形态** | ✅ 已落地：`lc-state-view.vue` 共享组件 + `core/state-kind.ts` 分类器，list/detail/壳层三处接入 | 见 §5.1 |
 | 3 | 物料面板图标 | ✅ 已落地：33 个 16×16 线性图标（`canvas/material-icons.ts`），规格见 §10.4 | 见 §10.4 |
 | 4 | 标尺 · 参考线 | ✅ 双轴标尺（8px/40px 刻度）+ 内容区中心十字虚线，共用一个开关 | 见 §1.1 |
@@ -506,6 +540,9 @@ node scripts/tokenize-rpx.mjs    [--dry]   # rpx 字面量 → var(--lc-*)，只
 | 7 | 视觉回归 | 无浏览器目视（环境无 Chromium） | 色值（331 处）与单位（349 处）替换均为**像素等价换算 + 代码层验证**，但界面观感与暗色主题仍需实测 |
 | 8 | `packages/runtime` 仍不在 `pnpm -r` 链内 | ADR-006 / L-5 的刻意决策（我上一轮建议「补 test/build 纳入 CI」是错的，已收回） | 设计一致性已由 `design:check`（纯文本扫描、零构建）覆盖；**行为回归仍无自动门禁**，只能靠实机冒烟 |
 | 9 | **图表不跟随亮暗主题** | `materials/src/chart/chart-svg.ts` 产出 SVG 后转 `data:image/svg+xml;base64` —— **CSS 变量在 base64 图片里无法解析**，网格线 `#E5E7EB` / 轴标签 `#6B7280` 只能写字面量（已加 `design-token-exempt` 并注明根因） | 实测（对 `bg-surface`）：<br>亮 网格线 **1.24:1**、轴标签 **4.83:1** ✔<br>暗 网格线 **13.81:1** ✘（亮了 11 倍，扎眼）、轴标签 **3.54:1** ✘（< 4.5，低于 AA）<br>**修法**：让组件按当前主题把色值作为参数传入 SVG 生成函数（`theme.ts` 已能给出模式），生成前替换、主题切换时重算 |
+| 10 | L3 组件层接线（2026-10-21 已接） | **已接线**：`.op-btn` / `.op-btn--primary` / `.op-btn--icon` 全走 `--lc-btn-*`；`.setter__input` / `.setter__select` 全走 `--lc-input-*`；侧栏边框走 `--lc-panel-border`。死令牌 **25 → 7** | 剩余 7 项均为**暂无对应界面**，不是漏接：`btn-h-sm/lg/touch`（设计器只有一档尺寸；touch 属移动端）、`panel-radius`（侧栏是通栏，无圆角面板）、`table-*`（表格组件未建） |
+| 11 | 字重 / 行高 | ✅ **两项均已接**。字重：28 处 → `--lc-weight-semibold/bold`，残留 0。行高：新增**无单位比率**一族（`--lc-leading-label/compact/ui/readable/prose`），22 处比率字面量已替换；仅 3 处特例保留（按钮用行高撑高度的 `2.4`、角标固定高度 `92rpx`/`16px`） | 见 §2.3「行高：两族令牌，别混用」。`--lc-lh-*(px)` 仍只用于固定尺寸标题与精确算高的控件 |
+| 12 | 间距类 px 字面量 | ✅ 已收敛：补 2px 半档（`space-0-5/1-5/2-5`）+ `pnpm spacing:check` 门禁；**83 → 32 处**，剩余 32 处全是刻度外光学微调（`3px`/`5px`/`7px`/`14px`/`18px`），按设计保留 | 见 §2.4 间距刻度脚注 |
 
 ### 10.3 移动端单位：已落地的方案
 

@@ -13,12 +13,15 @@
     "tokens:rpx": "node scripts/build-tokens-rpx.mjs",
     "color:check": "node scripts/check-color-literals.mjs",
     "contrast:check": "node scripts/check-contrast.mjs",
+    "spacing:check": "node scripts/tokenize-dimensions.mjs --check",
+    "dimensions:check": "node scripts/tokenize-dimensions.mjs --check",
+    "tokens:audit": "node scripts/audit-token-usage.mjs",
     "icons:sheet": "node scripts/build-icon-sheet.mjs",
-    "design:check": "pnpm tokens:check && pnpm color:check && node scripts/build-tokens-rpx.mjs --check && pnpm contrast:check",
+    "design:check": "pnpm tokens:check && pnpm color:check && pnpm spacing:check && node scripts/build-tokens-rpx.mjs --check && pnpm contrast:check",
     "smoke:security": "node apps/server/scripts/smoke-security.mjs",
     "smoke:observability": "pnpm -F @lc/server smoke:observability",
-    "clean": "pnpm -r exec rm -rf dist",
-    "postinstall": "pnpm -F @lc/server prisma:generate"
+    "postinstall": "pnpm -F @lc/server prisma:generate",
+    "clean": "pnpm -r exec rm -rf dist"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",

@@ -79,7 +79,7 @@ function onPick(n: number): void {
   font-size: var(--lc-font-h1);
   color: var(--lc-text-tertiary);
   margin-right: var(--lc-space-2);
-  line-height: 1.2;
+  line-height: var(--lc-leading-compact);
 }
 .lc-rate__star--on {
   color: var(--lc-status-warning);

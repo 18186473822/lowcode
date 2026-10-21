@@ -21,7 +21,7 @@
 .panel-title {
   margin: 0 0 var(--lc-space-3);
   font-size: var(--lc-font-body-sm);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 
@@ -48,7 +48,7 @@
   margin: var(--lc-space-3) 0 0;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-tertiary);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
 }
 
 /* ============================================================
@@ -57,14 +57,19 @@
  * ============================================================ */
 
 .op-btn {
-  padding: 5px 10px;
+  /* L3 组件层接线（§3.2）：几何与配色全部走 --lc-btn-*，不再写字面量。
+     高度：pad-y 6 + lh-caption 18 + border 2 = 32 = --lc-btn-h-md（min-height 做下限保护）。
+     仍**不设 flex** —— PropsPanel 的上移/下移/删除 需要 `flex: 1` 平铺，容器化会互相干扰。 */
+  box-sizing: border-box;
+  min-height: var(--lc-btn-h-md);
+  padding: var(--lc-btn-pad-y) var(--lc-btn-pad-x);
   font-family: inherit;
   font-size: var(--lc-font-caption);
-  line-height: 1.4;
-  border: var(--lc-border-width) solid var(--lc-border-strong);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-surface);
-  color: var(--lc-text-label);
+  line-height: var(--lc-lh-caption);
+  border: var(--lc-border-width) solid var(--lc-btn-default-border);
+  border-radius: var(--lc-btn-radius);
+  background: var(--lc-btn-default-bg);
+  color: var(--lc-btn-default-text);
   cursor: pointer;
   transition:
     border-color var(--lc-duration-fast) var(--lc-ease-standard),
@@ -88,13 +93,13 @@
   outline-offset: 1px;
 }
 .op-btn--primary {
-  border-color: var(--lc-action-primary);
-  background: var(--lc-action-primary);
+  border-color: var(--lc-btn-primary-bg);
+  background: var(--lc-btn-primary-bg);
   color: var(--lc-action-primary-text);
 }
 .op-btn--primary:hover:not(:disabled) {
-  background: var(--lc-action-primary-hover);
-  border-color: var(--lc-action-primary-hover);
+  background: var(--lc-btn-primary-bg-hover);
+  border-color: var(--lc-btn-primary-bg-hover);
   color: var(--lc-action-primary-text);
 }
 .op-btn--primary:active:not(:disabled) {
@@ -111,7 +116,8 @@
   color: var(--lc-action-primary-text);
 }
 .op-btn--icon {
-  padding: 5px 7px;
+  /* 图标按钮横向更紧（无文案），纵向仍走 pad-y 令牌保证与文案按钮同高 */
+  padding: var(--lc-btn-pad-y) 7px;
 }
 /* 加载态（§3.2）：文案转透明但**保留占位宽度**（按钮不跳动），同时配合 disabled 阻断重复提交 */
 .op-btn--loading {
@@ -153,29 +159,35 @@
 .setter__req {
   color: var(--lc-status-danger);
   font-style: normal;
-  margin-left: 2px;
+  margin-left: var(--lc-space-0-5);
 }
 .setter__ctl {
   min-width: 0;
 }
 .setter__input,
 .setter__select {
+  /* L3 组件层接线（§3.3）：控件高度 / 内边距 / 圆角 / 底色 / 边框 / 聚焦边框全走 --lc-input-* */
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 5px var(--lc-space-2);
+  min-height: var(--lc-input-h);
+  padding: var(--lc-input-pad-y) var(--lc-input-pad-x);
   font-family: inherit;
   font-size: var(--lc-font-body-sm);
-  border: var(--lc-border-width) solid var(--lc-border-strong);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-surface);
+  line-height: var(--lc-lh-caption);
+  border: var(--lc-border-width) solid var(--lc-input-border);
+  border-radius: var(--lc-input-radius);
+  background: var(--lc-input-bg);
   color: var(--lc-text-primary);
   transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.setter__input::placeholder {
+  color: var(--lc-input-placeholder);
 }
 .setter__input:focus,
 .setter__select:focus {
   outline: none;
-  border-color: var(--lc-border-focus);
+  border-color: var(--lc-input-border-focus);
   box-shadow: var(--lc-focus-ring);
 }
 .setter__switch {
@@ -186,7 +198,7 @@
   grid-column: 1 / -1;
   margin: 0;
   font-size: var(--lc-font-caption);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
   color: var(--lc-text-tertiary);
 }
 
@@ -209,12 +221,12 @@
   min-width: 0;
 }
 .setter__option-del {
-  padding: 0 2px;
+  padding: 0 var(--lc-space-0-5);
   border: none;
   background: none;
   color: var(--lc-text-tertiary);
   font-size: var(--lc-font-body);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
   cursor: pointer;
 }
 .setter__option-del:hover {
@@ -265,16 +277,16 @@
  * ============================================================ */
 
 .panel-err {
-  margin: 6px 0 0;
-  padding: 6px var(--lc-space-2);
+  margin: var(--lc-space-1-5) 0 0;
+  padding: var(--lc-space-1-5) var(--lc-space-2);
   border-radius: var(--lc-radius-sm);
   background: var(--lc-status-danger-bg);
   color: var(--lc-status-danger);
   font-size: var(--lc-font-caption);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
 }
 .panel-err + .panel-err {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 
 /* ============================================================
@@ -307,7 +319,7 @@
 .lc-state__title {
   margin: 0;
   font-size: var(--lc-font-body-sm);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-state--error .lc-state__title {
@@ -316,12 +328,12 @@
 .lc-state__text {
   margin: 0;
   font-size: var(--lc-font-caption);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
   color: var(--lc-text-secondary);
 }
 .lc-state__action {
   margin-top: var(--lc-space-1);
-  padding: 5px 12px;
+  padding: 5px var(--lc-space-3);
   border: var(--lc-border-width) solid var(--lc-action-primary);
   border-radius: var(--lc-radius-sm);
   background: var(--lc-bg-surface);
@@ -360,7 +372,7 @@
 .lc-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--lc-space-2-5);
   width: 100%;
   padding: var(--lc-space-2) 0;
 }

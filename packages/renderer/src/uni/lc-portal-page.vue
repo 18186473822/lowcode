@@ -106,7 +106,7 @@ function onCard(card: PortalCard): void {
   display: block;
   margin-bottom: var(--lc-space-2);
   font-size: var(--lc-font-body-lg);
-  font-weight: 700;
+  font-weight: var(--lc-weight-bold);
   color: var(--lc-text-primary);
 }
 .lc-portal-page__grid {
@@ -132,13 +132,13 @@ function onCard(card: PortalCard): void {
 }
 .lc-card__icon {
   font-size: 36rpx;
-  line-height: 1;
+  line-height: var(--lc-leading-label);
 }
 .lc-card__title {
   flex: 1;
   font-size: var(--lc-font-body);
   color: var(--lc-text-primary);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 .lc-card__badge {
   flex-shrink: 0;

@@ -152,7 +152,7 @@ watch(
   display: block;
   margin-bottom: var(--lc-space-1);
   font-size: var(--lc-font-body-sm);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-chart__img {
@@ -181,7 +181,7 @@ watch(
 }
 .lc-chart__legend-val {
   font-size: var(--lc-font-caption);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-chart__hint {

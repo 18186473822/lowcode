@@ -101,19 +101,19 @@ function onDragStart(e: VueDragEvent, m: MaterialSchema): void {
 .lc-material-panel__group-title {
   font-size: var(--lc-font-caption);
   color: var(--lc-text-tertiary);
-  margin: var(--lc-space-2) 0 6px;
+  margin: var(--lc-space-2) 0 var(--lc-space-1-5);
 }
 .lc-material-panel__list {
   list-style: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
 }
 .lc-material-panel__item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: var(--lc-space-1-5);
+  padding: var(--lc-space-1-5) var(--lc-space-2);
   border: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-strong);
   border-radius: var(--lc-radius-sm);
   font-size: var(--lc-font-body-sm);

@@ -54,7 +54,7 @@ body {
 }
 .designer__logo {
   font-size: var(--lc-font-body-lg);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   white-space: nowrap;
 }
 /* 页面标识：当前 pageId + 发布状态（design-system.md §7.1 顶栏） */
@@ -195,12 +195,12 @@ body {
   width: 1px;
   height: 18px;
   background: var(--lc-topbar-sep);
-  margin: 0 2px;
+  margin: 0 var(--lc-space-0-5);
 }
 
 /* 保存状态徽标 */
 .save-badge {
-  padding: var(--lc-space-1) 10px;
+  padding: var(--lc-space-1) var(--lc-space-2-5);
   font-size: var(--lc-font-micro);
   border-radius: var(--lc-radius-pill);
   white-space: nowrap;
@@ -240,11 +240,11 @@ body {
   flex-shrink: 0;
 }
 .designer__aside--left {
-  border-right: var(--lc-border-width) solid var(--lc-border-default);
+  border-right: var(--lc-border-width) solid var(--lc-panel-border);
 }
 .designer__aside--right {
   width: var(--lc-aside-w-right);
-  border-left: var(--lc-border-width) solid var(--lc-border-default);
+  border-left: var(--lc-border-width) solid var(--lc-panel-border);
 }
 .designer__main {
   flex: 1;
@@ -259,7 +259,7 @@ body {
   flex-shrink: 0;
   padding: var(--lc-space-2) var(--lc-space-4);
   font-size: var(--lc-font-caption);
-  line-height: 1.5;
+  line-height: var(--lc-leading-ui);
   color: var(--lc-text-link);
   background: var(--lc-status-info-bg);
   border-bottom: var(--lc-border-width) solid var(--lc-brand-200);
@@ -294,7 +294,7 @@ body {
   color: var(--lc-text-secondary);
 }
 .canvas-chip {
-  padding: 4px var(--lc-space-2);
+  padding: var(--lc-space-1) var(--lc-space-2);
   font-family: inherit;
   font-size: var(--lc-font-caption);
   border: var(--lc-border-width) solid transparent;
@@ -318,7 +318,7 @@ body {
   background: var(--lc-action-primary-subtle);
   border-color: var(--lc-brand-200);
   color: var(--lc-action-primary);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 .canvas-chip:disabled {
   opacity: 0.4;
@@ -441,7 +441,7 @@ body {
   border-bottom-color: var(--lc-action-primary);
   background: var(--lc-bg-surface);
   color: var(--lc-text-primary);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   cursor: default;
 }
 
@@ -469,7 +469,7 @@ body {
   overflow: hidden;
 }
 .bottom__err {
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   background: var(--lc-status-danger-bg);
   border-radius: var(--lc-radius-xs);
   white-space: nowrap;
@@ -561,7 +561,7 @@ body {
 }
 .designer__gate-card p {
   font-size: var(--lc-font-body-sm);
-  line-height: 1.7;
+  line-height: var(--lc-leading-prose);
   color: var(--lc-text-secondary);
 }
 

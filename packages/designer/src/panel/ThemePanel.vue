@@ -185,7 +185,7 @@ function onRetry(): void {
 .theme-color-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--lc-space-2);
 }
 
 .theme-color {
@@ -202,8 +202,8 @@ function onRetry(): void {
 .theme-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 16px;
+  gap: var(--lc-space-3);
+  margin-top: var(--lc-space-4);
 }
 
 .theme-saved {

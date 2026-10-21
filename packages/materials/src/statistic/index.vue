@@ -66,7 +66,7 @@ const trendGlyph = computed(() => {
 }
 .lc-stat__value {
   font-size: 48rpx;
-  font-weight: 700;
+  font-weight: var(--lc-weight-bold);
   color: var(--lc-text-primary);
 }
 .lc-stat__unit {
@@ -76,7 +76,7 @@ const trendGlyph = computed(() => {
 .lc-stat__trend {
   margin-left: 4rpx;
   font-size: var(--lc-font-body);
-  font-weight: 700;
+  font-weight: var(--lc-weight-bold);
 }
 .lc-stat__trend--up {
   color: var(--lc-status-success);

@@ -273,7 +273,7 @@ watch(
   color: var(--lc-status-danger);
 }
 .lc-ab__banner-icon {
-  font-weight: 700;
+  font-weight: var(--lc-weight-bold);
 }
 .lc-ab__banner-meta {
   font-size: var(--lc-font-micro);

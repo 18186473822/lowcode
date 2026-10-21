@@ -185,14 +185,14 @@ function onNewRole(): void {
 .rbac-sub {
   margin: 18px 0 var(--lc-space-2);
   font-size: var(--lc-font-caption);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-label);
 }
 .rbac-hint {
   margin: 0 0 var(--lc-space-2);
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
 }
 .rbac-new {
   display: flex;
@@ -205,14 +205,14 @@ function onNewRole(): void {
   list-style: none;
 }
 .rbac-role + .rbac-role {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 .rbac-role__open {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
   width: 100%;
-  padding: var(--lc-space-2) 10px;
+  padding: var(--lc-space-2) var(--lc-space-2-5);
   text-align: left;
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
@@ -228,7 +228,7 @@ function onNewRole(): void {
   color: var(--lc-text-primary);
 }
 .rbac-key {
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   font-family: var(--lc-font-mono);
   font-size: var(--lc-font-caption);
   border-radius: var(--lc-radius-xs);
@@ -247,13 +247,13 @@ function onNewRole(): void {
 .rbac-matrix {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
 }
 .rbac-matrix__row {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
-  padding: 6px var(--lc-space-2);
+  padding: var(--lc-space-1-5) var(--lc-space-2);
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
 }
@@ -283,15 +283,15 @@ function onNewRole(): void {
   margin-top: var(--lc-space-3);
 }
 .rbac-errors {
-  margin: 10px 0 0;
+  margin: var(--lc-space-2-5) 0 0;
   padding: 0;
   list-style: none;
 }
 .rbac-errors .panel-err + .panel-err {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
 }
 .rbac-role-edit .setter {
   display: grid;
-  margin-bottom: 10px;
+  margin-bottom: var(--lc-space-2-5);
 }
 </style>

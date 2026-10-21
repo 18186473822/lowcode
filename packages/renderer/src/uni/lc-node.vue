@@ -267,7 +267,7 @@ const emit = defineEmits<{ change: []; select: [nodeId: string] }>()
 }
 .lc-node__group-title {
   font-size: var(--lc-font-body-lg);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-node__group-required {

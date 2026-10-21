@@ -805,10 +805,10 @@ function onColor(s: SettingDesc, e: Event): void {
   align-items: center;
   justify-content: space-between;
   gap: var(--lc-space-2);
-  margin-bottom: 10px;
+  margin-bottom: var(--lc-space-2-5);
 }
 .lc-props-panel__title {
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   font-size: var(--lc-font-body);
   color: var(--lc-text-primary);
   overflow: hidden;
@@ -818,7 +818,7 @@ function onColor(s: SettingDesc, e: Event): void {
 .lc-props-panel__id {
   flex-shrink: 0;
   background: var(--lc-bg-subtle);
-  padding: 2px 6px;
+  padding: var(--lc-space-0-5) var(--lc-space-1-5);
   border-radius: var(--lc-radius-xs);
   font-family: var(--lc-font-mono);
   font-size: var(--lc-font-caption);
@@ -826,13 +826,13 @@ function onColor(s: SettingDesc, e: Event): void {
 }
 .lc-props-panel__ops {
   display: flex;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
   margin-bottom: 14px;
 }
 /* 局部改写：上移/下移/删除 三键等宽平铺（共用 .op-btn 不设 flex，避免影响其他面板） */
 .lc-props-panel__ops .op-btn {
   flex: 1;
-  padding: 5px 0;
+  padding: var(--lc-btn-pad-y) 0;
 }
 
 /* 页面级 / 节点级区块：与 settings 隔离，避免与通用 setter 混排 */
@@ -843,7 +843,7 @@ function onColor(s: SettingDesc, e: Event): void {
   border-bottom: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-default);
 }
 .lc-props-panel__fieldbind {
-  margin-top: 2px;
+  margin-top: var(--lc-space-0-5);
 }
 
 .lc-props-panel__settings {
@@ -855,21 +855,21 @@ function onColor(s: SettingDesc, e: Event): void {
 /* list/detail 标准页配置区块 */
 .lc-props-panel__stdcfg {
   margin-top: var(--lc-space-2);
-  padding: 10px;
+  padding: var(--lc-space-2-5);
   border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-md);
   background: var(--lc-bg-subtle);
 }
 .cols__head {
-  margin: var(--lc-space-1) 0 6px;
+  margin: var(--lc-space-1) 0 var(--lc-space-1-5);
   font-size: var(--lc-font-caption);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-label);
 }
 /* 门户卡片编辑块（批 4） */
 .lc-props-panel__card {
-  margin: 6px 0;
-  padding: 8px;
+  margin: var(--lc-space-1-5) 0;
+  padding: var(--lc-space-2);
   border: var(--lc-border-width) dashed var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
   background: var(--lc-bg-surface);
@@ -877,7 +877,7 @@ function onColor(s: SettingDesc, e: Event): void {
 .cols__item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
   padding: 3px 0;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-label);
@@ -896,7 +896,7 @@ function onColor(s: SettingDesc, e: Event): void {
   font-size: var(--lc-font-micro);
 }
 .cols__hint {
-  margin-top: 6px;
+  margin-top: var(--lc-space-1-5);
   font-size: var(--lc-font-micro);
   color: var(--lc-text-tertiary);
 }

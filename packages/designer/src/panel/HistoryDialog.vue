@@ -224,7 +224,7 @@ function formatTime(iso: string): string {
   font-size: var(--lc-font-micro);
   color: var(--lc-text-secondary);
   background: var(--lc-bg-subtle);
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   border-radius: var(--lc-radius-xs);
 }
 .lc-history__cur {
@@ -232,12 +232,12 @@ function formatTime(iso: string): string {
   color: var(--lc-action-primary);
   background: var(--lc-status-info-bg);
   border: var(--lc-border-width) solid var(--lc-brand-200);
-  padding: 1px 6px;
+  padding: 1px var(--lc-space-1-5);
   border-radius: var(--lc-radius-pill);
 }
 .lc-history__head-right {
   display: flex;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
 }
 .lc-history__list {
   margin: 0;
@@ -257,12 +257,12 @@ function formatTime(iso: string): string {
 .lc-history__badge {
   min-width: 34px;
   text-align: center;
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   font-size: var(--lc-font-micro);
   color: var(--lc-text-label);
   background: var(--lc-bg-subtle);
   border-radius: var(--lc-radius-xs);
-  padding: 2px 4px;
+  padding: var(--lc-space-0-5) var(--lc-space-1);
 }
 .lc-history__badge--cur {
   color: var(--lc-action-primary-text);
@@ -282,7 +282,7 @@ function formatTime(iso: string): string {
 .lc-history__actions {
   margin-left: auto;
   display: flex;
-  gap: 6px;
+  gap: var(--lc-space-1-5);
   flex-shrink: 0;
 }
 .lc-history__btn {
@@ -309,8 +309,8 @@ function formatTime(iso: string): string {
 }
 .lc-history__btn--close {
   font-size: var(--lc-font-body);
-  line-height: 1;
-  padding: 2px 8px;
+  line-height: var(--lc-leading-label);
+  padding: var(--lc-space-0-5) var(--lc-space-2);
 }
 .lc-history__btn--danger {
   border-color: var(--lc-status-danger);
@@ -328,7 +328,7 @@ function formatTime(iso: string): string {
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
   text-align: center;
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
 }
 .lc-history__hint--err {
   color: var(--lc-status-danger);
@@ -344,7 +344,7 @@ function formatTime(iso: string): string {
 .lc-history__diff-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--lc-space-2-5);
   padding: var(--lc-space-2) var(--lc-space-4);
   font-size: var(--lc-font-caption);
   color: var(--lc-text-primary);
@@ -356,7 +356,7 @@ function formatTime(iso: string): string {
 }
 .lc-history__entries {
   margin: 0;
-  padding: 6px 0;
+  padding: var(--lc-space-1-5) 0;
   list-style: none;
   overflow-y: auto;
 }
@@ -370,7 +370,7 @@ function formatTime(iso: string): string {
 .lc-history__kind {
   flex-shrink: 0;
   width: 52px;
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 .lc-history__node code {
   font-family: var(--lc-font-mono);

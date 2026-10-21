@@ -47,6 +47,7 @@
   --lc-neutral-200: #e3e8ee;
   --lc-neutral-300: #cbd3dc;
   --lc-neutral-400: #9aa5b1;
+  --lc-neutral-450: #8a94a6; /* 介于 400/500：控件边界与辅助文字达到 ≥3:1 的最低档（WCAG 1.4.11） */
   --lc-neutral-500: #6b7684;
   --lc-neutral-600: #4b5563;
   --lc-neutral-700: #374151;
@@ -55,15 +56,16 @@
 
   --lc-success-50: #e9f5ee;
   --lc-success-500: #1a9c4a;
-  --lc-success-600: #188038; /* 沿用现有成功色 */
+  --lc-success-600: #157a33; /* 较原 #188038 微深：与 success-50 底组合需 ≥4.5 */
 
   --lc-warning-50: #fff8e6;
   --lc-warning-500: #e08700;
-  --lc-warning-600: #b96f00;
+  --lc-warning-600: #a85c05; /* 较原 #b96f00 加深：与 warning-50 底组合需 ≥4.5 */
 
   --lc-danger-50: #fdecea;
   --lc-danger-500: #d93025; /* 沿用现有错误色 */
   --lc-danger-600: #b3261e;
+  --lc-danger-700: #8f1e17; /* 按下态：600 再压一档 */
 
   /* 暗色底阶（仅暗色模式使用） */
   --lc-dark-0: #0f1319;
@@ -77,8 +79,11 @@
    * ============================================================ */
 
   --lc-space-0: 0;
+  --lc-space-0-5: 4rpx; /* 半档：密集 chrome 的 2px 级微调（4px 基准下的 0.5 倍） */
   --lc-space-1: 8rpx;
+  --lc-space-1-5: 12rpx; /* 半档：面板行内 gap / 紧凑内边距，使用频次最高 */
   --lc-space-2: 16rpx;
+  --lc-space-2-5: 20rpx; /* 半档：字段间与徽标内边距 */
   --lc-space-3: 24rpx;
   --lc-space-4: 32rpx;
   --lc-space-5: 40rpx;
@@ -112,6 +117,15 @@
   --lc-lh-h1: 60rpx;
   --lc-lh-display: 72rpx;
 
+  /* 行高（无单位比率）—— 正文 / UI 文本**一律用这一族**：
+     比率随字号缩放，200% 文字缩放不会裁字；上面的 lh-*(px) 只用于固定尺寸的展示型标题。
+     命名按用途而非数值，避免和 lh-* 混淆。 */
+  --lc-leading-label: 1; /* 单行标签 / 图标对齐 */
+  --lc-leading-compact: 1.2; /* 紧凑小字（徽标、辅助标记） */
+  --lc-leading-ui: 1.5; /* 控件内 / 短文本 */
+  --lc-leading-readable: 1.6; /* 正文（最常用） */
+  --lc-leading-prose: 1.7; /* 长段落说明 */
+
   --lc-weight-regular: 400;
   --lc-weight-medium: 500;
   --lc-weight-semibold: 600;
@@ -139,16 +153,17 @@
   --lc-text-primary: var(--lc-neutral-800); /* 一级文字 · 标题与正文主体 */
   --lc-text-label: var(--lc-neutral-700); /* 二级文字 · 表单标签 / 面板字段名 */
   --lc-text-secondary: var(--lc-neutral-500); /* 三级文字 · 说明 / 表格正文 */
-  --lc-text-tertiary: var(--lc-neutral-400); /* 辅助 · 占位符 / 时间戳 / 禁用 */
+  --lc-text-tertiary: var(--lc-neutral-450); /* 辅助 · 时间戳 / 说明。已提到 450（2.50 → 3.06）；正文级场景请用 secondary */
   --lc-text-inverse: #ffffff;
   --lc-text-link: var(--lc-brand-500);
-  --lc-text-danger: var(--lc-danger-500);
+  --lc-text-danger: var(--lc-status-danger); /* 别名：错误文字只有一种红，避免两套色值各自漂移 */
   /* 品牌底上的文字（hero 渐变、蓝色卡片等）：亮暗模式一致，均为白 */
   --lc-text-on-brand: #ffffff;
-  --lc-text-on-brand-muted: rgba(255, 255, 255, 0.8);
+  /* 品牌面上**不要用透明度做层级**（white 0.8 只有 3.60，跌破 AA）——用字号/字重区分 */
+  --lc-text-on-brand-muted: #ffffff;
 
   --lc-border-default: var(--lc-neutral-200);
-  --lc-border-strong: var(--lc-neutral-300);
+  --lc-border-strong: var(--lc-neutral-450); /* 控件边界需 ≥3:1（WCAG 1.4.11）；标尺刻度改用 border-default */
   --lc-border-focus: var(--lc-brand-500);
 
   --lc-action-primary: var(--lc-brand-500);
@@ -161,8 +176,8 @@
   --lc-status-success-bg: var(--lc-success-50);
   --lc-status-warning: var(--lc-warning-600);
   --lc-status-warning-bg: var(--lc-warning-50);
-  --lc-status-danger: var(--lc-danger-500);
-  --lc-status-danger-active: var(--lc-danger-600); /* 危险操作的「点击」态（§3.2） */
+  --lc-status-danger: var(--lc-danger-600); /* 600 才能在 danger-50 底上过 4.5（500 只有 4.17） */
+  --lc-status-danger-active: var(--lc-danger-700); /* 危险操作的「点击」态（§3.2） */
   --lc-status-danger-bg: var(--lc-danger-50);
   --lc-status-info-bg: var(--lc-brand-50);
 
@@ -184,7 +199,7 @@
   --lc-btn-h-lg: 72rpx;
   --lc-btn-h-touch: 88rpx; /* 移动端触控 */
   --lc-btn-radius: var(--lc-radius-sm);
-  --lc-btn-pad-y: 16rpx;
+  --lc-btn-pad-y: 12rpx; /* 6 + lh-caption 18 + border 2 = 32，与 btn-h-md 对齐 */
   --lc-btn-pad-x: 32rpx;
 
   /* 输入框 */
@@ -209,7 +224,7 @@
   --lc-input-bg: var(--lc-bg-surface);
   --lc-input-border: var(--lc-border-strong);
   --lc-input-border-focus: var(--lc-border-focus);
-  --lc-input-placeholder: var(--lc-text-tertiary);
+  --lc-input-placeholder: var(--lc-text-secondary); /* 占位符是**正文级**文本，不能用辅助色（2.50→4.62） */
   --lc-panel-border: var(--lc-border-default);
   --lc-table-header-bg: var(--lc-bg-subtle);
   --lc-table-row-hover: var(--lc-bg-subtle);
@@ -272,27 +287,31 @@
   --lc-text-primary: #e8ecf2;
   --lc-text-label: #c6cdd8;
   --lc-text-secondary: var(--lc-neutral-400);
-  --lc-text-tertiary: var(--lc-neutral-500);
+  --lc-text-tertiary: var(--lc-neutral-400);
   --lc-text-inverse: var(--lc-neutral-800);
   --lc-text-link: var(--lc-brand-400);
-  --lc-text-danger: #f77370;
+  --lc-text-danger: var(--lc-status-danger); /* 别名：同上 */
+  /* 暗色下品牌面是**浅蓝**（#4d88f0），白字只有 3.45 → 标签必须用深墨（Material 3 同款做法） */
+  --lc-text-on-brand: #0f1319;
+  --lc-text-on-brand-muted: #0f1319;
 
   --lc-border-default: var(--lc-dark-300);
-  --lc-border-strong: var(--lc-dark-400);
+  --lc-border-strong: var(--lc-neutral-500); /* 控件边界 ≥3:1；dark-400 只有 1.82 */
   --lc-border-focus: var(--lc-brand-400);
 
   --lc-action-primary: #4d88f0;
   --lc-action-primary-hover: var(--lc-brand-400);
-  --lc-action-primary-active: var(--lc-brand-500);
+  /* 暗色下「按下」应更亮（brand-300）—— 更暗会让深墨标签掉到 3.95 */
+  --lc-action-primary-active: var(--lc-brand-300);
   --lc-action-primary-subtle: var(--lc-brand-800);
-  --lc-action-primary-text: #ffffff;
+  --lc-action-primary-text: #0f1319;
 
   --lc-status-success: #34d399;
   --lc-status-success-bg: #10281a;
   --lc-status-warning: #fbbf24;
   --lc-status-warning-bg: #2b1f04;
   --lc-status-danger: #f77370;
-  --lc-status-danger-active: var(--lc-danger-500); /* 暗色下「更强调」= 更饱和，而非更黑 */
+  --lc-status-danger-active: #f09a98; /* 暗色下「更强调」= 更亮，而非更黑；danger-500 在暗底只有 3.58 */
   --lc-status-danger-bg: #2c1412;
   --lc-status-info-bg: #14213d;
 

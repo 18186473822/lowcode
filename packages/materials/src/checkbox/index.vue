@@ -121,7 +121,7 @@ function toggle(v: string | number): void {
 .lc-checkbox__mark {
   color: var(--lc-text-on-brand);
   font-size: var(--lc-font-micro);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
 }
 .lc-checkbox__text {
   font-size: var(--lc-font-body);

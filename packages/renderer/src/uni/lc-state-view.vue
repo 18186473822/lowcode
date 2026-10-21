@@ -156,7 +156,7 @@ const emit = defineEmits<{ action: [] }>()
 .lc-state__title {
   margin: 0;
   font-size: var(--lc-font-body-lg);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-state--error .lc-state__title,
@@ -170,7 +170,7 @@ const emit = defineEmits<{ action: [] }>()
 .lc-state__text {
   margin: 0;
   font-size: var(--lc-font-body-sm);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
   color: var(--lc-text-secondary);
   text-align: center;
 }

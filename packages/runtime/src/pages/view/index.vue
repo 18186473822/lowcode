@@ -305,7 +305,7 @@ function goLogin(): void {
   bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 999;
   max-width: 80vw;
-  padding: 4px 8px;
+  padding: var(--lc-space-1) var(--lc-space-2);
   border-radius: 6px;
   /* 反色叠层：浅色下 = neutral-800 深底白字，暗色下翻转为浅底深字（与 tooltip 反色语义一致） */
   background: var(--lc-bg-inverse);

@@ -168,7 +168,7 @@ watch(
   color: var(--lc-text-tertiary);
   font-size: 10px;
   cursor: pointer;
-  line-height: 1;
+  line-height: var(--lc-leading-label);
 }
 .lc-outline__toggle--blank {
   cursor: default;
@@ -193,7 +193,7 @@ watch(
   background: none;
   color: var(--lc-text-tertiary);
   font-size: var(--lc-font-body-sm);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
   cursor: pointer;
   visibility: hidden;
 }

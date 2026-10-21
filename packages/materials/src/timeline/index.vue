@@ -171,7 +171,7 @@ watch(
 }
 .lc-tl__action {
   font-size: var(--lc-font-body);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .lc-tl__time {

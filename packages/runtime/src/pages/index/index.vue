@@ -168,7 +168,7 @@ function redirectToLogin(): void {
 .menu__hello {
   color: var(--lc-text-on-brand);
   font-size: 34rpx;
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 .menu__sub {
   margin-top: var(--lc-space-1);

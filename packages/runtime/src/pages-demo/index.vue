@@ -33,6 +33,6 @@ const options: PageControllerOptions = {
 .page__banner-text {
   color: var(--lc-text-on-brand);
   font-size: var(--lc-font-body-lg);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 </style>

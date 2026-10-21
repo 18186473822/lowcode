@@ -49,6 +49,6 @@ const glyph = computed(() => {
 }
 .lc-icon__glyph {
   color: var(--lc-text-primary);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
 }
 </style>

@@ -36,6 +36,8 @@ const DARK_SENSITIVE = [
   '--lc-border-default',
   '--lc-border-strong',
   '--lc-action-primary',
+  '--lc-text-on-brand',
+  '--lc-text-on-brand-muted',
   '--lc-status-danger',
 ] as const
 
@@ -71,10 +73,16 @@ describe('@lc/tokens —— 双模式完整性', () => {
     expect(missing, `以下语义令牌缺少暗色值：${missing.join(', ')}`).toEqual([])
   })
 
-  it('--lc-text-on-brand 在亮暗下都是白（品牌底文字不随主题翻转）', () => {
+  it('品牌底文字在暗色**必须显式覆盖**（暗色品牌面是浅蓝，白字只有 3.45）', () => {
     const darkBlock = grabBlock(/\[data-theme='dark'\]\s*\{([\s\S]*?)\n\}/)
-    // 亮色必须定义；暗色可继承（未覆盖 = 沿用亮色，同样正确）
+    // 旧不变量是「亮暗都是白、暗色可继承」—— 前提是「品牌面不随主题变浅」。
+    // 但本项目暗色 action-primary = #4d88f0（比亮色 #2b6de8 **更浅**），
+    // 白字在它上面只有 3.45:1，低于 AA 4.5。所以不变量改成：
+    // 暗色不得静默继承白字，必须给出能达标的一侧（现为深墨 #0f1319 → 5.41）。
     expect(cssValue(grabBlock(/:root\s*\{([\s\S]*?)\n\}/), '--lc-text-on-brand')).toBeTruthy()
-    expect(cssValue(darkBlock, '--lc-text-on-brand')).toBeUndefined()
+    expect(
+      cssValue(darkBlock, '--lc-text-on-brand'),
+      '暗色未覆盖 text-on-brand → 继承白字，在 #4d88f0 上仅 3.45:1',
+    ).toBeTruthy()
   })
 })

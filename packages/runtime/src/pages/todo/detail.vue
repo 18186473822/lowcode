@@ -228,7 +228,7 @@ function goBack(): void {
 }
 .ad__head-title {
   font-size: var(--lc-font-h3);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
 }
 .ad__head-sub {
@@ -246,7 +246,7 @@ function goBack(): void {
 .ad__card-title {
   display: block;
   font-size: 27rpx;
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
   margin-bottom: var(--lc-space-2);
 }

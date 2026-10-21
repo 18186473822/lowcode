@@ -25,7 +25,7 @@ const display = computed(() => props.text ?? props.label ?? '')
 .lc-text__content {
   font-size: var(--lc-font-body);
   color: var(--lc-text-primary);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
   word-break: break-all;
 }
 </style>

@@ -27,7 +27,7 @@ defineProps<{
 }
 .lc-tag__text {
   font-size: var(--lc-font-micro);
-  line-height: 1.6;
+  line-height: var(--lc-leading-readable);
 }
 .lc-tag--primary {
   background: var(--lc-action-primary-subtle);

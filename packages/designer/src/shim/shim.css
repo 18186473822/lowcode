@@ -93,13 +93,13 @@ image {
 }
 .lc-shim-picker__option--active {
   color: var(--lc-action-primary);
-  font-weight: 600;
+  font-weight: var(--lc-weight-semibold);
 }
 
 /* ---- ③ radio（组件 shim：原生 input，accent-color 上色） ---- */
 .lc-shim-radio {
   accent-color: var(--lc-action-primary);
-  margin: 0 6px 0 0;
+  margin: 0 var(--lc-space-1-5) 0 0;
 }
 .lc-shim-radio-group {
   display: flex;

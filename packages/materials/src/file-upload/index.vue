@@ -139,7 +139,7 @@ function remove(index: number): void {
 .lc-file-upload__plus {
   font-size: 34rpx;
   color: var(--lc-text-tertiary);
-  line-height: 1;
+  line-height: var(--lc-leading-label);
   margin-right: var(--lc-space-1);
 }
 .lc-file-upload__add-text {
