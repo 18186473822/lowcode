@@ -1,8 +1,8 @@
-// MySQL 8.0 + Prisma 6 数据模型（Phase 4 数据库第一批）
+// MySQL 8.0 + Prisma 6 数据模型（Phase 4 数据库第一批 + 第二批）
 //
 // 设计原则：
-// - 只落「业务主数据」：用户/角色、页面/版本、模型定义、业务记录、页面授权；
-//   flows / ops / apps.json 仍走 JSON 文件（下一批再迁）。
+// - 已落「业务主数据」：用户/角色、页面/版本、模型定义、业务记录、页面授权；
+//   第二批补流程定义/实例、运维事件、应用配置（flows / flow-instances / ops / apps.json）。
 // - 仓储接口不变：`LC_STORAGE=mysql` 时由 MySQL 实现替换 JSON 实现，服务层零改动。
 // - 时间统一 `DATETIME(3)`，与现有 ISO 字符串（毫秒）对齐；JSON 列保存协议原始结构，
 //   避免把动态 Schema/记录 payload 拆成大量稀疏列。
@@ -116,4 +116,66 @@ model RbacPageGrant {
   roles  Json
 
   @@map("rbac_page_grants")
+}
+
+// 流程定义与实例分表：删除定义不级联删除实例（审计必须保留）。
+model FlowDefinition {
+  flowId     String   @id @db.VarChar(64)
+  modelId    String   @db.VarChar(64)
+  name       String   @db.VarChar(128)
+  schemaJson Json
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  updatedAt  DateTime @updatedAt @db.DateTime(3)
+
+  @@index([modelId])
+  @@map("flow_definitions")
+}
+
+model FlowInstance {
+  id            String   @id @db.VarChar(64)
+  flowId        String   @db.VarChar(64)
+  modelId       String   @db.VarChar(64)
+  recordId      String   @db.VarChar(64)
+  status        String   @db.VarChar(16)
+  currentNodeId String?  @db.VarChar(64)
+  createdBy     String   @db.VarChar(64)
+  createdAt     DateTime @db.DateTime(3)
+  updatedAt     DateTime @db.DateTime(3)
+  tasksJson     Json
+  historyJson   Json
+
+  @@index([modelId, recordId])
+  @@index([flowId])
+  @@index([status])
+  @@map("flow_instances")
+}
+
+// 运维事件保留自增 seq：同一批事件 at 相同，靠 seq 维持「后写在前」的可解释顺序。
+model OpsEvent {
+  seq         Int      @id @default(autoincrement())
+  id          String   @unique @db.VarChar(80)
+  type        String   @db.VarChar(16)
+  name        String   @db.VarChar(64)
+  pageId      String?  @db.VarChar(64)
+  pageVersion String?  @db.VarChar(16)
+  source      String   @db.VarChar(16)
+  userId      String?  @db.VarChar(64)
+  message     String?  @db.Text
+  durationMs  Float?   @db.Double
+  detailJson  Json?
+  at          DateTime @db.DateTime(3)
+
+  @@index([type])
+  @@index([pageId])
+  @@index([at])
+  @@map("ops_events")
+}
+
+// 应用配置当前只有 theme；单行 id=default，保留扩展成多应用的余地。
+model AppConfig {
+  id        String   @id @db.VarChar(32)
+  theme     Json?
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+
+  @@map("app_config")
 }

@@ -6,8 +6,9 @@
  *   2. 已对 lowcode_test 执行 `prisma migrate deploy`
  *   3. 设置 LC_SMOKE_DATABASE_URL（或 LC_TEST_DATABASE_URL）指向 *_test 库
  *
- * 验证：MySQL readiness、登录、页面草稿/发布/版本、模型/记录、RBAC、级联删除，
- * 并通过 Prisma 回读数据库行，证明不是只写了内存/文件。
+ * 验证（9 项）：MySQL readiness、登录、页面草稿/发布/版本、模型/记录、流程定义/实例、
+ * RBAC、ops 事件、app_config、级联删除；并通过 Prisma 回读数据库行，
+ * 证明不是只写了内存/文件。
  */
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -106,6 +107,10 @@ try {
     'roles',
     'users',
     'rbac_page_grants',
+    'flow_instances',
+    'flow_definitions',
+    'ops_events',
+    'app_config',
   ]) {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``)
   }
@@ -216,6 +221,23 @@ try {
   }
   const modelSaved = await call('PUT', '/models/md_mysql_smoke', { body: model, token })
   assert(modelSaved.status === 200, `save model status=${modelSaved.status}`)
+  const flow = {
+    flowId: 'fl_mysql_smoke',
+    name: 'MySQL 冒烟流程',
+    modelId: 'md_mysql_smoke',
+    mode: 'linear',
+    nodes: [
+      { id: 'n1', type: 'start', name: '开始' },
+      { id: 'n2', type: 'approve', name: '审批', assignee: { type: 'role', value: 'admin' } },
+      { id: 'n3', type: 'end', name: '结束' },
+    ],
+  }
+  const flowSaved = await call('PUT', '/flows/fl_mysql_smoke', { body: flow, token })
+  assert(flowSaved.status === 200, `save flow status=${flowSaved.status}`)
+  const dbFlow = await prisma.flowDefinition.findUnique({ where: { flowId: 'fl_mysql_smoke' } })
+  assert(dbFlow?.modelId === 'md_mysql_smoke', 'flow definition from MySQL')
+  console.log('PASS flow definition persisted (flow_definitions)')
+
   const created = await call('POST', '/models/md_mysql_smoke/records', {
     body: { name: '记录一' },
     token,
@@ -225,12 +247,35 @@ try {
     where: { modelId_id: { modelId: 'md_mysql_smoke', id: created.data.id } },
   })
   assert(dbRecord?.payload.name === '记录一', 'record payload from MySQL')
-  console.log('PASS model + record persisted (models + data_records)')
+  const dbInstance = await prisma.flowInstance.findFirst({
+    where: { flowId: 'fl_mysql_smoke', recordId: created.data.id },
+  })
+  assert(dbInstance?.status === 'running', 'flow instance from MySQL')
+  assert(Array.isArray(dbInstance?.tasksJson) && dbInstance.tasksJson.length === 1, 'flow tasks JSON')
+  console.log('PASS model + record + flow instance persisted')
 
   const rbac = await call('GET', '/rbac/roles', { token })
   assert(rbac.status === 200, `rbac status=${rbac.status}`)
   assert(rbac.data.roles.some((role) => role.key === 'admin'), 'rbac roles from MySQL')
   console.log('PASS RBAC roles read from MySQL')
+
+  const ingested = await call('POST', '/ops/events', {
+    token,
+    body: { events: [{ type: 'event', name: 'mysql-smoke', pageId: 'pg_mysql_smoke' }] },
+  })
+  assert(ingested.status === 200, `ops ingest status=${ingested.status}`)
+  const dbOps = await prisma.opsEvent.findMany({ where: { pageId: 'pg_mysql_smoke' } })
+  assert(dbOps.length === 1 && dbOps[0].name === 'mysql-smoke', 'ops event from MySQL')
+  console.log('PASS ops event persisted (ops_events)')
+
+  const theme = await call('PUT', '/apps/config', {
+    token,
+    body: { theme: { primary: '#2255AA', radius: '10px' } },
+  })
+  assert(theme.status === 200, `app config status=${theme.status}`)
+  const dbConfig = await prisma.appConfig.findUnique({ where: { id: 'default' } })
+  assert(dbConfig?.theme?.primary === '#2255AA', 'app config from MySQL')
+  console.log('PASS app config persisted (app_config)')
 
   const removed = await call('DELETE', '/pages/p_mysql_smoke', { token })
   assert(removed.status === 200, `delete page status=${removed.status}`)

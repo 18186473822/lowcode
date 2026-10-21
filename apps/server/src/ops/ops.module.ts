@@ -9,13 +9,12 @@ import { AuthModule } from '../common/auth.module.js'
 import { RbacModule } from '../rbac/rbac.module.js'
 import { OpsController } from './ops.controller.js'
 import { OpsService } from './ops.service.js'
-import { FileOpsRepository } from './file-ops.repository.js'
-import { OPS_REPOSITORY } from './ops.types.js'
 
 @Module({
   imports: [AuthModule, RbacModule],
   controllers: [OpsController],
-  providers: [OpsService, { provide: OPS_REPOSITORY, useClass: FileOpsRepository }],
+  // OPS_REPOSITORY 由全局 StorageModule 按 LC_STORAGE 提供（JSON / MySQL）。
+  providers: [OpsService],
   exports: [OpsService],
 })
 export class OpsModule {}

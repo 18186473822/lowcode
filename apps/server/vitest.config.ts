@@ -7,10 +7,12 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     rpcTimeout: 600_000,
-    // 本机 apps/server/.env 为 MySQL 开发连接；单测必须保持 JSON 路径，
-    // 避免测试数据写进开发库（MySQL 专项集成测试自行显式传入连接串）。
+    // 本机 apps/server/.env 为 MySQL 开发连接；单测必须保持 JSON 路径。
+    // 仅靠 test.env 会被 Vitest 自动加载的 .env 覆盖（2026-10-21 实测把测试页写进 lowcode），
+    // 因此再用 setupFiles 在测试模块导入前强制 LC_STORAGE=json 并移除 DATABASE_URL。
     env: {
       LC_STORAGE: 'json',
     },
+    setupFiles: ['./test/setup-json-storage.ts'],
   },
 })

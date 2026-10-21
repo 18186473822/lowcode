@@ -13,6 +13,7 @@
 | [006](006-pnpm-recursive-ci.md) | `pnpm -r` 替代 Turborepo + 覆盖率阈值门禁 | 已接受 | D-4 / D-13 |
 | [007](007-cross-platform-reuse-boundary.md) | 跨端复用边界：令牌全端共享，组件只在同构宿主内共享 | 已接受 | §3.2 / §10.4 |
 | [008](008-mysql-prisma-first-batch.md) | 核心业务数据落 MySQL 8 + Prisma（第一批） | 已接受 | 方案 8.1 / 8.4 / 8.5；ADR-004 |
+| [009](009-mysql-prisma-second-batch.md) | 流程、运维事件与应用配置落 MySQL（第二批） | 已接受 | ADR-008；方案 8.1 / 8.2 / 8.6 |
 
 ## 模板
 

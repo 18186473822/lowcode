@@ -1,22 +1,22 @@
 /**
- * 应用配置（Phase 3 批 3 / D-P3-8）：`<DATA_DIR>/apps.json` 单文件（沿 D-9 JSON 风格）。
+ * 应用配置（Phase 3 批 3 / D-P3-8；Phase 4 第二批落库）。
  *
  * 首期只承载 `theme`（primary/radius/dark，协议见 `@lc/schema` 的 `AppTheme`）；
  * 结构为顶层对象预留扩展位（未来独立应用实体可迁入本文件）。
  *
+ * - 存储：`LC_STORAGE=json` 走 `<DATA_DIR>/apps.json`，`mysql` 走 `app_config` 表；
  * - 写入语义：**patch**（缺键保留旧值、显式 null 清除该键）—— 前端只需提交改动项；
- * - 原子写：tmp + rename（与 FilePageRepository 同款，防写半截损坏）；
- * - 读容错：文件不存在 / JSON 损坏 → `{}`（配置层故障不拖垮 bootstrap）。
+ * - 读取容错：文件不存在 / JSON 损坏 → `{}`（配置层故障不拖垮 bootstrap）。
  */
 import { Inject, Injectable } from '@nestjs/common'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
 import type { AppTheme } from '@lc/schema'
-import { DATA_DIR } from '../common/tokens.js'
+import {
+  APP_CONFIG_REPOSITORY,
+  type AppConfig,
+  type AppConfigRepository,
+} from './app-config.types.js'
 
-export interface AppConfig {
-  theme?: AppTheme
-}
+export type { AppConfig } from './app-config.types.js'
 
 const THEME_KEYS = ['primary', 'radius', 'dark'] as const
 const HEX_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
@@ -37,7 +37,7 @@ export function validateTheme(theme: unknown): string[] {
   }
   const v = t.primary
   if (v !== undefined && v !== null && (typeof v !== 'string' || !HEX_RE.test(v))) {
-    issues.push('primary 必须是 #RGB / #RRGGBBB 十六进制色值')
+    issues.push('primary 必须是 #RGB / #RRGGBB 十六进制色值')
   }
   const r = t.radius
   if (r !== undefined && r !== null && (typeof r !== 'string' || !PX_RE.test(r))) {
@@ -53,19 +53,15 @@ export function validateTheme(theme: unknown): string[] {
 @Injectable()
 export class AppConfigService {
   // B-43：vitest/esbuild 不 emit decorator metadata —— 构造注入一律显式 @Inject
-  constructor(@Inject(DATA_DIR) private readonly dataDir: string) {}
-
-  private get file(): string {
-    return path.join(this.dataDir, 'apps.json')
-  }
+  constructor(@Inject(APP_CONFIG_REPOSITORY) private readonly repo: AppConfigRepository) {}
 
   async getConfig(): Promise<AppConfig> {
-    return this.read()
+    return this.repo.read()
   }
 
   /** patch 语义写入 theme：缺键保留、显式 null 清除；返回合并后的完整 theme */
   async patchTheme(patch: Record<string, unknown>): Promise<AppTheme> {
-    const cfg = this.read()
+    const cfg = await this.repo.read()
     const next: AppTheme = { ...(cfg.theme ?? {}) }
     for (const k of THEME_KEYS) {
       if (!(k in patch)) continue
@@ -74,24 +70,7 @@ export class AppConfigService {
       else (next as Record<string, unknown>)[k] = v
     }
     cfg.theme = next
-    this.write(cfg)
+    await this.repo.write(cfg)
     return next
-  }
-
-  private read(): AppConfig {
-    try {
-      if (!existsSync(this.file)) return {}
-      const raw = JSON.parse(readFileSync(this.file, 'utf8')) as AppConfig
-      return typeof raw === 'object' && raw !== null ? raw : {}
-    } catch {
-      return {}
-    }
-  }
-
-  private write(cfg: AppConfig): void {
-    mkdirSync(this.dataDir, { recursive: true })
-    const tmp = `${this.file}.tmp`
-    writeFileSync(tmp, JSON.stringify(cfg, null, 2), 'utf8')
-    renameSync(tmp, this.file)
   }
 }

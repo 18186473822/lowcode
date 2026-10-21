@@ -1,13 +1,16 @@
 /**
  * 将现有 JSON 文件数据导入 MySQL（幂等 upsert，不删除目标库中的额外数据）。
  *
- * 覆盖范围（与第一批 Prisma schema 对齐）：
+ * 覆盖范围（与 Prisma schema 对齐）：
  *   pages/<id>.json            → pages + page_versions
  *   models/<id>.json           → models
  *   data/<modelId>/<id>.json   → data_records
  *   rbac.json                  → roles + rbac_page_grants
+ *   flows.json                 → flow_definitions
+ *   flow-instances.json        → flow_instances
+ *   ops/events.json            → ops_events
+ *   apps.json                  → app_config
  *
- * 不导入：flows.json / flow-instances.json / ops / apps.json（下一批迁移）。
  * 用户/口令不走 JSON，执行前先 `pnpm -F @lc/server seed:mysql`。
  *
  * 用法（在 apps/server 下）：
@@ -185,13 +188,146 @@ async function importRbac() {
   return true
 }
 
+async function importFlows() {
+  const file = path.join(dataDir, 'flows.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const flows = Array.isArray(parsed) ? parsed : parsed.flows
+  if (!Array.isArray(flows)) return 0
+
+  for (const flow of flows) {
+    const now = new Date()
+    const data = {
+      modelId: flow.modelId ?? '',
+      name: flow.name ?? flow.flowId,
+      schemaJson: flow,
+      updatedAt: now,
+    }
+    await prisma.flowDefinition.upsert({
+      where: { flowId: flow.flowId },
+      create: { flowId: flow.flowId, ...data, createdAt: now },
+      update: data,
+    })
+  }
+  return flows.length
+}
+
+async function importFlowInstances() {
+  const file = path.join(dataDir, 'flow-instances.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const instances = Array.isArray(parsed) ? parsed : parsed.instances
+  if (!Array.isArray(instances)) return 0
+
+  for (const instance of instances) {
+    const data = {
+      flowId: instance.flowId,
+      modelId: instance.modelId,
+      recordId: instance.recordId,
+      status: instance.status ?? 'running',
+      currentNodeId: instance.currentNodeId ?? null,
+      createdBy: instance.createdBy ?? 'system',
+      createdAt: date(instance.createdAt),
+      updatedAt: date(instance.updatedAt),
+      tasksJson: Array.isArray(instance.tasks) ? instance.tasks : [],
+      historyJson: Array.isArray(instance.history) ? instance.history : [],
+    }
+    await prisma.flowInstance.upsert({
+      where: { id: instance.id },
+      create: { id: instance.id, ...data },
+      update: {
+        flowId: data.flowId,
+        modelId: data.modelId,
+        recordId: data.recordId,
+        status: data.status,
+        currentNodeId: data.currentNodeId,
+        createdBy: data.createdBy,
+        updatedAt: data.updatedAt,
+        tasksJson: data.tasksJson,
+        historyJson: data.historyJson,
+      },
+    })
+  }
+  return instances.length
+}
+
+async function importOps() {
+  const file = path.join(dataDir, 'ops', 'events.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const events = Array.isArray(parsed) ? parsed : parsed.events
+  if (!Array.isArray(events)) return 0
+
+  for (const event of events) {
+    const data = {
+      type: event.type,
+      name: event.name,
+      pageId: event.pageId ?? null,
+      pageVersion: event.pageVersion === undefined ? null : String(event.pageVersion),
+      source: event.source ?? 'runtime',
+      userId: event.userId ?? null,
+      message: event.message ?? null,
+      durationMs: event.durationMs ?? null,
+      detailJson: event.detail ?? Prisma.DbNull,
+      at: date(event.at),
+    }
+    await prisma.opsEvent.upsert({
+      where: { id: event.id },
+      create: { id: event.id, ...data },
+      update: data,
+    })
+  }
+  return events.length
+}
+
+async function importAppConfig() {
+  const file = path.join(dataDir, 'apps.json')
+  let config
+  try {
+    config = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return false
+    throw error
+  }
+  const theme = config.theme && typeof config.theme === 'object' ? config.theme : Prisma.DbNull
+  const now = new Date()
+  await prisma.appConfig.upsert({
+    where: { id: 'default' },
+    create: { id: 'default', theme, updatedAt: now },
+    update: { theme, updatedAt: now },
+  })
+  return true
+}
+
 try {
   console.log(`数据目录：${dataDir}`)
   const pages = await importPages()
   const models = await importModels()
   const records = await importRecords()
   const rbac = await importRbac()
-  console.log(`导入完成：pages=${pages}, models=${models}, records=${records}, rbac=${rbac ? 'yes' : 'skip'}`)
+  const flows = await importFlows()
+  const instances = await importFlowInstances()
+  const ops = await importOps()
+  const appConfig = await importAppConfig()
+  console.log(
+    `导入完成：pages=${pages}, models=${models}, records=${records}, rbac=${rbac ? 'yes' : 'skip'}, ` +
+      `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}`,
+  )
 } catch (error) {
   console.error('导入失败：', error)
   process.exitCode = 1

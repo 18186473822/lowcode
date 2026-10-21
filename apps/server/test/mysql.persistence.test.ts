@@ -17,6 +17,12 @@ import { MysqlPageRepository } from '../src/persistence/mysql/page.repository.js
 import { MysqlModelRepository } from '../src/persistence/mysql/model.repository.js'
 import { MysqlRecordRepository } from '../src/persistence/mysql/record.repository.js'
 import { MysqlRbacRepository } from '../src/persistence/mysql/rbac.repository.js'
+import { MysqlFlowRepository } from '../src/persistence/mysql/flow.repository.js'
+import { MysqlOpsRepository } from '../src/persistence/mysql/ops.repository.js'
+import { MysqlAppConfigRepository } from '../src/persistence/mysql/app-config.repository.js'
+import type { FlowSchema } from '@lc/schema'
+import type { FlowInstance } from '../src/flow/flow.types.js'
+import type { OpsEvent } from '../src/ops/ops.types.js'
 
 const url = process.env.LC_TEST_DATABASE_URL
 const describeMysql = url ? describe : describe.skip
@@ -48,6 +54,9 @@ describeMysql('MySQL 仓储', () => {
   let models: MysqlModelRepository
   let records: MysqlRecordRepository
   let rbac: MysqlRbacRepository
+  let flows: MysqlFlowRepository
+  let ops: MysqlOpsRepository
+  let appConfig: MysqlAppConfigRepository
 
   beforeAll(async () => {
     prisma = new PrismaClient({ datasources: { db: { url } } })
@@ -56,6 +65,9 @@ describeMysql('MySQL 仓储', () => {
     models = new MysqlModelRepository(prisma)
     records = new MysqlRecordRepository(prisma)
     rbac = new MysqlRbacRepository(prisma)
+    flows = new MysqlFlowRepository(prisma)
+    ops = new MysqlOpsRepository(prisma)
+    appConfig = new MysqlAppConfigRepository(prisma)
 
     await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=0')
     for (const table of [
@@ -67,6 +79,10 @@ describeMysql('MySQL 仓储', () => {
       'roles',
       'users',
       'rbac_page_grants',
+      'flow_instances',
+      'flow_definitions',
+      'ops_events',
+      'app_config',
     ]) {
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``)
     }
@@ -214,5 +230,104 @@ describeMysql('MySQL 仓储', () => {
     const cleaned = await rbac.load()
     expect(cleaned.roles.map((role) => role.key)).not.toContain('auditor')
     expect(cleaned.pages).toEqual({})
+  })
+
+  it('流程仓储保存定义/实例，删除定义不删实例', async () => {
+    const flow = {
+      flowId: 'fl_mysql_test',
+      name: 'MySQL 测试流程',
+      modelId: 'md_mysql_test',
+      mode: 'linear',
+      nodes: [
+        { id: 'n1', type: 'start', name: '开始' },
+        { id: 'n2', type: 'approve', name: '审批', assignee: { type: 'role', value: 'admin' } },
+        { id: 'n3', type: 'end', name: '结束' },
+      ],
+    } as FlowSchema
+    await flows.saveFlow(flow)
+    expect(await flows.findFlow('fl_mysql_test')).toMatchObject({
+      flowId: 'fl_mysql_test',
+      modelId: 'md_mysql_test',
+    })
+    expect((await flows.listFlows()).map((item) => item.flowId)).toContain('fl_mysql_test')
+
+    const t = now()
+    const instance: FlowInstance = {
+      id: 'fi_mysql_test',
+      flowId: 'fl_mysql_test',
+      modelId: 'md_mysql_test',
+      recordId: 'rec_mysql_test',
+      status: 'running',
+      currentNodeId: 'n2',
+      createdBy: 'tester',
+      createdAt: t,
+      updatedAt: t,
+      tasks: [
+        {
+          id: 'task_mysql_test',
+          nodeId: 'n2',
+          nodeName: '审批',
+          assignee: { type: 'role', value: 'admin' },
+          status: 'pending',
+          createdAt: t,
+        },
+      ],
+      history: [{ nodeId: 'n1', nodeName: '开始', action: 'start', actor: 'tester', at: t }],
+    }
+    await flows.saveInstance(instance)
+    const loaded = (await flows.listInstances()).find((item) => item.id === 'fi_mysql_test')
+    expect(loaded).toMatchObject({ status: 'running', currentNodeId: 'n2' })
+    expect(loaded?.tasks[0]?.id).toBe('task_mysql_test')
+    expect(loaded?.history[0]?.action).toBe('start')
+
+    expect(await flows.deleteFlow('fl_mysql_test')).toBe(true)
+    expect(await flows.findFlow('fl_mysql_test')).toBeNull()
+    expect((await flows.listInstances()).some((item) => item.id === 'fi_mysql_test')).toBe(true)
+  })
+
+  it('运维事件仓储保留 pageVersion/detail/duration 与写入顺序', async () => {
+    const t = now()
+    const events: OpsEvent[] = [
+      {
+        id: 'evt_mysql_a',
+        type: 'perf',
+        name: 'schema-load',
+        pageId: 'pg_mysql',
+        pageVersion: 'draft',
+        source: 'runtime',
+        userId: 'u_test',
+        durationMs: 12.5,
+        detail: { step: 'load' },
+        at: t,
+      },
+      {
+        id: 'evt_mysql_b',
+        type: 'error',
+        name: 'render',
+        pageVersion: 3,
+        source: 'designer',
+        message: 'boom',
+        at: t,
+      },
+    ]
+    await ops.save(events)
+    const loaded = await ops.list()
+    expect(loaded.map((event) => event.id)).toEqual(['evt_mysql_a', 'evt_mysql_b'])
+    expect(loaded[0]).toMatchObject({ pageVersion: 'draft', durationMs: 12.5, detail: { step: 'load' } })
+    expect(loaded[1]).toMatchObject({ pageVersion: 3, message: 'boom' })
+    expect(loaded[1]?.pageId).toBeUndefined()
+
+    await ops.save([])
+    expect(await ops.list()).toEqual([])
+  })
+
+  it('应用配置仓储读写 theme，清除后回空对象', async () => {
+    expect(await appConfig.read()).toEqual({})
+    await appConfig.write({ theme: { primary: '#2255AA', radius: '10px', dark: true } })
+    expect(await appConfig.read()).toEqual({
+      theme: { primary: '#2255AA', radius: '10px', dark: true },
+    })
+    await appConfig.write({})
+    expect(await appConfig.read()).toEqual({})
   })
 })

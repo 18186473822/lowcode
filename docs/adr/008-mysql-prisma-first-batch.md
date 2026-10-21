@@ -3,6 +3,7 @@
 - 状态：已接受
 - 日期：2026-10-21（Phase 4 数据库第一批）
 - 关联：ADR-004；方案 8.1 / 8.4 / 8.5；Phase 4 生产化
+- 后续：ADR-009（2026-10-21，第二批 flows / flow-instances / ops / apps 已迁入 MySQL）
 
 ## 背景
 
@@ -26,7 +27,7 @@ Phase 0 的 ADR-004 用 JSON 文件仓储换取零外部依赖，并保留「换
 4. **默认仍为 JSON**：`LC_STORAGE=json` 是默认值，保证无 MySQL 的单位测试与 CI 可运行；`mysql` 为显式 opt-in，启动期校验 `DATABASE_URL`。
 5. **JSON 数据可导入**：`import-json-to-mysql.mjs` 幂等导入 pages/models/records/rbac；开发用户由 `seed-mysql.mjs` 写入。
 6. **可验证性**：MySQL 仓储条件集成测试（`LC_TEST_DATABASE_URL`，缺省 skip）+ 真启动冒烟（`smoke-mysql.mjs`，拒绝非 `*_test` 库）+ `/ready` 的 `SELECT 1`。
-7. **暂不迁移**：`flows.json`、`flow-instances.json`、`ops/events.json`、`apps.json` 仍在 `LC_DATA_DIR`；下一批再落库，期间不承诺跨存储事务。
+7. **暂不迁移**：`flows.json`、`flow-instances.json`、`ops/events.json`、`apps.json` 仍在 `LC_DATA_DIR`；下一批再落库，期间不承诺跨存储事务。（**已由 ADR-009 接续**：同日第二批已迁入 MySQL；本 ADR 其余决策仍有效。）
 
 ## 备选与取舍
 

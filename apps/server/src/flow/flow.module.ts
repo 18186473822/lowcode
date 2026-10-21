@@ -11,13 +11,12 @@ import { AuthModule } from '../common/auth.module.js'
 import { RbacModule } from '../rbac/rbac.module.js'
 import { FlowController } from './flow.controller.js'
 import { FlowService } from './flow.service.js'
-import { FileFlowRepository } from './file-flow.repository.js'
-import { FLOW_REPOSITORY } from './flow.types.js'
 
 @Module({
   imports: [AuthModule, RbacModule],
   controllers: [FlowController],
-  providers: [FlowService, { provide: FLOW_REPOSITORY, useClass: FileFlowRepository }],
+  // FLOW_REPOSITORY 由全局 StorageModule 按 LC_STORAGE 提供（JSON / MySQL）。
+  providers: [FlowService],
   exports: [FlowService],
 })
 export class FlowModule {}
