@@ -13,6 +13,7 @@ import { ServiceUnavailableException, type INestApplication } from '@nestjs/comm
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from '../src/app.module.js'
 import { HealthController, checkDataDirWritable } from '../src/common/health.controller.js'
+import { JsonStorageHealth } from '../src/persistence/storage-health.js'
 import {
   RequestObservabilityMiddleware,
   formatAccessLog,
@@ -144,7 +145,7 @@ describe('数据目录 readiness', () => {
     try {
       const file = path.join(dir, 'not-a-dir')
       await writeFile(file, 'x')
-      const controller = new HealthController(file)
+      const controller = new HealthController(new JsonStorageHealth(file))
       try {
         await controller.ready()
         expect.unreachable('ready() 应抛 503')

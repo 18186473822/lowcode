@@ -1,21 +1,49 @@
 /**
- * 存储根目录（全局模块）。
+ * 存储模块（@Global）：数据根目录 + 仓储实现 + 就绪检查。
  *
- * `DATA_DIR` 原挂在 PageModule；动态 CRUD（model）与文件模块（file）同样要落盘，
- * 故提升为 `@Global()` 模块 —— AppModule 引入一次、全容器可用，避免三处重复 provider。
- * 默认 `<cwd>/data`，测试/部署用 `LC_DATA_DIR` 覆盖（页面 / 模型 / 记录 / 文件共用同一根）。
+ * Phase 4 数据库第一批起，按 `LC_STORAGE` 二选一：
+ * - `json`（默认）：FilePage/FileModel/FileRecord/FileRbac + 内存 UserStore；
+ * - `mysql`：Prisma + MySQL 实现（User/Page/Model/Record/Rbac）。
  *
- * Phase 3 批 1（D-P3-3）：`RECORD_REPOSITORY` 亦提升至此 —— RecordService（写入路径）与
- * FlowService（setField 回写）都要访问记录，且 FlowModule ⇄ ModelModule 互相 imports 会成环；
- * 提升到 @Global 后两侧各自注入、**单实例共享**（文件仓 read-modify-write 不分裂），
- * 依赖方向固定为 `ModelModule → FlowModule` 单向。`model/` 类型与实现上提至此属层次妥协，
- * 以本注释与 D-P3-3 记录为准。
+ * 上层服务只注入仓储 token，不感知具体实现。把仓储集中在此处而不是各 feature module，
+ * 是为了保证「同一进程内只有一个实现实例」，并避免 Model ⇄ Flow 的模块环。
  */
 import { Global, Module } from '@nestjs/common'
 import path from 'node:path'
 import { DATA_DIR } from './tokens.js'
+import { UserStore } from '../identity/user.store.js'
+import { USER_REPOSITORY } from '../identity/user.types.js'
+import { FilePageRepository } from '../page/file-page.repository.js'
+import { PAGE_REPOSITORY } from '../page/page.types.js'
+import { FileModelRepository } from '../model/file-model.repository.js'
 import { FileRecordRepository } from '../model/file-record.repository.js'
-import { RECORD_REPOSITORY } from '../model/model.types.js'
+import {
+  MODEL_REPOSITORY,
+  RECORD_REPOSITORY,
+} from '../model/model.types.js'
+import { FileRbacRepository } from '../rbac/file-rbac.repository.js'
+import { RBAC_REPOSITORY } from '../rbac/rbac.types.js'
+import {
+  JsonStorageHealth,
+  MysqlStorageHealth,
+  STORAGE_HEALTH,
+} from '../persistence/storage-health.js'
+import { PRISMA_SERVICE, PrismaService } from '../persistence/prisma.service.js'
+import { assertStorageConfig } from '../persistence/storage.config.js'
+import { MysqlUserRepository } from '../persistence/mysql/user.repository.js'
+import { MysqlPageRepository } from '../persistence/mysql/page.repository.js'
+import { MysqlModelRepository } from '../persistence/mysql/model.repository.js'
+import { MysqlRecordRepository } from '../persistence/mysql/record.repository.js'
+import { MysqlRbacRepository } from '../persistence/mysql/rbac.repository.js'
+
+/**
+ * 返回 PrismaService 或 null。null 让 JSON 模式完全不触碰数据库驱动/连接；
+ * mysql 模式缺 DATABASE_URL 时在这里 fail-closed（与 main.ts 的启动自检双保险）。
+ */
+function createPrisma(): PrismaService | null {
+  if (assertStorageConfig() !== 'mysql') return null
+  return new PrismaService()
+}
 
 @Global()
 @Module({
@@ -24,8 +52,53 @@ import { RECORD_REPOSITORY } from '../model/model.types.js'
       provide: DATA_DIR,
       useFactory: () => process.env.LC_DATA_DIR ?? path.join(process.cwd(), 'data'),
     },
-    { provide: RECORD_REPOSITORY, useClass: FileRecordRepository },
+    { provide: PRISMA_SERVICE, useFactory: createPrisma },
+    {
+      provide: USER_REPOSITORY,
+      useFactory: (prisma: PrismaService | null) =>
+        prisma ? new MysqlUserRepository(prisma) : new UserStore(),
+      inject: [PRISMA_SERVICE],
+    },
+    {
+      provide: PAGE_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlPageRepository(prisma) : new FilePageRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
+      provide: MODEL_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlModelRepository(prisma) : new FileModelRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
+      provide: RECORD_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlRecordRepository(prisma) : new FileRecordRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
+      provide: RBAC_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlRbacRepository(prisma) : new FileRbacRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
+      provide: STORAGE_HEALTH,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlStorageHealth(prisma, dataDir) : new JsonStorageHealth(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
   ],
-  exports: [DATA_DIR, RECORD_REPOSITORY],
+  exports: [
+    DATA_DIR,
+    PRISMA_SERVICE,
+    USER_REPOSITORY,
+    PAGE_REPOSITORY,
+    MODEL_REPOSITORY,
+    RECORD_REPOSITORY,
+    RBAC_REPOSITORY,
+    STORAGE_HEALTH,
+  ],
 })
 export class StorageModule {}

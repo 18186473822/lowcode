@@ -1,8 +1,8 @@
 /**
- * 用户存储（骨架阶段为内存实现，进程重启即重置）。
+ * 用户存储（JSON 模式：内存实现，进程重启即重置）。
  *
- * Phase 1 切换为 identity 数据表 + RBAC 表，届时仅替换本类实现，
- * AuthService 依赖的是 `findByUsername` 这一契约，不受影响。
+ * MySQL 模式由 `MysqlUserRepository` 替换；AuthService 只依赖
+ * `UserRepository.findByUsername` 契约，不感知存储实现。
  *
  * 种子账号（仅限开发环境）：
  *   admin / admin123        平台管理员
@@ -10,18 +10,10 @@
  */
 import { Injectable } from '@nestjs/common'
 import { hashPassword } from '../common/password.js'
-
-export interface StoredUser {
-  id: string
-  username: string
-  displayName: string
-  roles: string[]
-  passwordHash: string
-  status: 'active' | 'disabled'
-}
+import type { StoredUser, UserRepository } from './user.types.js'
 
 @Injectable()
-export class UserStore {
+export class UserStore implements UserRepository {
   private readonly byUsername = new Map<string, StoredUser>()
 
   constructor() {
@@ -46,7 +38,7 @@ export class UserStore {
     })
   }
 
-  findByUsername(username: string): StoredUser | null {
+  async findByUsername(username: string): Promise<StoredUser | null> {
     return this.byUsername.get(username) ?? null
   }
 }

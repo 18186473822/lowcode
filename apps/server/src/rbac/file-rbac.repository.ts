@@ -10,18 +10,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Inject, Injectable } from '@nestjs/common'
 import { DATA_DIR } from '../common/tokens.js'
-import type { RbacConfig, RbacRepository } from './rbac.types.js'
-
-/** 首启种子：admin 通配超级角色 + designer 受限角色（与 UserStore 种子用户角色对齐） */
-function seedConfig(): RbacConfig {
-  return {
-    roles: [
-      { key: 'admin', name: '平台管理员', perms: ['*'] },
-      { key: 'designer', name: '设计器用户', perms: [] },
-    ],
-    pages: {},
-  }
-}
+import { seedRbacConfig, type RbacConfig, type RbacRepository } from './rbac.types.js'
 
 @Injectable()
 export class FileRbacRepository implements RbacRepository {
@@ -41,7 +30,7 @@ export class FileRbacRepository implements RbacRepository {
         pages: parsed.pages && typeof parsed.pages === 'object' ? parsed.pages : {},
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return seedConfig()
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return seedRbacConfig()
       throw error // 文件损坏等异常原样上抛 → 500，不静默吞掉
     }
   }

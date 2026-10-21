@@ -8,7 +8,7 @@ import { Inject, Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService, type AuthUser } from '../common/jwt.service.js'
 import { verifyPassword } from '../common/password.js'
 import { RbacService } from '../rbac/rbac.service.js'
-import { UserStore } from './user.store.js'
+import { USER_REPOSITORY, type UserRepository } from './user.types.js'
 
 export interface LoginResult {
   accessToken: string
@@ -30,13 +30,13 @@ const TTL_SECONDS = 8 * 3600
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject(UserStore) private readonly users: UserStore,
+    @Inject(USER_REPOSITORY) private readonly users: UserRepository,
     @Inject(JwtService) private readonly jwt: JwtService,
     @Inject(RbacService) private readonly rbac: RbacService,
   ) {}
 
   async login(username: string, password: string): Promise<LoginResult> {
-    const user = this.users.findByUsername(username)
+    const user = await this.users.findByUsername(username)
 
     if (!user || user.status !== 'active' || !verifyPassword(password, user.passwordHash)) {
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' })

@@ -7,5 +7,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     rpcTimeout: 600_000,
+    // 本机 apps/server/.env 为 MySQL 开发连接；单测必须保持 JSON 路径，
+    // 避免测试数据写进开发库（MySQL 专项集成测试自行显式传入连接串）。
+    env: {
+      LC_STORAGE: 'json',
+    },
   },
 })

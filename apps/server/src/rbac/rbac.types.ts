@@ -8,6 +8,8 @@
  *     **无条目 = 全员可见**（向后兼容 Phase 1 行为）；有条目 = 仅条目内角色可见。
  *
  * 用户→角色不动（沿种子用户 UserStore）；页面存储 PageRecord 零改动。
+ *
+ * Phase 4 起 JSON 与 MySQL 两种实现共用 {@link seedRbacConfig}，避免首启种子漂移。
  */
 
 /** 一条角色定义 */
@@ -27,7 +29,21 @@ export interface RbacConfig {
   pages: Record<string, string[]>
 }
 
-/** 仓储契约：骨架阶段为 JSON 文件实现（原子写），Phase 2 换数据库实现时仅替换本类 */
+/**
+ * 首启种子：admin 通配超级角色 + designer 受限角色（与 UserStore 种子用户角色对齐）。
+ * 只读兜底，不自动写回；需要持久化时由 seed 脚本或首次 `save` 落库。
+ */
+export function seedRbacConfig(): RbacConfig {
+  return {
+    roles: [
+      { key: 'admin', name: '平台管理员', perms: ['*'] },
+      { key: 'designer', name: '设计器用户', perms: [] },
+    ],
+    pages: {},
+  }
+}
+
+/** 仓储契约：JSON / MySQL 均实现本接口，上层 RbacService 不感知存储 */
 export interface RbacRepository {
   /** 读全量配置；文件不存在返回**种子配置**（admin `['*']` + designer 空角色） */
   load(): Promise<RbacConfig>

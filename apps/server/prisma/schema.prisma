@@ -1,0 +1,119 @@
+// MySQL 8.0 + Prisma 6 数据模型（Phase 4 数据库第一批）
+//
+// 设计原则：
+// - 只落「业务主数据」：用户/角色、页面/版本、模型定义、业务记录、页面授权；
+//   flows / ops / apps.json 仍走 JSON 文件（下一批再迁）。
+// - 仓储接口不变：`LC_STORAGE=mysql` 时由 MySQL 实现替换 JSON 实现，服务层零改动。
+// - 时间统一 `DATETIME(3)`，与现有 ISO 字符串（毫秒）对齐；JSON 列保存协议原始结构，
+//   避免把动态 Schema/记录 payload 拆成大量稀疏列。
+// - 页面版本用 `(page_id, version)` 复合主键；记录用 `(model_id, id)` 复合主键，
+//   与现有「按模型分目录」的存储语义一致。
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @db.VarChar(64)
+  username     String     @unique @db.VarChar(64)
+  displayName  String     @db.VarChar(128)
+  passwordHash String     @db.VarChar(255)
+  status       String     @default("active") @db.VarChar(16)
+  createdAt    DateTime   @default(now()) @db.DateTime(3)
+  updatedAt    DateTime   @updatedAt @db.DateTime(3)
+  roles        UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  key       String     @id @db.VarChar(64)
+  name      String     @db.VarChar(128)
+  perms     Json
+  createdAt DateTime   @default(now()) @db.DateTime(3)
+  updatedAt DateTime   @updatedAt @db.DateTime(3)
+  users     UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId  String @db.VarChar(64)
+  roleKey String @db.VarChar(64)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role   @relation(fields: [roleKey], references: [key], onDelete: Cascade)
+
+  @@id([userId, roleKey])
+  @@index([roleKey])
+  @@map("user_roles")
+}
+
+model Page {
+  id             String        @id @db.VarChar(64)
+  appId          String        @db.VarChar(64)
+  name           String        @db.VarChar(128)
+  type           String        @db.VarChar(32)
+  status         String        @db.VarChar(16)
+  currentVersion Int           @default(0)
+  draft          Json?
+  draftUpdatedAt DateTime?     @db.DateTime(3)
+  draftUpdatedBy String?       @db.VarChar(64)
+  createdAt      DateTime      @db.DateTime(3)
+  updatedAt      DateTime      @db.DateTime(3)
+  versions       PageVersion[]
+
+  @@index([appId])
+  @@map("pages")
+}
+
+model PageVersion {
+  pageId     String   @db.VarChar(64)
+  version    Int
+  schemaJson Json
+  createdBy  String   @db.VarChar(64)
+  createdAt  DateTime @db.DateTime(3)
+  note       String?  @db.VarChar(500)
+  page       Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, version])
+  @@map("page_versions")
+}
+
+model ModelDef {
+  id         String       @id @db.VarChar(64)
+  schemaJson Json
+  createdAt  DateTime     @db.DateTime(3)
+  updatedAt  DateTime     @db.DateTime(3)
+  createdBy  String       @db.VarChar(64)
+  updatedBy  String       @db.VarChar(64)
+  records    DataRecord[]
+
+  @@map("models")
+}
+
+model DataRecord {
+  modelId   String    @db.VarChar(64)
+  id        String    @db.VarChar(64)
+  payload   Json
+  createdBy String    @db.VarChar(64)
+  createdAt DateTime  @db.DateTime(3)
+  updatedBy String?   @db.VarChar(64)
+  updatedAt DateTime  @db.DateTime(3)
+  deletedAt DateTime? @db.DateTime(3)
+  model     ModelDef  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@id([modelId, id])
+  @@index([modelId, deletedAt])
+  @@map("data_records")
+}
+
+model RbacPageGrant {
+  pageId String @id @db.VarChar(64)
+  roles  Json
+
+  @@map("rbac_page_grants")
+}

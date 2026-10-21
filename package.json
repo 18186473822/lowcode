@@ -17,7 +17,8 @@
     "design:check": "pnpm tokens:check && pnpm color:check && node scripts/build-tokens-rpx.mjs --check && pnpm contrast:check",
     "smoke:security": "node apps/server/scripts/smoke-security.mjs",
     "smoke:observability": "pnpm -F @lc/server smoke:observability",
-    "clean": "pnpm -r exec rm -rf dist"
+    "clean": "pnpm -r exec rm -rf dist",
+    "postinstall": "pnpm -F @lc/server prisma:generate"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",

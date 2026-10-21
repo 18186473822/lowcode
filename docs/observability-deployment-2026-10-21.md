@@ -2,7 +2,7 @@
 
 ## 1. 背景与边界
 
-数据库/用户体系选型暂缓，当前继续用 `LC_DATA_DIR` 下的 JSON 文件模拟业务数据（页面、模型、RBAC、流程、运维事件）。本批不引入数据库、不引入 Prometheus/OTel/Sentry，先把「部署后能判断进程活着、能按请求追踪、日志可被采集」做扎实。
+本文最初在数据库暂缓时写；同日稍后 MySQL 第一批已落地（ADR-008）。当前为双轨：`LC_STORAGE=json`（默认，页面/模型/RBAC/流程/运维事件都在 `LC_DATA_DIR`）与 `LC_STORAGE=mysql`（用户/角色、页面/版本、模型/记录、RBAC 落库；flows/ops/apps 仍为 JSON）。本批仍不引入 Prometheus/OTel/Sentry，先把「部署后能判断进程活着、能按请求追踪、日志可被采集」做扎实。
 
 **本批已实现**
 
@@ -15,7 +15,7 @@
 | 启动自检 | `LC_ACCESS_LOG` 非法值在监听端口前失败（`main.ts`） |
 | 回归 | `test/observability.test.ts`（11 例）+ `scripts/smoke-observability.mjs`（4 项真实启动冒烟） |
 
-**明确未实现**：指标（Prometheus / OpenTelemetry）、分布式追踪、日志轮转/集中式采集、告警、多实例共享限流、数据库迁移。均留在 Phase 4 后续批次。
+**明确未实现**：指标（Prometheus / OpenTelemetry）、分布式追踪、日志轮转/集中式采集、告警、多实例共享限流；MySQL 第一批已落核心主数据，flows / flow-instances / ops / apps 的迁移留在 Phase 4 后续批次。
 
 ## 2. 探针契约
 
@@ -26,6 +26,7 @@
 ```json
 {
   "status": "ok",
+  "storage": "mysql",
   "version": "9.9.9",
   "uptimeSeconds": 123,
   "timestamp": "2026-10-21T09:00:00.000Z"
@@ -37,24 +38,25 @@
 
 ### `GET /api/v1/ready`（readiness）
 
-检查 `LC_DATA_DIR` 能否 `mkdir -p` 且可写；这是 JSON 存储最关键的启动前提：
+JSON 模式检查 `LC_DATA_DIR` 能否 `mkdir -p` 且可写；MySQL 模式同时执行 `SELECT 1`：
 
 ```json
-{ "status": "ok", "checks": { "dataDir": "ok" }, "timestamp": "..." }
+{ "status": "ok", "storage": "mysql", "checks": { "dataDir": "ok", "database": "ok" }, "timestamp": "..." }
 ```
 
-失败返回 `503`：
+任一检查失败返回 `503`：
 
 ```json
 {
   "code": "NOT_READY",
-  "message": "数据目录不可写",
-  "checks": { "dataDir": "unavailable" },
+  "message": "存储未就绪",
+  "storage": "mysql",
+  "checks": { "dataDir": "ok", "database": "unavailable" },
   "timestamp": "..."
 }
 ```
 
-**探针取舍**：不鉴权、不计入限流，避免负载均衡高频探测消耗真实用户额度；`/ready` 只验证进程自身数据目录，不验证下游（当前没有数据库/对象存储依赖）。
+**探针取舍**：不鉴权、不计入限流，避免负载均衡高频探测消耗真实用户额度；`/ready` 不检查对象存储等尚未引入的下游。MySQL 模式已把数据库连接纳入就绪判据；每请求一次 `SELECT 1` 的成本可接受，若数据库压力敏感可改为连接池探活。
 
 ## 3. 请求 ID 与访问日志
 
@@ -87,7 +89,9 @@ proxy_set_header X-Request-Id $request_id;
 |---|---|---|
 | `LC_ACCESS_LOG` | production 开启 | 访问日志开关；非法值启动失败 |
 | `LC_APP_VERSION` | `0.1.0` | 健康检查版本号 |
-| `LC_DATA_DIR` | `<cwd>/data` | JSON 数据根目录；`/ready` 检查其可写 |
+| `LC_STORAGE` | `json` | `json` / `mysql`；非法值启动失败 |
+| `DATABASE_URL` | — | MySQL 连接串；`LC_STORAGE=mysql` 时必填 |
+| `LC_DATA_DIR` | `<cwd>/data` | 上传文件与未迁移 JSON 数据根目录；`/ready` 检查其可写 |
 | `LC_JWT_SECRET` | 非生产回退开发密钥 | 生产必填 ≥32 字符 |
 | `LC_CORS_ORIGINS` | 开发 localhost | 生产显式白名单 |
 | `LC_TRUST_PROXY` | `false` | 反代后设 `true`（仅一层） |
@@ -99,7 +103,7 @@ proxy_set_header X-Request-Id $request_id;
 
 ```ini
 [Unit]
-Description=LowCode Server (NestJS, JSON storage)
+Description=LowCode Server (NestJS, LC_STORAGE=json|mysql)
 After=network.target
 
 [Service]
@@ -190,6 +194,21 @@ location = /readyz  { proxy_pass http://127.0.0.1:3000/api/v1/ready; }
 4. 定期做**恢复演练**；只备份不演练等于没有备份。
 5. 迁数据库前的兼容策略：仓储接口已按 `PageRepository` / `RecordRepository` 等抽象，迁 Prisma 时保留 JSON 作为导入源；本批不改变数据形状。
 
+### MySQL 模式（第一批）
+
+`LC_STORAGE=mysql` 时，用户/角色、页面/版本、模型/记录、RBAC 在 MySQL；`flows.json` / `flow-instances.json` / `ops/` / `apps.json` 仍在 `LC_DATA_DIR`，两部分要分别备份：
+
+```bash
+# 数据库一致性快照（InnoDB）
+mysqldump --single-transaction --routines --triggers \
+  --default-character-set=utf8mb4 -u lc_app -p lowcode > /backup/lowcode-$(date +%F-%H%M).sql
+
+# 未迁移的 JSON（建议停机或快照）
+rsync -a /var/lib/lowcode/data/ /backup/lowcode/data-$(date +%F-%H%M)/
+```
+
+恢复顺序：停服 → 导入 SQL → 覆盖 JSON → `prisma migrate deploy` 确认 schema 版本 → `curl -fsS .../ready` 应返回 `database: ok`。备份文件含业务数据，按敏感数据管理权限与保留周期。
+
 ## 8. 验证记录（2026-10-21）
 
 | 项 | 结果 |
@@ -205,8 +224,8 @@ location = /readyz  { proxy_pass http://127.0.0.1:3000/api/v1/ready; }
 
 ## 9. 剩余风险
 
-- **单实例**：限流和 JSON 文件锁均为进程内语义；多副本会各算各的限流，且共享目录写入可能互相覆盖。扩副本前必须换 Redis 限流 + 数据库/集中存储。
+- **单实例限流**：限流仍是进程内计数；多副本会各算各的额度。扩副本前需换 Redis 等共享限流。MySQL 模式已支持多进程读写，但页面/记录没有乐观锁，并发编辑仍可能后写覆盖先写。
 - **无指标/追踪/告警**：目前只能靠探针和访问日志；错误率、P95、队列积压没有时序数据。下一批可接 OpenTelemetry + Prometheus，或在现有 ops 事件上做聚合告警。
 - **日志无轮转**：交给外部采集；若直接重定向到文件，需要 logrotate。
 - **健康检查暴露版本**：低风险；如不希望暴露，设 `LC_APP_VERSION` 为通用值或后续加开关。
-- **`/ready` 只验证目录写权限**：磁盘满、inode 耗尽等要到实际写入才暴露；后续可加最小写入探针（权衡：每次探针产生 IO）。
+- **`/ready` 的目录检查仍只验证权限**：磁盘满、inode 耗尽等要到实际写入才暴露；MySQL 模式已额外检查 `SELECT 1`，但连接池耗尽等仍可能在业务请求时暴露。

@@ -8,12 +8,12 @@ import { AuthModule } from '../common/auth.module.js'
 import { RbacModule } from '../rbac/rbac.module.js'
 import { AuthController } from './auth.controller.js'
 import { AuthService } from './auth.service.js'
-import { UserStore } from './user.store.js'
 
 @Module({
   imports: [AuthModule, RbacModule],
   controllers: [AuthController],
-  providers: [UserStore, AuthService],
+  // 用户仓储由全局 StorageModule 按 LC_STORAGE 提供（JSON 种子 / MySQL）。
+  providers: [AuthService],
   exports: [AuthModule],
 })
 export class IdentityModule {}

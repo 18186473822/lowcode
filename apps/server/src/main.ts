@@ -12,14 +12,18 @@
  * - `LC_TRUST_PROXY`           是否信任反向代理的 X-Forwarded-For（true/false）
  * - `LC_ACCESS_LOG`            结构化访问日志（production 默认开；1/0 覆盖）
  * - `LC_APP_VERSION`           健康检查返回的版本号（默认 0.1.0）
+ * - `LC_STORAGE`               存储模式：json（默认）/ mysql（Phase 4）
+ * - `DATABASE_URL`             MySQL 连接串（LC_STORAGE=mysql 时必填）
  *
  * 启动：`pnpm -F @lc/server build && pnpm -F @lc/server start`
+ * MySQL：`pnpm -F @lc/server build && pnpm -F @lc/server start:mysql`
  */
 import 'reflect-metadata'
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module.js'
 import { shouldLogAccess } from './common/observability.js'
+import { assertStorageConfig } from './persistence/storage.config.js'
 import {
   assertSecurityConfig,
   buildCorsOptions,
@@ -27,9 +31,11 @@ import {
 } from './common/security.config.js'
 
 async function bootstrap(): Promise<void> {
-  // 先做安全/可观测性自检：非法配置在监听端口前失败（fail-closed）。
+  // 先做安全/存储/可观测性自检：非法配置在监听端口前失败（fail-closed）。
   const rateLimit = assertSecurityConfig()
+  const storage = assertStorageConfig()
   shouldLogAccess()
+  new Logger('Bootstrap').log(`存储模式：${storage}`)
 
   const app = await NestFactory.create(AppModule)
 

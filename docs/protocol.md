@@ -479,8 +479,8 @@
 
 | 方法 | 路径 | 请求 | 成功响应 |
 |---|---|---|---|
-| GET | `/health` | — | `200 { status: 'ok', version, uptimeSeconds, timestamp }`（`version` 取 `LC_APP_VERSION`，默认 `0.1.0`） |
-| GET | `/ready` | — | `200 { status: 'ok', checks: { dataDir: 'ok' }, timestamp }`；`LC_DATA_DIR` 不可创建/不可写时 `503 { code: 'NOT_READY', message, checks: { dataDir: 'unavailable' }, timestamp }` |
+| GET | `/health` | — | `200 { status: 'ok', storage: 'json'|'mysql', version, uptimeSeconds, timestamp }`（`version` 取 `LC_APP_VERSION`，默认 `0.1.0`） |
+| GET | `/ready` | — | `200 { status: 'ok', storage, checks, timestamp }`；JSON 模式 `checks = { dataDir: 'ok' }`，MySQL 模式 `checks = { dataDir: 'ok', database: 'ok' }`；数据目录不可写或 `SELECT 1` 失败 → `503 { code: 'NOT_READY', message, storage, checks, timestamp }` |
 
 > 两探针**不鉴权、不计入限流**；所有响应带 `X-Request-Id`（客户端合法值原样复用，否则生成 UUID）。访问日志默认 production 开启，单行 JSON 只含 `requestId/method/path/status/durationMs/ip/userAgent`，**不记 query、body、Authorization**；`LC_ACCESS_LOG=1/0` 可覆盖。
 
@@ -531,7 +531,7 @@
 
 - 鉴权沿全局约定（Bearer）；三接口**无管理员角色细分**（登录即可调，管理面鉴权细分属后续批次）。
 - **判定落点**（单一事实源 `RbacService`）：页面级 = `GET /pages/:id/schema` 403 + bootstrap 菜单过滤；按钮级 = 节点 `perm` 字段与会话 `perms` 匹配，不匹配**整节点不渲染**（渲染层语义，见 12.1）；模型 CRUD = `ModelSchema.permissions[action]` 声明则角色交集否则 `403 PERMISSION_DENIED`（records 四接口）；行级 = `ModelSchema.dataScope`（records 查询链强制，`'*'` 豁免）。
-- **存储**：`<LC_DATA_DIR>/rbac.json` 单文件（原子写，与 pages/models 同款）；**文件不存在时返回种子配置**：`roles = [{ key:'admin', name:'平台管理员', perms:['*'] }, { key:'designer', name:'设计器用户', perms:[] }]`、`pages = {}`（首启即有超级角色语义，不依赖手工初始化）。
+- **存储**：JSON 模式为 `<LC_DATA_DIR>/rbac.json` 单文件（原子写）；MySQL 模式为 `roles` + `rbac_page_grants`（用户→角色在 `user_roles`）。两种实现共用种子配置：`roles = [{ key:'admin', name:'平台管理员', perms:['*'] }, { key:'designer', name:'设计器用户', perms:[] }]`、`pages = {}`（MySQL 空库读取时兜底，持久化由 `seed:mysql` 或首次 `save` 完成）。
 - **用户→角色映射**：Phase 1 内存种子不变（admin→`['admin']`、designer→`['designer']`），用户管理 UI 不在本批（D-P2-12 裁剪项）。
 
 **流程审批（Phase 3 批 1，D-P3-1 轻量状态机，方案 8.6）**
@@ -590,7 +590,7 @@ page_versions(page_id, version, schema, created_by, created_at, note)
 - `GET ?version=draft` → `{ version: 'draft', schema, updatedAt, updatedBy }`；
 - `GET ?version=published|vN` → `{ version: number, schema, createdAt, createdBy, note }`；
 - **历史不可变**：回滚只改草稿，`currentVersion` 不回退，旧版本始终可读；
-- 存储实现：Phase 0 为 JSON 文件（`<LC_DATA_DIR>/pages/<id>.json`，原子写），接口 `PageRepository` 对齐双表，Phase 1 换 Prisma + PostgreSQL 只换实现（D-9）。
+- 存储实现：`LC_STORAGE=json`（默认）为 `<LC_DATA_DIR>/pages/<id>.json` 原子写；`LC_STORAGE=mysql` 使用 Prisma + MySQL 的 `pages` / `page_versions` 双表（ADR-008）。接口 `PageRepository` 不变。
 
 ### 10.3 服务端错误码
 
@@ -663,11 +663,21 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 超限响应 | `429 { code: 'RATE_LIMITED', message: '请求过于频繁，请稍后再试' }`；响应头 `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`，超限加 `Retry-After`（秒） |
 | 代理 | `LC_TRUST_PROXY=true` 启用 Express `trust proxy`（仅一层），按 `X-Forwarded-For` 识别客户端 IP；直接暴露时保持 false，防伪造 |
 | 预检 | `OPTIONS` 不计入限流 |
-| 健康探针 | `GET /health` / `GET /ready` 不鉴权、不计入限流；`/ready` 以 `LC_DATA_DIR` 可创建/可写为就绪判据 |
+| 健康探针 | `GET /health` / `GET /ready` 不鉴权、不计入限流；`/ready` 在 JSON 模式检查 `LC_DATA_DIR` 可创建/可写，MySQL 模式同时执行 `SELECT 1` |
 | 请求 ID | 所有响应带 `X-Request-Id`；合法客户端值（`[A-Za-z0-9._-]{8,128}`）复用，否则生成 UUID |
 | 访问日志 | production 默认开启，`LC_ACCESS_LOG` 可覆盖；单行 JSON，不记录 query/body/Authorization |
 
 > 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`security-hardening-2026-10-20.md`](security-hardening-2026-10-20.md)；探针/日志/部署见 [`observability-deployment-2026-10-21.md`](observability-deployment-2026-10-21.md)。
+
+**存储模式（Phase 4 第一批）**
+
+| `LC_STORAGE` | 数据位置 | 适用 |
+|---|---|---|
+| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants` | 本地联调、生产；需 `DATABASE_URL` |
+
+- `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
+- flows / flow-instances / ops / apps.json **本批仍为 JSON**；跨存储无分布式事务。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md)。
 
 ---
 
