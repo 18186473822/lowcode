@@ -64,16 +64,12 @@ export class OpsService {
 
   async ingest(user: AuthUser, body: unknown): Promise<OpsIngestResult> {
     const inputs = validateBatch(body)
-    const existing = await this.repo.list()
     const at = new Date().toISOString()
     const added = inputs.map((input, i) => normalize(input, user, at, i))
 
-    const merged = [...existing, ...added]
-    const overflow = Math.max(0, merged.length - OPS_EVENT_LIMIT)
-    const kept = overflow > 0 ? merged.slice(overflow) : merged
-    await this.repo.save(kept)
-
-    return { accepted: added.length, total: kept.length, dropped: overflow }
+    // 追加 + 裁剪在仓储内原子完成：不再先读整表再写回，避免并发上报互相覆盖。
+    const result = await this.repo.append(added, OPS_EVENT_LIMIT)
+    return { accepted: added.length, total: result.total, dropped: result.dropped }
   }
 
   /* ------------------------------ 查询 ------------------------------ */

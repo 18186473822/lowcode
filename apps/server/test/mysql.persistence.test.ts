@@ -310,14 +310,40 @@ describeMysql('MySQL 仓储', () => {
         at: t,
       },
     ]
-    await ops.save(events)
+    await ops.append(events, 500)
     const loaded = await ops.list()
     expect(loaded.map((event) => event.id)).toEqual(['evt_mysql_a', 'evt_mysql_b'])
     expect(loaded[0]).toMatchObject({ pageVersion: 'draft', durationMs: 12.5, detail: { step: 'load' } })
     expect(loaded[1]).toMatchObject({ pageVersion: 3, message: 'boom' })
     expect(loaded[1]?.pageId).toBeUndefined()
 
-    await ops.save([])
+    const appended = await ops.append(
+      [
+        {
+          id: 'evt_mysql_c',
+          type: 'event',
+          name: 'fill',
+          source: 'runtime',
+          at: t,
+        },
+      ],
+      2,
+    )
+    expect(appended).toEqual({ total: 2, dropped: 1 })
+    expect((await ops.list()).map((event) => event.id)).toEqual(['evt_mysql_b', 'evt_mysql_c'])
+
+    // 并发追加：旧实现整表 delete + create 会互相覆盖，这里验证 10 条事件都在。
+    const concurrent = Array.from({ length: 10 }, (_, i) => ({
+      id: `evt_mysql_concurrent_${i}`,
+      type: 'event' as const,
+      name: 'fill',
+      source: 'runtime' as const,
+      at: t,
+    }))
+    await Promise.all(concurrent.map((event) => ops.append([event], 500)))
+    expect((await ops.list()).filter((event) => event.id.startsWith('evt_mysql_concurrent_'))).toHaveLength(10)
+
+    await prisma.opsEvent.deleteMany()
     expect(await ops.list()).toEqual([])
   })
 

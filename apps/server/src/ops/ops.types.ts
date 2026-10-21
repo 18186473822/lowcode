@@ -42,10 +42,22 @@ export interface OpsEventInput {
   detail?: Record<string, unknown>
 }
 
-/** 仓储：读正序（旧 → 新），整表覆盖写（原子替换由实现保证） */
+/** 追加结果：落库后总条数 + 本次被环形上限淘汰的旧事件数 */
+export interface OpsAppendResult {
+  total: number
+  dropped: number
+}
+
+/**
+ * 仓储：读正序（旧 → 新）；写入是**追加 + 裁剪**，不再整表覆盖。
+ *
+ * `append` 必须在实现内完成「插入 → 淘汰最旧 → 返回总数」，避免 service
+ * 先读整表再写回时被并发上报后写覆盖先写。JSON 实现用单进程写队列串行化，
+ * MySQL 实现用事务插入后按 `seq` 删除超出 `limit` 的最旧行。
+ */
 export interface OpsRepository {
   list(): Promise<OpsEvent[]>
-  save(events: OpsEvent[]): Promise<void>
+  append(events: OpsEvent[], limit: number): Promise<OpsAppendResult>
 }
 
 /** 内存中最多保留多少条（超出丢最旧，避免文件无限增长） */

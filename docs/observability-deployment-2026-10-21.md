@@ -215,11 +215,11 @@ rsync -a /var/lib/lowcode/data/files-meta/ /backup/lowcode/files-meta-$(date +%F
 | 项 | 结果 |
 |---|---|
 | `pnpm -F @lc/server typecheck` | exit 0 |
-| `pnpm -F @lc/server test` | 12 文件（11 通过 + 1 跳过）/ 212 用例通过 + 7 跳过（新增数据库第二批仓储用例） |
+| `pnpm -F @lc/server test` | 13 文件（12 通过 + 1 跳过）/ 214 用例通过 + 7 跳过（新增数据库第二批仓储与 ops 队列用例） |
 | `pnpm -F @lc/server build` | exit 0 |
 | `node apps/server/scripts/smoke-observability.mjs` | 4/4 PASS |
 | `pnpm smoke:security` | 10/10 PASS（沿用上批） |
-| MySQL 仓储集成 / 真启动冒烟 | 7/7 PASS / 9/9 PASS（`lowcode_test`） |
+| MySQL 仓储集成 / 真启动冒烟 | 7/7 PASS / 9/9 PASS（`lowcode_test`；含 ops 并发追加） |
 | 全量门禁 | 见 `docs/PROGRESS.md` 最新行 |
 
 冒烟覆盖：`/health` 200 + 版本 + 请求 ID 回写；非法 ID 替换 UUID；`/ready` 200 + `dataDir: ok`；404 请求访问日志为单行 JSON、path 不含 query token。
@@ -227,7 +227,7 @@ rsync -a /var/lib/lowcode/data/files-meta/ /backup/lowcode/files-meta-$(date +%F
 ## 9. 剩余风险
 
 - **单实例限流**：限流仍是进程内计数；多副本会各算各的额度。扩副本前需换 Redis 等共享限流。MySQL 模式已支持多进程读写，但页面/记录没有乐观锁，并发编辑仍可能后写覆盖先写。
-- **运维事件整表替换**：`ops_events` 维持 500 条环形上限，写入事务内 delete + create；高并发上报时仍可能互相覆盖，多实例前应改增量 append 或独立事件写入通道。
+- **运维事件追加写入**：`ops_events` 已由整表 delete + create 改为事务内追加 + 按 `seq` 裁剪；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报收敛。JSON 模式用单进程写队列，跨进程非原子。
 - **上传文件仍在本地盘**：`files/` 与 `files-meta/` 不在 MySQL 事务内，跨机部署需共享存储或对象存储；数据库备份与文件备份要分别做恢复演练。
 - **无指标/追踪/告警**：目前只能靠探针和访问日志；错误率、P95、队列积压没有时序数据。下一批可接 OpenTelemetry + Prometheus，或在现有 ops 事件上做聚合告警。
 - **日志无轮转**：交给外部采集；若直接重定向到文件，需要 logrotate。

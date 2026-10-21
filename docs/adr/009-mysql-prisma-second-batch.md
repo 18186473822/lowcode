@@ -22,7 +22,7 @@ ADR-008 已把用户/角色、页面/版本、模型/记录、RBAC 迁入 MySQL�
    - `ops_events`：错误/性能/事件一张表，`detailJson` 存现场快照；
    - `app_config`：单行 `id='default'`，`theme` 存 JSON，为未来多应用预留 id 维度。
 2. **流程定义与实例分表且不建外键**：删除定义只删 `flow_definitions`，实例继续保留用于审计；实例中的 `flowId` 是历史引用，不要求定义仍存在。
-3. **运维事件保留自增 `seq`**：同一批事件的 `at` 可能完全相同，`seq` 保证「后写在前」的稳定顺序；业务 `id` 仍唯一。`OpsRepository` 维持「整表读/整表写」契约，由 service 控制 500 条上限，MySQL 实现用事务 delete + create。
+3. **运维事件保留自增 `seq`，写入改为「追加 + 裁剪」**：同一批事件的 `at` 可能完全相同，`seq` 保证「后写在前」的稳定顺序；业务 `id` 仍唯一。`OpsRepository` 从整表 `save` 改为 `append(events, limit)`：MySQL 在事务内先 `createMany`，再按 `seq` 删除超出上限的最旧行；JSON 实现用单进程写队列串行化「读 → 合并 → 原子替换」，避免并发上报互相覆盖。
 4. **字段形状不对协议做破坏性改动**：`tasks/history/detail/theme` 继续用 JSON 列；`pageVersion` 以字符串落库（`'draft'` 或数字字符串），读出时还原为 `number | 'draft'`。
 5. **仓储接口与装配方式不变**：新增 `MysqlFlowRepository / MysqlOpsRepository / MysqlAppConfigRepository`；`StorageModule` 按 `LC_STORAGE` 注入 JSON 或 MySQL 实现，`FlowModule / OpsModule` 不再各自 new 文件仓储，`AppConfigService` 改为注入 `AppConfigRepository`。
 6. **导入与验证同步扩展**：`import-json-to-mysql.mjs` 导入 `flows.json / flow-instances.json / ops/events.json / apps.json`；`mysql.persistence.test.ts` 覆盖流程/实例/运维/配置仓储；`smoke-mysql.mjs` 扩展为 9 项，真启动回读 4 张新表。
@@ -32,7 +32,7 @@ ADR-008 已把用户/角色、页面/版本、模型/记录、RBAC 迁入 MySQL�
 
 - **实例内嵌 tasks/history 拆表**：更利于按任务查询/索引，但当前待办规模小、读写总是整实例，拆表会增加事务与映射复杂度；暂用 JSON。
 - **流程实例加外键/cascade**：能保证引用完整，但删除定义会连带删除审计实例，违背「删除定义后实例保留」；放弃。
-- **运维事件改增量 append**：更抗并发，但会改动现有 `OpsRepository` 契约与 JSON 实现；本批先保持接口，整表替换的并发边界写入 ADR 和风险清单。
+- **继续整表 delete + create**：实现简单，但并发上报时后写会覆盖先写；已改为 append + 裁剪，不再采用。
 - **app_config 键值表**：扩展性更好，但当前只有 theme 一个配置，单行 JSON 更贴近原 `apps.json`；保留 id 为未来多应用留口。
 
 ## 后果
@@ -41,5 +41,5 @@ ADR-008 已把用户/角色、页面/版本、模型/记录、RBAC 迁入 MySQL�
 - ✅ 流程删除后实例仍可查；运维事件同毫秒顺序可解释；应用配置与页面数据同库。
 - ✅ JSON 仍是默认/无数据库测试路径；JSON→MySQL 导入幂等，可在切换时搬运存量数据。
 - ⚠️ 上传文件与文件元数据仍在 `LC_DATA_DIR`，不在 MySQL 事务内；备份需要 SQL + 文件目录两份。
-- ⚠️ `ops_events` 整表替换在并发上报时仍可能后写覆盖先写（500 条上限，单实例可接受）；多实例前应改增量 append 或独立写入通道。
+- ⚠️ `ops_events` 已改为追加 + 按 `seq` 裁剪，不再整表覆盖；但多实例同时 append/裁剪时仍可能因各自快照瞬时略超 500 条，下一次上报会收敛。若要求严格上限，需引入单写队列或 Redis 协调。
 - ⚠️ 页面/记录仍无乐观锁；MySQL 支持多进程读写不等于并发编辑安全。
