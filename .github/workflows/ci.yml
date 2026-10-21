@@ -65,6 +65,10 @@ jobs:
       - name: Security smoke
         run: node apps/server/scripts/smoke-security.mjs
 
+      # 可观测性冒烟：/health + /ready + X-Request-Id + 结构化访问日志（独立端口 3104）
+      - name: Observability smoke
+        run: pnpm smoke:observability
+
       # 体积阈值告警（方案 9.2：超阈值只告警不失败）
       - name: Bundle size warning
         run: |

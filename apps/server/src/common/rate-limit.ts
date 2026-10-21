@@ -106,6 +106,13 @@ export class RateLimitMiddleware implements NestMiddleware {
     }
 
     const path = (req.originalUrl ?? req.url ?? '').split('?')[0] ?? ''
+
+    // 部署探针不计入限流，避免 LB 高频探测把真实用户额度吃掉。
+    if (/^\/api\/v1\/(?:health|ready)\/?$/.test(path)) {
+      next()
+      return
+    }
+
     const isLogin = req.method === 'POST' && /^\/api\/v1\/auth\/login\/?$/.test(path)
     const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown'
     const limit = isLogin ? this.config.loginMax : this.config.max

@@ -10,6 +10,8 @@
  * - `LC_RATE_LIMIT_MAX`        普通接口每 IP 每窗口上限（默认 600）
  * - `LC_LOGIN_RATE_LIMIT_MAX`  登录接口每 IP 每窗口上限（默认 20）
  * - `LC_TRUST_PROXY`           是否信任反向代理的 X-Forwarded-For（true/false）
+ * - `LC_ACCESS_LOG`            结构化访问日志（production 默认开；1/0 覆盖）
+ * - `LC_APP_VERSION`           健康检查返回的版本号（默认 0.1.0）
  *
  * 启动：`pnpm -F @lc/server build && pnpm -F @lc/server start`
  */
@@ -17,6 +19,7 @@ import 'reflect-metadata'
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module.js'
+import { shouldLogAccess } from './common/observability.js'
 import {
   assertSecurityConfig,
   buildCorsOptions,
@@ -24,8 +27,9 @@ import {
 } from './common/security.config.js'
 
 async function bootstrap(): Promise<void> {
-  // 先做安全自检：密钥/CORS/限流参数非法时，在监听端口前失败（fail-closed）。
+  // 先做安全/可观测性自检：非法配置在监听端口前失败（fail-closed）。
   const rateLimit = assertSecurityConfig()
+  shouldLogAccess()
 
   const app = await NestFactory.create(AppModule)
 

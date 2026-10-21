@@ -475,6 +475,15 @@
 
 ### 10.1 接口清单
 
+**运维探针（Phase 4 可观测性，无需登录）**
+
+| 方法 | 路径 | 请求 | 成功响应 |
+|---|---|---|---|
+| GET | `/health` | — | `200 { status: 'ok', version, uptimeSeconds, timestamp }`（`version` 取 `LC_APP_VERSION`，默认 `0.1.0`） |
+| GET | `/ready` | — | `200 { status: 'ok', checks: { dataDir: 'ok' }, timestamp }`；`LC_DATA_DIR` 不可创建/不可写时 `503 { code: 'NOT_READY', message, checks: { dataDir: 'unavailable' }, timestamp }` |
+
+> 两探针**不鉴权、不计入限流**；所有响应带 `X-Request-Id`（客户端合法值原样复用，否则生成 UUID）。访问日志默认 production 开启，单行 JSON 只含 `requestId/method/path/status/durationMs/ip/userAgent`，**不记 query、body、Authorization**；`LC_ACCESS_LOG=1/0` 可覆盖。
+
 | 方法 | 路径 | 请求 | 成功响应 |
 |---|---|---|---|
 | POST | `/auth/login` | `{ username, password }` | `200 { accessToken, tokenType: 'Bearer', expiresIn: 28800, user: { id, username, displayName, roles }, perms: string[] }`（**Phase 2 批 6 扩 `perms`**：用户全部角色的权限点并集、**含 `'*'` 通配**表示超级角色，见 10.5） |
@@ -654,8 +663,11 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 超限响应 | `429 { code: 'RATE_LIMITED', message: '请求过于频繁，请稍后再试' }`；响应头 `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`，超限加 `Retry-After`（秒） |
 | 代理 | `LC_TRUST_PROXY=true` 启用 Express `trust proxy`（仅一层），按 `X-Forwarded-For` 识别客户端 IP；直接暴露时保持 false，防伪造 |
 | 预检 | `OPTIONS` 不计入限流 |
+| 健康探针 | `GET /health` / `GET /ready` 不鉴权、不计入限流；`/ready` 以 `LC_DATA_DIR` 可创建/可写为就绪判据 |
+| 请求 ID | 所有响应带 `X-Request-Id`；合法客户端值（`[A-Za-z0-9._-]{8,128}`）复用，否则生成 UUID |
+| 访问日志 | production 默认开启，`LC_ACCESS_LOG` 可覆盖；单行 JSON，不记录 query/body/Authorization |
 
-> 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`security-hardening-2026-10-20.md`](security-hardening-2026-10-20.md)。
+> 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`security-hardening-2026-10-20.md`](security-hardening-2026-10-20.md)；探针/日志/部署见 [`observability-deployment-2026-10-21.md`](observability-deployment-2026-10-21.md)。
 
 ---
 

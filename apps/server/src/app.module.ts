@@ -7,6 +7,8 @@
  */
 import 'reflect-metadata'
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
+import { HealthController } from './common/health.controller.js'
+import { RequestObservabilityMiddleware } from './common/observability.js'
 import { RateLimitMiddleware } from './common/rate-limit.js'
 import { StorageModule } from './common/storage.module.js'
 import { IdentityModule } from './identity/identity.module.js'
@@ -19,10 +21,11 @@ import { OpsModule } from './ops/ops.module.js'
 
 @Module({
   imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule],
+  controllers: [HealthController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // 全部 API 共用限流；登录接口在中间件内额外套更严的 loginMax。
-    consumer.apply(RateLimitMiddleware).forRoutes('*')
+    // 顺序：先挂请求 ID/访问日志，再限流；这样 429 响应也能带上 X-Request-Id 并落日志。
+    consumer.apply(RequestObservabilityMiddleware, RateLimitMiddleware).forRoutes('*')
   }
 }
