@@ -11,8 +11,8 @@
 
 | 画布板块 | 文档章节 | 代码落点 |
 |---|---|---|
-| B1 封面 · 令牌三层结构 | §1 §2 | 新增 `packages/tokens`（建议） |
-| B2 设计令牌 · 色彩 | §2.2 §2.5 | `apps/designer-web/src/style.css` 转 CSS 变量 |
+| B1 封面 · 令牌三层结构 | §1 §2 | `packages/tokens` |
+| B2 设计令牌 · 色彩 | §2.2 | `apps/designer-web/src/style.css` 转 CSS 变量 |
 | B3 设计令牌 · 排版与尺度 | §2.3 §2.4 | 同上 |
 | B4 组件库 · 按钮与表单 | §3.2 §3.3 | `packages/designer/src/panel/*`、`packages/materials/*` |
 | B5 组件库 · 导航与反馈 | §3.4 | 同上 |
@@ -20,7 +20,7 @@
 | B7 页面流程与导航结构 | §4 | 无需改动（信息架构确认） |
 | B8 跨端异常状态族 | §5 | `store.saveState` / `modelError` / H5 校验链路 |
 | B9 移动端 · 关键页面 | §7.2 | `packages/renderer` + runtime 页面 |
-| B10 响应式适配方案 | §6 §8 | 新样式体系 |
+| B10 响应式适配方案 | §6 §8 | `apps/designer-web/src/style.css` |
 
 ---
 
@@ -36,8 +36,8 @@
 
 命名规则：`层级域-用途[-状态]`，全小写连字符。语义层禁止出现颜色名（`blue-500`），组件层禁止跨组件复用（`btn-h-md` 不得被输入框引用）。
 
-**变量集总量**：Ardot 侧 **5 组 / 143 项** —— `Primitive` 37 · `Scale` 49 · `Semantic` 31 · `Component` 21 · `Effects` 5。
-**代码侧令牌**：`packages/tokens/src/tokens.css` 的 `:root` 共 **177 项**，暗色覆盖 **49 项**。两侧差额由 `pnpm tokens:check` 持续可见（§9.1）：多出的是**设计器 chrome 专属令牌**（`--lc-topbar-*` 含 4 态徽标、`--lc-device-*`、`--lc-drag-hint*`、`--lc-focus-ring`、`--lc-font-ui/mono`、`--lc-gradient-brand` 等实现侧扩展）；布局尺寸类见 §9.2 不计入令牌。
+**变量集总量**：Ardot 侧 **5 组 / 144 项** —— `Primitive` 37 · `Scale` 49 · `Semantic` 32 · `Component` 21 · `Effects` 5。
+**代码侧令牌**：`packages/tokens/src/tokens.css` 的 `:root` 共 **178 项**，暗色覆盖 **50 项**。两侧差额由 `pnpm tokens:check` 持续可见（ops §9.1）：多出的是**设计器 chrome 专属令牌**（`--lc-topbar-*` 含 4 态徽标、`--lc-device-*`、`--lc-drag-hint*`、`--lc-focus-ring`、`--lc-font-ui/mono`、`--lc-gradient-brand` 等实现侧扩展）；布局尺寸类见 ops §9.2 不计入令牌。
 
 **令牌包**：`@lc/tokens`（`packages/tokens`）—— 令牌的**唯一持有者**。设计器、渲染引擎、物料库、移动端运行时都依赖它，任何一端都不得自建色值。
 
@@ -45,26 +45,15 @@
 
 ### 1.1 落地状态
 
-| 项 | 状态 |
+**以门禁为准，不靠文档自述**：`pnpm design:check` 6 道全绿 = 设计已应用。逐项台账见 ops §10。
+
+| 维度 | 现状 |
 |---|---|
-| 令牌层（亮 + 暗） | ✅ `@lc/tokens`（`packages/tokens`）持有；各端以 `@lc/tokens/tokens.css` 引入 |
-| **移动端色值令牌化** | ✅ materials + renderer + runtime 共 **331 处**替换，见 §10 |
-| `apps/designer-web/src/style.css` 令牌化 | ✅ 硬编码色值 **0** |
-| 7 个面板组件令牌化 | ✅ `MaterialPanel` / `OutlineTree` / `LcCanvas` / `HistoryDialog` / `PropsPanel` / `ModelPanel` / `RbacPanel` + `shim.css` |
-| 亮暗主题切换 | ✅ 顶栏「暗色 / 亮色」按钮，持久化到 `localStorage`，首帧前生效（无闪白） |
-| 面板共用件取值对齐 | ✅ `.setter` 标签列 72 · 属性行高 **32**（= `--lc-input-h`）· 字号 13 三处统一 |
-| 面板共用件去重 | ✅ 收敛到 `packages/designer/src/styles/panel.css`（原先 3 份 scoped 副本） |
-| 状态视图（空 / 加载 / 错误） | ✅ `packages/designer/src/components/PanelState.vue` + `.lc-state*` / `.lc-skeleton*`，接入 6 个面板 |
-| 面板头部统一 | ✅ `.panel-head` / `.panel-head__meta`（三个面板同一形态，去掉大纲树自带的 `__head` 与重复描边） |
-| **物料面板图标** | ✅ 33 个 16×16 线性图标（`canvas/material-icons.ts`），7 条回归守卫 + 规格表 `docs/material-icons.html` |
-| 响应式断点落地 | ✅ `apps/designer-web/src/use-breakpoint.ts` + 抽屉折叠 + Wide 栏宽扩容 + 窄屏提示 |
-| **§5 异常状态族（跨端）** | ✅ `core/state-kind.ts` 分类器 + `uni/lc-state-view.vue` + `PanelState.vue`；list/detail/壳层/6 面板全接入 |
-| 画布工具条 + 标尺 | ✅ §7.1 高 40：设备档位（375/750/H5）· 缩放 50–150% · 标尺（8px 细刻度 / 40px 粗刻度）+ 双轴 + 内容区中心参考线 |
-| **对比度审计** | ✅ `pnpm contrast:check`（19 组 × 双模式，基线回归 + 缺口清单，§2.2.1） |
-| 按钮六态 | ✅ §3.2 全落：默认 / 悬停 / 点击 / 聚焦 / **加载（宽度不变 + 阻断重复提交）** / 禁用 |
-| 跨端单位 | ✅ `tokens.rpx.css` 派生 + 移动端 349 处 rpx 字面量令牌化 |
-| 设计一致性门禁 | ✅ `pnpm design:check`：令牌漂移（132 项 / 179 处零漂移）+ 全仓色值字面量扫描（**0 处**） |
-| 测试 | 全仓 **51 文件 / 865 用例**；覆盖率 Stmts 96.18% · Branch 87.63% · Funcs 96.4%（门槛 90/85/90/90） |
+| 令牌 | `@lc/tokens` 持有，`:root` **178 项** / 暗色 **50 项**；设计稿 **144 项**逐项比对零漂移 |
+| 硬编码色值 | 5 个 UI 目录 **0 处**（14 处豁免均标注理由） |
+| 对比度 | **21 组 × 双模式 = 42 项全部达标**，0 缺口 |
+| 单位 | 移动端 rpx / 设计器 px 均已令牌化；刻度外光学微调按设计保留 |
+| 测试 | **69 文件 / 1068 用例**；覆盖率 92.58 / 87.87 / 90.82 / 92.58（门槛 90/85/90/90） |
 
 ---
 
@@ -98,7 +87,8 @@
 | `text-primary` | 标题与正文主体 | `#1F2329` | `#E8ECF2` |
 | `text-label` | 表单标签 / 面板字段名（高于次要文字，保证密集面板可读） | `#374151` | `#C6CDD8` |
 | `text-secondary` | 说明 / 表格正文 | `#6B7684` | `#9AA5B1` |
-| `text-tertiary` | 辅助 / 时间戳（**非正文**；正文级用 secondary） | `#8A94A6` | `#9AA5B1` |
+| `text-tertiary` | 与 `text-secondary` **同值**（三级灰字在 AA 下无法与二级区分，已合并） | `#6B7684` | `#9AA5B1` |
+| `icon-muted` | **图形**用：图标 / 箭头 / 关闭×（非文本只需 3:1） | `#8A94A6` | `#9AA5B1` |
 | `text-link` | 链接色 | `#2B6DE8` | `#6096FA` |
 | `text-danger` | 错误文字（**别名 → `status-danger`**） | `#B3261E` | `#F77370` |
 | `border-default` | 面板描边 / 分割线 | `#E3E8EE` | `#2A313C` |
@@ -123,49 +113,25 @@
 
 **对比度要求**：正文对其背景 ≥ 4.5:1；≥18px 或 14px 粗体 ≥ 3:1；控件边界与焦点环 ≥ 3:1。
 
-### 2.2.1 对比度审计（门禁 + 现状）
+### 2.2.1 对比度审计
 
 ```bash
-pnpm contrast:check            # CI：与基线比对，退化 >0.05 判失败
-node scripts/check-contrast.mjs --update   # 改配色后重建基线 docs/contrast.json
-node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既有缺口也判失败）
+pnpm contrast:check                      # CI：与基线比对，退化 >0.05 判失败
+node scripts/check-contrast.mjs --update # 改配色后重建基线 docs/contrast.json
+node scripts/check-contrast.mjs --strict # 缺口清零后切这条（既有缺口也判失败）
 ```
 
-**为什么用「基线回归」而不是直接全量卡 4.5**：现有配色已有 12 处低于 AA。若一上来就全量卡，
-门禁会长期红灯、被无视 —— 那比没有门禁更糟。所以策略是：**锁住不退化 + 如实列出缺口 +
-新增组合必须直接达标**（新增的不许带病进场）。缺口修完再加 `--strict`。
+**策略是「基线回归」而非全量卡 4.5**：存量缺口一次性全卡会让门禁长期红灯、被无视，比没有门禁更糟。
+所以锁住「不退化」+「新增组合必须直接达标」，缺口清零后再切 `--strict`。
 
-**当前状态**：20 组 × 双模式 = 40 项，**达标 39 / 缺口 1 / 退化 0**（2026-10-21 修复前为 26 / 12）。
+**当前：21 组 × 双模式 = 42 项全部达标 / 0 缺口 / 0 退化。** 12 处存量缺口的逐项修复记录见 git 历史。
 
-**2026-10-21 已修复 11 项**（含设计稿同步）
+两条改动前必读：
 
-| 模式 | 组合 | 修复前 | 修复后 | 改的是什么 |
-|---|---|---|---|---|
-| 亮 | `status-danger` / `status-danger-bg` | 4.17 | **5.72** | `status-danger` → danger-600 `#B3261E` |
-| 亮 | `status-danger-active` / `bg-surface` | 6.54 | **8.88** | 新增 danger-700 `#8F1E17` 作按下态 |
-| 亮 | `status-success` / `status-success-bg` | 4.48 | **4.86** | success-600 → `#157A33` |
-| 亮 | `status-warning` / `status-warning-bg` | 3.71 | **4.72** | warning-600 → `#A85C05` |
-| 亮 | `border-strong` / `bg-surface` | 1.51 | **3.06** | 新增 neutral-450 `#8A94A6`；控件边界过淡是**可感知的真实可用性问题** |
-| 亮 | `text-on-brand-muted` / `action-primary` | 3.60 | **4.71** | 去掉透明度（`rgba(255,255,255,.8)` → `#FFFFFF`） |
-| 暗 | `action-primary-text` / `action-primary` | 3.45 | **5.41** | 暗色标签改深墨 `#0F1319`（Material 3 同款：浅底配深墨） |
-| 暗 | `text-on-brand` / `action-primary` | 3.45 | **5.41** | 同上 |
-| 暗 | `text-on-brand-muted` / `action-primary` | 2.77 | **5.41** | 同上（暗色显式覆盖，不再继承白字） |
-| 暗 | `text-tertiary` / `bg-surface` | 3.70 | **6.83** | 暗色 tertiary → neutral-400（暗底要**更亮**才有对比） |
-| 暗 | `status-danger-active` / `bg-surface` | 3.58 | **7.96** | → `#F09A98`（暗色「更强调」= 更亮，不是更黑） |
-| 暗 | `border-strong` / `bg-surface` | 1.82 | **3.70** | → neutral-500 |
-| 任 | 占位符 / 输入框底 | 2.50 | **4.62** | `--lc-input-placeholder` → `text-secondary`（占位符是**正文级**文本） |
-
-**连带调整**：暗色 `action-primary-active` 由 brand-500 改为 brand-300 `#93BBFD` ——
-标签改深墨后，按下态若仍用更深的蓝只有 3.95；暗色下「按下」应更亮。
-
-**剩余 1 项：亮色 `text-tertiary`（2.50 → 3.06，仍 < 4.5）**
-
-这条**无法只靠改色解决**：达到 4.5 只能取 `#6B7684`，而那就是 `text-secondary` —— 三级文字层级会直接塌陷。
-当前处理：提到 neutral-450（改善 22%），并**约束用途** —— `text-tertiary` 仅用于时间戳 / 装饰 / 禁用态，
-**正文级文本（含占位符）一律用 secondary**。若将来接受「只剩两级灰字」，把 tertiary 并入 secondary 即可让此项达标。
-
-> 另注：`text-secondary` 在亮色下是 4.62:1，**仅超出阈值 0.12** —— 任何对 `text-secondary` 或
-> `bg-surface` 的微调都可能把它推过线，改动后务必重跑 `contrast:check`。
+- **只保留两级灰字**。AA 下 4.5:1 只能取到 `#6B7684`（= secondary），三级灰字与二级无法区分 ——
+  故 `text-tertiary` 已**并入** secondary。更淡的**图形**（图标 / 箭头 / 关闭×，只需 3:1）用 `--lc-icon-muted`。
+- **亮色 `text-secondary` 只有 4.62:1，仅超线 0.12**。任何对 `text-secondary` / `bg-surface` 的微调都可能把它推过线，
+  改完必须重跑 `contrast:check`。
 
 ### 2.3 字体令牌
 
@@ -265,7 +231,9 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 | 加载 | 底 `brand-400` · 字「处理中…」 | 字「处理中…」 | 同左 | 同左 | 锁定重复提交、**宽度不变** |
 | 禁用 | 底 `neutral-200` · 字 `neutral-400` | 描边 `border-default` · 字 `neutral-400` | 字 `neutral-400` | 同左 | `cursor: not-allowed`，不响应事件 |
 
-**约定**：一屏只允许一个主按钮；危险操作必须用危险色并配二次确认；次级操作在 1180px 以下收进「更多」溢出菜单。
+> **阈值为什么从 1180 改成 1600**：1180 是设计稿估算。实现侧实测顶栏内容（品牌 + 页面控件 + 15 个按钮 + 分隔线）自然宽度约 **1550–1600px** —— 1180 会让 1180–1600 这一段仍然溢出。取 1600 留余量；顶栏增删按钮后需重测。
+
+**约定**：一屏只允许一个主按钮；危险操作必须用危险色并配二次确认；次级操作在 **1600px** 以下收进「更多」溢出菜单（原写 1180，实测不足，见上）。
 
 ### 3.3 表单控件规格
 
@@ -441,159 +409,13 @@ node scripts/check-contrast.mjs --strict   # 缺口清零后切到这条（既�
 
 ---
 
-## 9. 实施落点与进度
+## 9. 工程化与台账
 
-| 优先级 | 动作 | 位置 | 状态 |
-|---|---|---|---|
-| P0 | 令牌层落地：`:root` 亮色 + `[data-theme="dark"]` 暗色 | `packages/tokens/src/tokens.css` | ✅ 已完成 |
-| P0 | 设计器外壳色值全部替换为令牌 | `apps/designer-web/src/style.css` | ✅ 已完成（硬编码 0） |
-| P0 | 顶栏按钮统一为「工具栏·深色 / 主」两类，组间加分隔符 | `apps/designer-web/src/App.vue` | ✅ 已完成 |
-| P0 | 亮暗主题接线：`theme.ts` + 顶栏切换按钮 + 首帧前生效 | `apps/designer-web/src/theme.ts` | ✅ 已完成 |
-| P0 | 面板组件色值令牌化（含 uni-shim） | `packages/designer/src/panel/*`、`canvas/LcCanvas.vue`、`shim/shim.css` | ✅ 已完成 |
-| P1 | 属性面板区块间距、行高、标签列宽按 §7.1 收敛 | `packages/designer/src/panel/PropsPanel.vue` | ✅ 已完成（三面板取值统一） |
-| P1 | 物料面板项、页签按 §7.1 收敛 | `packages/designer/src/panel/MaterialPanel.vue` | ✅ 已完成 |
-| P1 | 空 / 加载 / 错误状态的**视图层呈现**补齐 | `packages/designer/src/components/PanelState.vue` + 6 个面板 | ✅ 已完成（§5 三态落地，含 14 个新用例） |
-| P1 | 面板共用件去重：`.setter` / `.op-btn` / `.panel-err` 提为共享样式 | `packages/designer/src/styles/panel.css` | ✅ 已完成 |
-| P2 | 面板头部统一：物料面板用 `.panel-title`、大纲树用自带 `__head`，两者视觉不一致 | `MaterialPanel.vue` / `OutlineTree.vue` | ✅ 已完成（`.panel-head` 共享形态） |
-| P2 | 断点与栅格落地：设计器 Tablet 抽屉折叠、Wide 栏宽扩容、Mobile 窄屏提示 | `apps/designer-web/src/use-breakpoint.ts` + `App.vue` + `style.css` | ✅ 已完成（§6 四档） |
-| P2 | 由设计变量导出 W3C tokens JSON（与 `tokens.css` 双向校验，防手抄漂移） | `scripts/check-tokens.mjs` + `docs/tokens.w3c.json` | ✅ 已完成（`pnpm tokens:check`） |
-| P2 | 顶栏 `批 N · …`、物料面板 `拖拽接入画布 · 批 2` 等**构建期文案**替换为产品文案 | `App.vue` / `MaterialPanel.vue` | ✅ 已完成（顶栏改为页面标识 `pageId + 发布状态`） |
-| P1 | 抽取 `@lc/tokens` 令牌包（两个消费端出现后，令牌不再住在 designer 包内） | `packages/tokens` | ✅ 已完成（4 个包依赖它） |
-| P1 | **移动端色值令牌化**：materials / renderer / runtime 共 331 处 | `scripts/tokenize-colors.mjs` 执行 | ✅ 已完成（§10） |
-| P1 | 移动端主题接线（跟随系统偏好） | `packages/runtime/src/theme.ts` + `main.ts` | ✅ 已完成 |
-| P1 | **色值字面量门禁**（覆盖不进重构建链的 runtime / materials） | `scripts/check-color-literals.mjs` | ✅ 已完成，已入 CI |
-| P1 | **§5 异常状态族（移动端）**：分类器 + 共享状态视图 + 三处接入 | `core/state-kind.ts` + `uni/lc-state-view.vue` | ✅ 已完成（§5.1，+12 用例） |
-| P1 | 跨端单位：派生 rpx 变体 + 移动端 rpx 字面量令牌化（349 处） | `scripts/build-tokens-rpx.mjs` + `scripts/tokenize-rpx.mjs` | ✅ 已完成（§10.3） |
-| P1 | 按钮六态补齐（点击 / 加载） | `packages/designer/src/styles/panel.css` + `style.css` | ✅ 已完成（§3.2） |
-| P1 | 画布工具条 + 标尺 | `App.vue` + `style.css` + `LcCanvas.vue`（`device` / `zoom` props） | ✅ 已完成（§7.1） |
-| P2 | 手机壳规格对齐文档（375×620 / 圆角 16） | `packages/tokens/src/tokens.css` | ✅ 已完成 |
+已拆分到 **[`docs/design-system-ops.md`](./design-system-ops.md)**：
 
-### 9.1 设计一致性门禁
-
-```bash
-pnpm design:check                 # CI 用这条 = tokens + color + dimensions + rpx 产物 + contrast 五道
-pnpm tokens:check [--verbose]     # 设计稿变量 ↔ tokens.css 值比对；漂移 exit 1
-pnpm color:check                  # 全仓硬编码色值扫描；有残留 exit 1
-pnpm dimensions:check             # px 间距 + 行高比率：仍落在刻度上的字面量 → exit 1
-pnpm contrast:check               # WCAG 对比度回归（基线见 docs/contrast.json，§2.2.1）
-pnpm tokens:audit                 # 令牌**应用度体检**（不是门禁）：死令牌 / 各目录密度 / 断链
-pnpm tokens:rpx                   # 由 tokens.css 派生移动端 rpx 变体
-# 机械替换器（幂等，可复跑；--dry 只报告不写盘）：
-node scripts/tokenize-colors.mjs [--dry]   # 硬编码色值 → var(--lc-*)
-node scripts/tokenize-rpx.mjs    [--dry]   # 移动端 rpx 字面量 → 令牌（只替换刻度上的值）
-node scripts/tokenize-dimensions.mjs [--dry] # px 间距 + 行高比率 → 令牌（同上口径）
-```
-
-**① 令牌漂移门禁（`tokens:check`）**
-
-- **基准**：`docs/tokens.w3c.json` —— 设计稿变量集的 W3C DTCG 导出（Ardot `export_variables`，`format: w3c-json`）。
-- **判定**：单通道差 ≤ 1/255 视为「浮点取整误差」（设计稿变量以 0~1 浮点存储，无法规避）；**≥ 2 判为漂移并失败**。
-- **设计稿改动后**：重新导出覆盖 `docs/tokens.w3c.json`，再跑一次门禁。
-- **首次接入即抓到的真实漂移**（此前靠手抄，全部静默存在）：
-  1. `Component/btn-h-sm` 设计稿变量写着 28，但画布与本文档 §3.2 都是 24 —— **设计文件自相矛盾**；已修变量为 24。
-  2. 暗色 `border-strong`（`#3B424F`）与 `dark-400`（`#3D4757`）不一致 —— 已统一到 `dark-400`。
-  3. `dark-400`、暗色 `text-danger` / `status-danger`、`canvas-shell` 在 `tokens.css` 里被抄错，已按设计稿修正。
-
-**② 色值字面量门禁（`color:check`）**
-
-- 扫描 `apps/*/src` 与 `packages/*/src` 的全部 `.vue/.css/.ts`，报出任何 `#hex` / `rgb()` / `hsl()` / `oklch()`。
-- **它覆盖 `packages/runtime` 与 `packages/materials`** —— 这两个包按 ADR-006 / L-5 刻意不进 `pnpm -r build`（uni 构建重且依赖网络、物料在 jsdom 不可挂载），此前因此完全没有设计门禁覆盖，也就积累出 28 个自造色。本门禁**纯文本扫描、不构建、不联网**，绕开了这个矛盾。
-- 豁免：令牌源文件 `packages/tokens/src`；以及行内标记 `design-token-exempt`（当前 4 处，均为平台 chrome 模拟或 material 数据默认值，见代码注释）。
-- **它抓到的第一个真问题**：`tokenize-colors.mjs` 曾把 `materials/meta/feedback.ts` 的 `activeColor: '#2b6de8'` 误改成 `var(--lc-action-primary)` —— 那是**属性面板 color setter 读写的数据默认值**，不是样式。已回滚并加豁免标记。这条说明：色值门禁必须与「人工确认哪些是数据、哪些是样式」配合，不能只靠正则。
-
-### 9.2 边界：哪些不算令牌
-
-以下属于**页面布局尺寸**，写在 §7.1 与 `style.css` 里，不进令牌层（进令牌会让「换主题/换品牌」牵动布局，得不偿失）：顶栏 48 / 底栏 32 / 左栏 220–280 / 右栏 280–340 / 画布工具条 40。
-
-同理，**设计器 chrome 专属令牌**（`--lc-topbar-*` 含 4 态徽标、`--lc-device-*`、`--lc-drag-hint*`、`--lc-focus-ring`）在设计稿变量集中不存在，属实现侧扩展，已在门禁报告中列为「信息」而非漂移。
-
-## 10. 覆盖度自查（2026-10-16）
-
-> 口径：硬编码色值计数 = `grep -rohE '#[0-9a-fA-F]{3,8}\b|rgba?\([0-9]' <目录> | wc -l`
-
-### 10.1 已接入（有验证）
-
-| 设计内容 | 落点 | 验证 |
+| 原章节 | 内容 | 新位置 |
 |---|---|---|
-| 设计令牌三层（色彩 / 字体 / 间距 / 圆角 / 阴影 / 动效） | `packages/tokens/src/tokens.css`（`:root` 169 项 + 暗色 49 项） | `pnpm tokens:check` 135 项 / 187 处零漂移 |
-| 设计器外壳布局（§7.1 顶栏 / 三栏 / 底栏） | `apps/designer-web/src/style.css` + `App.vue` | **硬编码色值 0** |
-| 亮暗双主题 | `apps/designer-web/src/theme.ts` + 顶栏切换按钮 | 产物含两套值与 `data-theme` 块 |
-| 面板共用件 + 空/加载/错误三态 | `styles/panel.css` + `components/PanelState.vue` | 6 面板接入，14 条用例 |
-| 响应式四档 | `apps/designer-web/src/use-breakpoint.ts` + `style.css` 媒体查询 | 产物含抽屉规则 / 媒体查询 / 窄屏提示层 |
-| uni-shim 控件外观（switch / picker / radio） | `packages/designer/src/shim/shim.css` | 令牌化完成 |
-| **移动端（materials / renderer / runtime）** | 331 处色值 → `var(--lc-*)`（`scripts/tokenize-colors.mjs`） | **硬编码色值 0** |
-| 移动端主题 | `packages/runtime/src/theme.ts` + `main.ts` 引入 `@lc/tokens/tokens.rpx.css` | 跟随系统偏好，挂载前落到根节点 |
-| **跨端单位** | `tokens.css`（px）→ `tokens.rpx.css`（rpx）派生；移动端 349 处 rpx 字面量令牌化 | 设计器产物 `--lc-space-4:16px`；移动端 `1rem`（=32rpx）—— 逐项像素等价 |
-| 画布工具条 + 按钮六态 | `App.vue`（设备/缩放/标尺）+ `panel.css` / `style.css`（六态 + loading） | 产物含 `canvas-chip` / `canvas-ruler`；设计器 21 文件 / 296 用例 |
-| 全仓五个 UI 目录 | designer-web / designer / renderer / runtime / materials | **硬编码色值 0 处**（豁免 4 处，均为平台 chrome 模拟或数据默认值） |
+| §9 | 实施落点与进度、6 道设计一致性门禁、令牌边界 | ops §9 |
+| §10 | 覆盖度自查、接入台账（结论摘要）、移动端单位、图标系统 | ops §10 |
 
-### 10.2 未接入 / 部分接入
-
-| # | 项 | 现状 | 影响 |
-|---|---|---|---|
-| 1 | **组件库的复用边界** | 画布 B4/B5 的 18 个组件在代码里是「共享 CSS 类 + 原生标签」；`packages/designer/src/components/` 仅 `PanelState.vue` | **已按 ADR-007 定性，不再算缺陷**：跨端一致性由令牌承担（5 道门禁），结构复用只发生在同构宿主内（materials 走 uni，已零分支复用）。designer 内部抽 `LcButton` / `LcField` 属**包内复用**，触发条件是「面板数 > 10 或需被第二个 Web 应用复用」，而不是「应该更规范」 |
-| 2 | §5 异常状态族的**移动端形态** | ✅ 已落地：`lc-state-view.vue` 共享组件 + `core/state-kind.ts` 分类器，list/detail/壳层三处接入 | 见 §5.1 |
-| 3 | 物料面板图标 | ✅ 已落地：33 个 16×16 线性图标（`canvas/material-icons.ts`），规格见 §10.4 | 见 §10.4 |
-| 4 | 标尺 · 参考线 | ✅ 双轴标尺（8px/40px 刻度）+ 内容区中心十字虚线，共用一个开关 | 见 §1.1 |
-| 5 | 750 / H5 档位是「占位预览」 | rpx→px 基准被构建期插件固定在 375，750 档只放大外壳宽度、内容绝对尺寸不变 | 要做成「真·设备预览」需渲染层支持 per-device rpx 基准 |
-| 6 | 表格组件 | 仅有 `.lc-table-*` 令牌，无组件、无使用场景 | 规范预留，等设计器出现表格 UI 再落地 |
-| 7 | 视觉回归 | 无浏览器目视（环境无 Chromium） | 色值（331 处）与单位（349 处）替换均为**像素等价换算 + 代码层验证**，但界面观感与暗色主题仍需实测 |
-| 8 | `packages/runtime` 仍不在 `pnpm -r` 链内 | ADR-006 / L-5 的刻意决策（我上一轮建议「补 test/build 纳入 CI」是错的，已收回） | 设计一致性已由 `design:check`（纯文本扫描、零构建）覆盖；**行为回归仍无自动门禁**，只能靠实机冒烟 |
-| 9 | **图表不跟随亮暗主题** | `materials/src/chart/chart-svg.ts` 产出 SVG 后转 `data:image/svg+xml;base64` —— **CSS 变量在 base64 图片里无法解析**，网格线 `#E5E7EB` / 轴标签 `#6B7280` 只能写字面量（已加 `design-token-exempt` 并注明根因） | 实测（对 `bg-surface`）：<br>亮 网格线 **1.24:1**、轴标签 **4.83:1** ✔<br>暗 网格线 **13.81:1** ✘（亮了 11 倍，扎眼）、轴标签 **3.54:1** ✘（< 4.5，低于 AA）<br>**修法**：让组件按当前主题把色值作为参数传入 SVG 生成函数（`theme.ts` 已能给出模式），生成前替换、主题切换时重算 |
-| 10 | L3 组件层接线（2026-10-21 已接） | **已接线**：`.op-btn` / `.op-btn--primary` / `.op-btn--icon` 全走 `--lc-btn-*`；`.setter__input` / `.setter__select` 全走 `--lc-input-*`；侧栏边框走 `--lc-panel-border`。死令牌 **25 → 7** | 剩余 7 项均为**暂无对应界面**，不是漏接：`btn-h-sm/lg/touch`（设计器只有一档尺寸；touch 属移动端）、`panel-radius`（侧栏是通栏，无圆角面板）、`table-*`（表格组件未建） |
-| 11 | 字重 / 行高 | ✅ **两项均已接**。字重：28 处 → `--lc-weight-semibold/bold`，残留 0。行高：新增**无单位比率**一族（`--lc-leading-label/compact/ui/readable/prose`），22 处比率字面量已替换；仅 3 处特例保留（按钮用行高撑高度的 `2.4`、角标固定高度 `92rpx`/`16px`） | 见 §2.3「行高：两族令牌，别混用」。`--lc-lh-*(px)` 仍只用于固定尺寸标题与精确算高的控件 |
-| 12 | 间距类 px 字面量 | ✅ 已收敛：补 2px 半档（`space-0-5/1-5/2-5`）+ `pnpm spacing:check` 门禁；**83 → 32 处**，剩余 32 处全是刻度外光学微调（`3px`/`5px`/`7px`/`14px`/`18px`），按设计保留 | 见 §2.4 间距刻度脚注 |
-
-### 10.3 移动端单位：已落地的方案
-
-移动端单位是 `rpx`（750 基准），设计器是 `px`。**采用方案 A：令牌只以 `px` 定义一份，派生 rpx 变体按端消费**，不维护第二份手写 rpx 令牌（那会让 `tokens:check` 只能覆盖一半）。
-
-**实现**
-
-- `scripts/build-tokens-rpx.mjs`：由 `tokens.css` 派生 `tokens.rpx.css`。规则是**只把带 `px` 的数值 ×2 转 rpx**；颜色、无单位数值（字重 400）、`ms`、字符串型令牌一律不动。`--check` 模式保证产物不漂移（已进 `design:check`）。
-- `scripts/tokenize-rpx.mjs`：把移动端代码里的 rpx 字面量换成令牌。**只替换落在刻度上的值**（`n rpx` 恰好等于某令牌的 rpx 值），因此替换是**像素等价**的；未命中刻度的 195 处（`1rpx` 发丝线、`6rpx`、`999rpx` 等等）保持字面量并列入报告 —— 绝不「就近归并」，那会真的改变布局。
-- 属性感知：同一个 rpx 值在不同属性上属不同刻度（`24rpx` 可能是 `space-3` 间距、`radius-lg` 圆角、或 `font-caption` 字号）。
-
-**实测结果**
-
-| | 设计器（Web） | 移动端（uni H5） |
-|---|---|---|
-| 源 | `tokens.css` | `tokens.rpx.css`（派生） |
-| `--lc-space-4` 产物值 | `16px` | `1rem`（= 32rpx，随屏宽缩放） |
-| `--lc-font-body` 产物值 | `14px` | `.875rem`（= 28rpx） |
-| 产物残留 `rpx` | — | **0** |
-
-**同一份组件代码**（如 `padding: var(--lc-space-4)`）在两端都正确：设计器得固定 16px（画布 375），移动端得随屏宽缩放的 1rem。移动端构建把 rpx 转成 `rem`，因此**令牌里的 rpx 也必须经构建处理** —— 实测产物残留 0 个 `rpx`，确认 `node_modules` 下的令牌 CSS 同样走该转换。
-
-### 10.4 图标系统（物料面板，33 个）
-
-**为什么内置路径而不引图标包**：33 个 16px 单色图标若引 lucide / heroicons，会带来一份外部依赖 + 版本约束 + tree-shaking 不确定性；与 `lc-icon` 物料既有的「不引字体包」约定也不一致。手绘内联路径是更小的成本。
-
-**规格**（改任何一个都不要破例）
-
-| 项 | 值 |
-|---|---|
-| viewBox | `16 × 16` |
-| 活区 | `2 – 14`（四周留 2px 呼吸） |
-| 描边 | `1.5`，`stroke-linecap / linejoin: round` |
-| 填充 | `none`；仅实心点用 `fill="currentColor" stroke="none"`（Radio 圆心、Switch 滑块、Tabs 激活页签） |
-| 上色 | 全部 `currentColor` —— 面板项默认 `text-tertiary`，悬停随父级变 `action-primary` |
-
-**隐喻分配原则**：一个语义一个隐喻；相近物料靠**构图**区分，不靠细节差异。
-
-| 易混组 | 区分方式 |
-|---|---|
-| Input / Select / Textarea / Picker | 框 + 光标 / 框 + 右箭头 / 框 + 三行（末行短）/ 无框三行（中间实两侧淡出＝滚轮） |
-| Cell / Detail / List | 框 + 右箭头 / 两行「短键+长值」/ 三行「圆点 + 线」 |
-| DatePicker / DateTimePicker | 日历（顶栏分隔 + 两个挂环）/ 时钟（**不做叠挂件** —— 16px 下必糊） |
-| Cascader / DeptPicker | 双箭头「逐级深入」/ 组织树（上节点 + 连接线 + 两个下节点） |
-| FileUpload / Upload | 文档 + 上箭头 / 相框 + 上箭头 |
-
-**回归守卫**（`packages/designer/test/material-icons.test.ts`，7 条）：
-每个可拖物料都有图标（防新增漏配）· 无僵尸图标 · 未登记走兜底 · **每个图标都是合法 SVG**（防手绘路径语法错）· 无硬编码色值 · 不内嵌 `<svg>` / 不引外部资源 · 显式坐标不越网格。
-
-**审阅入口**：`pnpm icons:sheet` → `docs/material-icons.html`（按 3× / 2× / **1×** 三档并排，重点看 16px 那列是否仍可辨认）。该文件由脚本从源码生成，勿手改。
-
----
-
-*文档版本 v1.1 · 与设计稿《LowCode 跨端 UI 设计系统》同步*
+规范本体到 §8 为止。**想知道「落地到什么程度」看 ops 文档**；这里只留设计规格。
