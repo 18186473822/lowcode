@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**与**列表页行内编辑/批量删除**完成，其余生产化与开放能力未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**与**OpenAPI 3.1 文档**完成，Webhook/远程物料等其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -108,6 +108,18 @@ export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行�
 - 访问日志为**单行 JSON**，字段含 `requestId/method/path/status/durationMs/ip`，不记录 query、body、Authorization。
 - 部署、systemd、备份与日志采集见 [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md)。
 
+### 开放接口文档（Phase 4）
+
+```bash
+# 公开只读；不需要 JWT，仍计入普通限流
+curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
+```
+
+- 标准 **OpenAPI 3.1.0**，`servers[0].url = /api/v1`，覆盖当前 **39 条**实际路由。
+- 可直接导入 Swagger UI / Apifox / Postman / OpenAPI Generator；文档内已标注 Bearer 鉴权、`If-Match` 乐观锁、审批 `Idempotency-Key`、错误体与 409/413/429/503。
+- 路径/方法由 `apps/server/test/openapi.test.ts` 反射 Nest 路由逐条比对，新增/删除接口未同步会直接测试失败。
+- 获取、导入、维护说明与未包含项见 [`docs/openapi.md`](docs/openapi.md)，接口约定见 [`docs/protocol.md`](docs/protocol.md) §10.7。
+
 开发账号（JSON 模式为内存种子；MySQL 模式由 `seed:mysql` 写入 `users / roles / user_roles`，**仅限本地**）：
 
 | 账号 | 密码 | 角色 |
@@ -138,7 +150,7 @@ packages/
   tokens/       设计令牌唯一持有者（tokens.css / tokens.ts / rpx 产物）
   runtime/      uni-app 运行时壳（登录 / 菜单 / 待办 / 表单 / 列表 / 详情 / 门户）
 apps/
-  server/       NestJS 服务端（登录、页面、模型、记录、流程、RBAC、文件、运维事件）
+  server/       NestJS 服务端（登录、页面、模型、记录、流程、RBAC、文件、运维事件、OpenAPI）
   designer-web/ 设计器 PC 宿主（Vite + Element Plus + rpx→px 插件 + /api 代理）
 docs/           协议规范、设计系统、分阶段方案、ADR、进度台账
 scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图标表）
@@ -154,8 +166,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 4 道：令牌漂移 / 硬编码色值 / rpx 同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（73 文件 / 1096 通过 + 9 条件跳过；设 LC_TEST_DATABASE_URL 时 1105 全通过）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 95.74/86.59/95.98/95.74）
+pnpm -r test         # 单元测试（76 文件 / 1130 通过 + 9 条件跳过；设 LC_TEST_DATABASE_URL 时 1139 全通过）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 95.66/85.89/95.69/95.66）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：
@@ -176,6 +188,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | 文档 | 内容 |
 |---|---|
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
+| [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、39 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
 | [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范） |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
 | [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
@@ -186,6 +199,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
 - **CI 未在真实环境跑过**：代码已推送 Gitee `origin/master`，但 Gitee 托管 CI 无法运行 Node 22；GitHub Actions workflow 已存在，GitHub 镜像/远端 Actions 尚未创建与实跑。
+- **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 39 条路由，但未内置 Swagger UI 页面，也未生成客户端 SDK；Webhook 订阅/签名投递与远程物料同样未实现（后续开放集成批次）。
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。

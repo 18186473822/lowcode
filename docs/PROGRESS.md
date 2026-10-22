@@ -14,7 +14,7 @@
 | Phase 1 | 最小闭环 MVP | 4 周 | 🟡 **主线收口（物料 12 个 ✅ + 设计器批 1~5 ✅ + 服务端动态 CRUD ✅ + 运行时壳 ✅ → 出口判据全通）** | 物料库 12 个归位并 H5 实测 ✅（2026-10-09）；**设计器批 1「画布能渲染」✅ + 批 2「能拖入删除」✅ + 批 3「能配置保存」✅**（批 3 于 2026-10-10）+ **批 4「页面↔模型字段绑定」✅**（2026-10-12，D-A11 双层配置，见「已实现 16」）+ **批 5「出口判据闭环」✅**（2026-10-14，D-A12 必填联动 + D-A13 动作绑定 + textarea setter，见「已实现 18」）；**服务端动态 CRUD ✅**（2026-10-10，9 接口 + 真实启动冒烟 18/18，见「已实现 15」）；**运行时壳（登录/菜单/`pageId` 路由）✅**（2026-10-12，见「已实现 17」）；**主方案 Phase 1 出口判据 1/2/3 全通 ✅**（2026-10-14）—— Phase 1 主线就此收口，余项为环境/可选（mp 真机、CI 实跑）与 Phase 2 归属 |
 | Phase 2 | 企业级能力 | 6 周 | 🟢 **全线收口（批 1~7 全部 ✅，出口判据全通）** | 拆 7 批见 `lowcode/docs/phase2-plan.md`；**批 1「模型可视化建模」✅**（2026-10-14，D-P2-1 视图切换 + ModelPanel/model-ops + putModel，服务端零改动，见「已实现 19」）；**批 2「列表/详情标准页」✅**（2026-10-14，D-P2-2 协议补 `DetailPageConfig` + lc-list/detail-page + runtime 按 type 分发 + 设计器配置面板，见「已实现 20」）；**批 3「物料 12→30」✅**（2026-10-14，18 新物料对齐 `FieldType` 全集 + optionList/color setter + demo 30 全量演示，服务端零改动，见「已实现 21」）；**批 4「设计器可用性」✅**（2026-10-14，D-P2-7 快照双栈撤销重做 + 大纲树 + 跨页剪贴板 + D-P2-3 修复，服务端零改动，见「已实现 22」）；**批 5「版本管理 UI」✅**（2026-10-14，D-P2-8 补 `GET /pages/:id/versions` + D-P2-9 自研结构化 diff + HistoryDialog 历史/回滚/对比，见「已实现 23」）；**批 6「权限 RBAC」✅**（2026-10-15，D-P2-10 单文件配置 + D-P2-11 四层判定单一事实源 + D-P2-12 权限管理视图/节点 perm/模型数据权限，双账号 DoD 四点全过，见「已实现 24」）；**批 7「出口判据 Demo + 多端打包」✅**（2026-10-15，请假申请三页 Demo 全流程十步留档 + B-41 物料默认值残留清理 + D-P2-13 受控回显兜底 + mp 分包产物验证，见「已实现 25」）—— **Phase 2 七批全部收口，出口判据「30 分钟搭出申请-列表-详情；小程序端跑通（产物级，真机受环境限制）」达成** |
 | Phase 3 | 流程与体验 | 4 周 | 🟢 **全线收口（批 1~5 全部 ✅）** | 拆 5 批见 `lowcode/docs/phase3-plan.md`（2026-10-15 立项，与负责人对齐：导出/消息裁剪）；出口判据（拟定已确认）：**带审批的申请应用**（提交 → 待办 → 同意 → 状态变更 + 时间轴可见；门户图表 + 主题换色）；**批 1「流程引擎核心」✅**（2026-10-15，D-P3-1 FlowSchema 协议 + `validateFlow` + 服务端 flow 模块 7 接口 + 记录提交联动启动实例 + assignee 判定 D-P3-2 + 依赖方向 D-P3-3，见「已实现 26」）；**批 2「审批物料 + 待办中心」✅**（2026-10-16，D-P3-4 物料数据通道 + D-P3-4b `$expr` recordId 绑定 + D-P3-5 待办两页 + D-P3-6 单实例接口 + **B-44** optimizeDeps 双实例教训，见「已实现 27」）；**批 3「本地草稿 + 主题配置」✅**（2026-10-19，D-P3-7 草稿时机/存储分层 + D-P3-8 apps.json 配置与档位覆盖主题 + D-P3-9 dark 配置优先，见「已实现 28」）；**批 4「图表物料 + Portal 页型」✅**（2026-10-20，D-P3-10 Chart 三形态纯 SVG + Statistic + 客户端聚合，D-P3-11 `PortalPageConfig` 卡片导航与拖拽区共存，H5 + 设计器双实测，见「已实现 29」）；**批 5「埋点与错误上报 + Profiler」✅**（2026-10-20，D-P3-12 ops 事件表/三接口、D-P3-13 上报队列 + 不白屏、D-P3-14 Profiler 双端可见，H5 DoD + 冒烟 23/23，见「已实现 30」）—— **Phase 3 五批全部收口** |
-| Phase 4 | 生产化与开放 | 4 周 | 🟡 **安全 + 可观测性 + 数据库三批 + 并发控制 + 详情/列表记录写入口完成** | 2026-10-20：JWT 生产 fail-closed、CORS 白名单、普通/登录限流已完成并回归（见 `docs/security-hardening-2026-10-20.md`）；2026-10-21：健康/就绪探针、`X-Request-Id`、结构化访问日志、部署/备份文档完成（见 `docs/observability-deployment-2026-10-21.md`）；**MySQL 8 + Prisma 三批完成**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容共 13 表；`LC_STORAGE=json` 仍为默认/测试路径，见 ADR-008 / ADR-009 / ADR-010 / 「已实现 32、34」）；**运维事件写入改为追加 + 裁剪**（避免并发上报后写覆盖先写，见「已实现 33」）；2026-10-22：**页面/记录/流程实例乐观锁、审批幂等与 `pendingPatch` outbox**（见「已实现 35」/ ADR-011）；**标准详情页记录编辑/删除入口（`detail.editable/deletable`，If-Match + 409 不覆盖）**（见「已实现 36」）；**标准列表页行内编辑 + 批量删除（`list.editable/deletable`，逐行 If-Match + 409 保留选择）**（见「已实现 37」）；开放集成、多环境/远程物料/压测、导出打印/消息/文档仍未开始 |
+| Phase 4 | 生产化与开放 | 4 周 | 🟡 **安全 + 可观测性 + 数据库三批 + 并发控制 + 详情/列表记录写入口 + OpenAPI 文档完成** | 2026-10-20：JWT 生产 fail-closed、CORS 白名单、普通/登录限流已完成并回归（见 `docs/security-hardening-2026-10-20.md`）；2026-10-21：健康/就绪探针、`X-Request-Id`、结构化访问日志、部署/备份文档完成（见 `docs/observability-deployment-2026-10-21.md`）；**MySQL 8 + Prisma 三批完成**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容共 13 表；`LC_STORAGE=json` 仍为默认/测试路径，见 ADR-008 / ADR-009 / ADR-010 / 「已实现 32、34」）；**运维事件写入改为追加 + 裁剪**（避免并发上报后写覆盖先写，见「已实现 33」）；2026-10-22：**页面/记录/流程实例乐观锁、审批幂等与 `pendingPatch` outbox**（见「已实现 35」/ ADR-011）；**标准详情页记录编辑/删除入口（`detail.editable/deletable`，If-Match + 409 不覆盖）**（见「已实现 36」）；**标准列表页行内编辑 + 批量删除（`list.editable/deletable`，逐行 If-Match + 409 保留选择）**（见「已实现 37」）；**OpenAPI 3.1 文档端点 `GET /api/v1/openapi.json`（39 条路由 + 路由反射防漂移）**（见「已实现 38」）；Webhook/远程物料、多环境/压测、导出打印/消息仍未开始 |
 
 **图例**：✅ 已完成并验证 ｜ 🟡 部分完成 ｜ ⬜ 未开始 ｜ ❌ 阻塞/放弃
 
@@ -1215,6 +1215,31 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 
 ---
 
+### 38. Phase 4 · OpenAPI 3.1 文档（2026-10-22）
+
+**背景**：外部系统接入目前只能读 `protocol.md` 手工拼请求，接口一多就容易抄错；同时若用 Swagger 装饰器自动生成，又会把文档绑到 Nest 运行时和额外依赖上。本批选择「**显式声明 + 路由反射测试防漂移**」：文档是零依赖的纯数据，测试用 Nest 的 `PATH_METADATA` / `METHOD_METADATA` 反射实际 controller，少一条或多一条路由都会直接失败。
+
+**实现**：
+
+- **文档构建器**：新增 `apps/server/src/open/openapi.ts`，输出 OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀；顶层 `security: [{ bearerAuth: [] }]`，5 个公共接口显式 `security: []`。
+- **覆盖 39 条实际路由**：System 3、Auth 2、Apps 3、Pages 8、Models 3、Records 4、Files 2、Flows 8、RBAC 3、Ops 3；每个 operation 含唯一 `operationId`、中文 `summary`、`tags`、成功/错误响应与路径参数。页面/记录写接口标注 `If-Match` 与 409；审批接口标注 `Idempotency-Key`；文件上传标注 multipart；错误体统一 `Error` + `Issue`。
+- **端点**：新增 `GET /api/v1/openapi.json`（`open.controller.ts` / `open.module.ts`，注册进 `AppModule`）。**公开只读**，不需要 JWT，但仍计入普通限流；响应 `Cache-Control: public, max-age=300`，全局 `X-Request-Id` 照常带。
+- **零新依赖**：不引入 `@nestjs/swagger` / Swagger UI；文档可导入 Swagger UI、Apifox、Postman、OpenAPI Generator。
+- **契约测试**：新增 `apps/server/test/openapi.test.ts`（8 例）——OpenAPI 版本/服务地址/全局 Bearer；39 条路由与 Nest 反射逐条一致；`operationId` 唯一、`summary/tags/responses` 完整；路径参数声明且 `required: true`；本地 `$ref` 全部可解析、JSON 无损往返；公共接口恰好 5 个；核心契约字段（`If-Match`/`Idempotency-Key`/409/multipart）覆盖；真实启动 Nest 请求端点，无令牌 200 且含缓存头/请求 ID。
+- **使用文档**：新增 `docs/openapi.md`（获取方式、导入工具、39 条路由清单、鉴权/乐观锁/幂等/错误体/限流约定、防漂移维护说明、本批未包含项）；`docs/protocol.md` §10 修正公共接口清单并新增 §10.7。
+
+**验证（2026-10-22 实测）**：
+
+- `pnpm -F @lc/server test`（`LC_TEST_DATABASE_URL` 指向 `lowcode_test`）：**16 文件 / 256 用例全过**（含 MySQL 9 例）。
+- `pnpm -r test`（同上）：**6 项目 / 76 文件 / 1139 用例全部通过**；renderer 25 / 335、designer 25 / 336、server 16 / 256、schema 6 / 90、expression 3 / 117、tokens 1 / 5。
+- `pnpm coverage`（CI 口径，不设 MySQL 环境变量）：**75 文件通过 + 1 跳过（76）**；**1130 通过 / 9 跳过（1139）**；statements **95.66%**、branches **85.89%**、functions **95.69%**、lines **95.66%**；`openapi.ts`、`open.controller.ts`、`open.module.ts` 均 **100 / 100 / 100 / 100**。
+- `pnpm -r typecheck` ✅ 7 包 Done；`pnpm -r build` ✅ 5 包 Done（`designer-web` 1,239.95 kB / gzip 402.09 kB，仅既有 >500 kB chunk 告警）。
+- `pnpm design:check` ✅（tokens / color / dimensions / rpx / contrast 全过）；`pnpm --filter @lc/runtime build:h5` ✅ `DONE Build complete.`。
+
+**明确未做**：Webhook 订阅/签名投递/重试与投递日志；远程物料/物料市场；内置 Swagger UI 页面；第三方数据源连接器。以上留待开放集成后续批次；本批只交付机器可读文档与端点。
+
+---
+
 ## ❌ 未实现（本次明确不做 / 未完成）
 
 
@@ -1229,7 +1254,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | CI 配置 | `turbo build` 全绿 + 体积阈值告警 | 🟡 **workflow 已写未实跑** | Phase 0 | `.github/workflows/ci.yml`（typecheck/build/test/coverage 阈值/服务端冒烟/体积告警）；未引入 Turborepo（D-4，用 `pnpm -r`）；**未推送远端、未在真实 Actions 执行**（D-13/L-8） |
 | ADR 架构决策记录 | `docs/adr/` | ✅ **已完成（6 篇）** | Phase 0 | `docs/adr/`：README 索引 + 001~006（静态注册/受信 app API/副作用注入/JSON 仓储/uni CLI/覆盖率门禁）；与方案 2.4 分工互补，全部由已落定决策（D-x）归纳 |
 | `docs/protocol.md` 协议规范文档 | 对外契约文档 | ✅ 已完成 v1.0（**第 10 章 2026-10-10 修订**） | Phase 0 | 11 章 + 2 附录，覆盖四协议 + Model/App + 33 错误码 + 服务端契约；全部事实逐条核对实现；**第 10 章已补方案 8.3 动态 CRUD 9 接口 + 10.4 记录查询语义 + 服务端错误码 11→19**（协议结构 0~9 章未变，不升 `schemaVersion`） |
-| 单测覆盖率 ≥ 90% | 方案 9.2 硬指标 | ✅ **已达成并强制** | Phase 0 | `pnpm coverage` Phase 0 实测 **95.53%** → **2026-10-20 最新 96.17/87.96/95.87/96.17**（67 文件 / 1032 例；分包 stmts：designer panel 99.8+ / renderer core 97+ 均 ≥90；**分包 branch 不设阈值**，以总分支过 85）；阈值 90/85/90/90 写入 `vitest.config.ts` 防退化；uni 组件层已纳入统计 |
+| 单测覆盖率 ≥ 90% | 方案 9.2 硬指标 | ✅ **已达成并强制** | Phase 0 | `pnpm coverage` Phase 0 实测 **95.53%** → **2026-10-22 最新 95.66/85.89/95.69/95.66**（76 文件 / 1139 例；分包 stmts：designer panel 99.8+ / renderer core 97+ 均 ≥90；**分包 branch 不设阈值**，以总分支过 85）；阈值 90/85/90/90 写入 `vitest.config.ts` 防退化；uni 组件层已纳入统计 |
 
 ### 渲染引擎的已知限制（第 2 批明确记录，均未在后续批次解决前视为**不可依赖**）
 
@@ -1251,7 +1276,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | Phase 1 | ✅ 物料库 12 个（2026-10-09 完成并 H5 实测）；✅ **设计器批 1「画布能渲染」+ 批 2「能拖入删除」（2026-10-09 完成并浏览器实测，B-22~B-26 修正 + D-A8 注记已回写，meta ×13 随批 2 合流）**；✅ **设计器批 3「能配置保存」（2026-10-10 完成并浏览器实测，B-27 修正 + D-A9 注记回写，4 setter 真渲染 + 保存/打开/发布链路）**；✅ **设计器批 4「页面↔模型字段绑定」（2026-10-12 完成并浏览器实测，D-A11 双层配置 + B-29/B-30 修正，designer 测试 101→123，见「已实现 16」）**；✅ **服务端动态 CRUD（2026-10-10 完成，9 接口 + 93 测试 + 真实启动冒烟 18/18，见「已实现 15」）**；✅ **运行时壳补全「登录 / 应用菜单 / `pageId → Schema` 路由」（2026-10-12 完成并浏览器实测 7 点，`GET /apps/bootstrap` 最小实现 + submit 动作失败透传引擎修复，见「已实现 17」）**；❌ **批 5 闭环 Demo**（出口判据，前置已全部就绪）、数据源配置接口、字段智能匹配与批量生成表单页、其余 9 种 setter（Phase 2） |
 | Phase 2 | ✅ 数据模型可视化建模（批 1，2026-10-14）；✅ **列表/详情标准页（批 2，2026-10-14，见「已实现 20」）**；✅ **物料补至 30 个（批 3，2026-10-14，见「已实现 21」）**；✅ **设计器可用性：撤销重做/大纲树/复制粘贴（批 4，2026-10-14，见「已实现 22」）**；✅ **版本管理 UI：历史/回滚/diff（批 5，2026-10-14，见「已实现 23」）**；✅ **RBAC 权限：页面/按钮/数据行级（批 6，2026-10-15，见「已实现 24」）**；小程序分包与包体积裁剪（批 7）；动态表方案 A 维持不做（D-9 沿用方案 B JSON 存储） |
 | Phase 3 | ✅ **轻量流程引擎状态机（批 1，2026-10-15，见「已实现 26」——协议 `FlowSchema`/`validateFlow` + 服务端 flow 7 接口 + 提交联动 + 待办/审批动作）**；✅ **审批物料 + 待办中心（批 2，2026-10-16，见「已实现 27」——ApprovalBar/Timeline 物料 + `LcFlowHost` 通道 + 待办两页 + 设计器绑定配置 + H5 闭环实测）**；✅ **本地草稿与主题配置（批 3，2026-10-19，见「已实现 28」——DraftStore 可选注入恢复链 + apps.json GET/PUT config + brand 十档派生全站变色 + ThemePanel 设计器入口 + H5 实测 DoD 全过）**；✅ **图表物料 + Portal 页型（批 4，2026-10-20，见「已实现 29」——Chart 三形态纯 SVG + Statistic + 客户端聚合 + PortalPageConfig 卡片导航/拖拽区 + H5/设计器双实测）**；✅ **埋点与错误上报 + Schema Profiler（批 5，2026-10-20，见「已实现 30」——ops 事件表三接口 + createOpsQueue 上报队列 + 表达式/动作/加载失败接线 + H5/设计器 Profiler 双端可见 + 冒烟 23/23）**；~~消息通知、数据导出/打印~~（2026-10-15 决策裁剪留 Phase 4）；离线队列按方案 7.3 二期、BPMN 按 8.6 二期、真机扫码受环境限制 |
-| Phase 4 | ✅ 安全加固首批（JWT/CORS/限流）、可观测性/部署探针、MySQL 8 + Prisma 三批（13 表，含文件元数据/内容）、页面/记录/流程实例乐观锁与审批幂等（含 pendingPatch outbox）、标准详情页记录编辑/删除入口、标准列表页行内编辑 + 批量删除已完成；❌ 开放集成（OpenAPI/Webhook/远程物料）、多环境晋级与灰度、压测与稳定性、导出/打印/消息、文档培训；❌ 生产剩余：Redis 多实例限流/分布式锁、安全审计/账号锁定/JWT 轮换、CI 实跑 MySQL、小程序真机 |
+| Phase 4 | ✅ 安全加固首批（JWT/CORS/限流）、可观测性/部署探针、MySQL 8 + Prisma 三批（13 表，含文件元数据/内容）、页面/记录/流程实例乐观锁与审批幂等（含 pendingPatch outbox）、标准详情页记录编辑/删除入口、标准列表页行内编辑 + 批量删除、OpenAPI 3.1 文档端点已完成；❌ 开放集成剩余（Webhook/远程物料）、多环境晋级与灰度、压测与稳定性、导出/打印/消息、文档培训；❌ 生产剩余：Redis 多实例限流/分布式锁、安全审计/账号锁定/JWT 轮换、CI 实跑 MySQL、小程序真机 |
 
 ---
 

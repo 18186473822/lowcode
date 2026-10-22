@@ -484,7 +484,7 @@
 
 ## 10. 服务端接口契约（REST，前缀 `/api/v1`）
 
-事实源：`apps/server/src/`。**鉴权**：除登录外全部要求 `Authorization: Bearer <JWT>`（HS256，8 小时）。密钥 `LC_JWT_SECRET` **生产必填且 ≥32 字符**；生产缺失/过短/使用仓库内置开发值会拒绝启动。跨域与限流见 §10.5。
+事实源：`apps/server/src/`。**鉴权**：除 `GET /health`、`GET /ready`、`POST /auth/login`、`GET /files/:fileId`、`GET /openapi.json` 外全部要求 `Authorization: Bearer <JWT>`（HS256，8 小时）。密钥 `LC_JWT_SECRET` **生产必填且 ≥32 字符**；生产缺失/过短/使用仓库内置开发值会拒绝启动。跨域与限流见 §10.5。OpenAPI 文档见 §10.7。
 
 ### 10.1 接口清单
 
@@ -494,6 +494,7 @@
 |---|---|---|---|
 | GET | `/health` | — | `200 { status: 'ok', storage: 'json'|'mysql', version, uptimeSeconds, timestamp }`（`version` 取 `LC_APP_VERSION`，默认 `0.1.0`） |
 | GET | `/ready` | — | `200 { status: 'ok', storage, checks, timestamp }`；JSON 模式 `checks = { dataDir: 'ok' }`，MySQL 模式 `checks = { dataDir: 'ok', database: 'ok' }`；数据目录不可写或 `SELECT 1` 失败 → `503 { code: 'NOT_READY', message, storage, checks, timestamp }` |
+| GET | `/openapi.json` | — | `200` OpenAPI 3.1.0 文档（`servers[0].url = /api/v1`，路径不含前缀）；**公开只读**、仍计入普通限流；响应带 `Cache-Control: public, max-age=300`。见 §10.7 |
 
 > 两探针**不鉴权、不计入限流**；所有响应带 `X-Request-Id`（客户端合法值原样复用，否则生成 UUID）。访问日志默认 production 开启，单行 JSON 只含 `requestId/method/path/status/durationMs/ip/userAgent`，**不记 query、body、Authorization**；`LC_ACCESS_LOG=1/0` 可覆盖。
 
@@ -738,6 +739,21 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 - JSON 仓储锁是**单进程**的；多副本部署必须用 `LC_STORAGE=mysql`（行级 CAS）。文件仓储也不适合多实例共享目录并发写。
 - 设计器已携带 `If-Match` 保存/发布/回滚；**业务记录已有前端编辑/删除入口**（详情页 `detail.editable/deletable` 显式开启，PUT/DELETE 均从记录 `revision` 构造 `If-Match`，409 保留草稿并要求重新加载；删除为服务端软删）。列表页在从详情返回的 `onShow` 重挂载刷新。
 - 本批未实现自动重试中间件；`Idempotency-Key` 的重放由调用方（待办审批物料）在同一次用户动作内复用。
+
+### 10.7 OpenAPI 文档（Phase 4 开放集成第一批）
+
+| 项 | 契约 |
+|---|---|
+| 端点 | `GET /api/v1/openapi.json`（公开只读，无需 JWT；仍计入普通限流） |
+| 版本 | OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀 |
+| 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId}） |
+| 覆盖 | 当前 **39 条**实际路由；含页面/记录/流程 `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
+| 缓存 | `Cache-Control: public, max-age=300` |
+| 实现 | `apps/server/src/open/openapi.ts`（构建器）+ `open.controller.ts` / `open.module.ts` |
+| 防漂移 | `apps/server/test/openapi.test.ts` 反射 Nest 路由元数据，路径/方法少一条或多一条即失败；并校验 `operationId` 唯一、路径参数完整、`$ref` 可解析、公共接口鉴权 |
+| 使用 | 可导入 Swagger UI / Apifox / Postman / OpenAPI Generator；详细说明见 [`openapi.md`](openapi.md) |
+
+> 本批只交付机器可读文档，不内置 Swagger UI 页面；Webhook 订阅/签名投递与远程物料属开放集成后续批次。
 
 ## 11. 生命周期受信 API（`app.*`）
 
