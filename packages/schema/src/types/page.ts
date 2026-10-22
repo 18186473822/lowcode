@@ -59,6 +59,13 @@ export interface ListPageConfig {
   pullDown?: boolean
   search?: { fields: string[]; placeholder?: string }
   detailPageId?: string
+  /**
+   * 允许列表行内编辑（缺省 false）。编辑器只覆盖 `columns`（缺省模型全部字段），
+   * 保存走 PUT + If-Match；409 不覆盖他人修改。
+   */
+  editable?: boolean
+  /** 允许勾选批量删除（缺省 false）。每行 DELETE 均带该行 revision 构造的 If-Match。 */
+  deletable?: boolean
 }
 
 /** type=detail 的标准化详情页配置（由路由参数 rid 定位单条记录，Phase 2 批 2）。 */

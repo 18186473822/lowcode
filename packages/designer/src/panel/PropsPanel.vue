@@ -119,6 +119,36 @@
             />
           </span>
         </label>
+
+        <label class="setter">
+          <span class="setter__label">行内编辑</span>
+          <span class="setter__ctl">
+            <input
+              type="checkbox"
+              data-testid="list-editable"
+              :checked="store.schema.list?.editable === true"
+              @change="setListBool('editable', $event)"
+            />
+          </span>
+          <span class="setter__help">
+            每行显示「编辑」：展开行内编辑器（只编辑展示列），保存走 PUT + If-Match
+          </span>
+        </label>
+
+        <label class="setter">
+          <span class="setter__label">批量删除</span>
+          <span class="setter__ctl">
+            <input
+              type="checkbox"
+              data-testid="list-deletable"
+              :checked="store.schema.list?.deletable === true"
+              @change="setListBool('deletable', $event)"
+            />
+          </span>
+          <span class="setter__help">
+            显示勾选框与批量删除：逐条 DELETE + 每行 revision 的 If-Match，409 保留该行
+          </span>
+        </label>
       </div>
 
       <!-- detail：详情配置（批 2） -->
@@ -578,6 +608,12 @@ function toggleDetailField(key: string, e: Event): void {
 function setListStr(key: 'detailPageId', e: Event): void {
   const v = (e.target as HTMLInputElement).value
   store.setListConfig({ [key]: v || undefined })
+}
+
+/** 列表写操作开关：未勾选写 undefined（保持「缺省 = 只读」的协议语义） */
+function setListBool(key: 'editable' | 'deletable', e: Event): void {
+  const checked = (e.target as HTMLInputElement).checked
+  store.setListConfig({ [key]: checked || undefined })
 }
 
 function setDetailStr(key: 'backPageId', e: Event): void {

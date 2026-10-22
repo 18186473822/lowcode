@@ -317,6 +317,15 @@ describe('PropsPanel：页面类型 + 标准页配置区块', () => {
 
     await w.get('[data-testid="list-page-size"]').setValue('20')
     expect(store.schema.list?.pagination).toEqual({ mode: 'page', size: 20 })
+
+    // Phase 4：列表写操作默认关闭；勾选写 true，取消回 undefined
+    expect((w.get('[data-testid="list-editable"]').element as HTMLInputElement).checked).toBe(false)
+    await w.get('[data-testid="list-editable"]').setValue(true)
+    expect(store.schema.list?.editable).toBe(true)
+    await w.get('[data-testid="list-deletable"]').setValue(true)
+    expect(store.schema.list?.deletable).toBe(true)
+    await w.get('[data-testid="list-deletable"]').setValue(false)
+    expect(store.schema.list?.deletable).toBeUndefined()
     w.unmount()
   })
 

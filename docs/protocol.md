@@ -227,10 +227,19 @@
 
 ### 2.6 列表页（`ListPageConfig`，`type=list` 必填）
 
-`{ modelId ✅, filter?, sort?, columns?, cardTemplate?, pagination?, pullDown?, search?, detailPageId? }`
+`{ modelId ✅, filter?, sort?, columns?, cardTemplate?, pagination?, pullDown?, search?, detailPageId?, editable?, deletable? }`
 —— 企业级最高频页面走配置化，无需拖拽。
 
+| 字段 | 说明 |
+|---|---|
+| `modelId` | ✅ 必填数据模型（缺失报 `E_REQUIRED`） |
+| `columns` | 展示字段；也作为**行内编辑**的可编辑字段（缺省 = 模型全部字段） |
+| `editable` | 是否显示行「编辑」；缺省 `false`。点击后先 `GET records?filter={"id":rid}&size=1` 拉最新单条，展开复用详情页的内联编辑器；保存走 `PUT` 部分合并 + `If-Match` |
+| `deletable` | 是否显示行勾选框、全选与批量删除；缺省 `false`。逐条串行 `DELETE`，每条都用该行 `revision` 构造 `If-Match`；409 保留该行，不自动覆盖/重试 |
+
 > **实现状态（Phase 2 批 2 兑现，2026-10-14）**：`modelId / sort[0] / columns / pagination.size / search / detailPageId` 已由 `lc-list-page` 实现 —— records 查询（`page/size/sort` 透传）、列渲染**三级降级**（`columns` → 模型全部字段 → 记录首行键）、分页「加载更多」追加、搜索为**前端包含过滤**（`search.fields` 字段限定暂未区分）、点行跳 detail 页（`detailPageId` + `rid`）。**暂未实现**（运行时忽略，不报错）：`filter`（表达式过滤——服务端 records filter 仅等值）、`cardTemplate`（自定义卡片渲染，当前按「列名:值」行渲染）、`pullDown`（下拉刷新）、滚动触底加载（以按钮替代）。`root` 树在 list 页**运行时忽略**（画布仅占位）。校验：缺 `list` 或 `list.modelId` 报 `E_REQUIRED`。
+>
+> **列表写操作（Phase 4，2026-10-22）**：`editable` 行内编辑只覆盖 `columns`（缺省全部模型字段），保存前会重新拉取单条，避免列表行缺少字段或 `revision` 过期；409 保留草稿与编辑器，提示「本次保存未生效」，点「重新加载」后才用最新 `revision` 重挂载并重试；400 `RECORD_INVALID` 的 `errors[].path/message` 映射到字段错误。`deletable` 批量删除只对**当前可见行**全选，搜索变化会清理不可见行的选择；删除完当前页且仍有剩余数据时自动回到第一页；部分失败保留未删行与选择，刷新后可用最新 `revision` 重试。设计器属性面板提供「行内编辑 / 批量删除」复选框，未勾选写 `undefined`（协议缺省只读）。
 
 ### 2.7 详情页（`DetailPageConfig`，`type=detail` 必填）
 

@@ -30,9 +30,9 @@ const modelDef = {
 }
 
 const records = [
-  { id: 'r1', empName: '张三', dept: '技术部' },
-  { id: 'r2', empName: '李四', dept: '市场部' },
-  { id: 'r3', empName: '王五', dept: '技术部' },
+  { id: 'r1', empName: '张三', dept: '技术部', revision: 0 },
+  { id: 'r2', empName: '李四', dept: '市场部', revision: 0 },
+  { id: 'r3', empName: '王五', dept: '技术部', revision: 0 },
 ]
 
 interface Override {
@@ -42,13 +42,57 @@ interface Override {
   recordsFailStatus?: number
   /** 模型定义请求 404（列名降级用例） */
   modelDefFail?: boolean
+  /** 第 N 次写请求（PUT/DELETE）失败，返回指定状态码/响应体 */
+  writeFailOnCall?: number
+  writeFailStatus?: number
+  writeFailBody?: unknown
 }
 
-/** mock host：/records 走分页 + filter 等值过滤，/models/:id 走定义 */
+/** mock host：/records 走分页 + filter 等值过滤，/models/:id 走定义；写接口带 If-Match */
 function makeHost(override: Override = {}) {
   let recordsCalls = 0
+  let writeCalls = 0
+  let store = records.map((r) => ({ ...r }))
+  const toast = vi.fn()
+  const confirm = vi.fn(async () => true)
+
   const spy = vi.fn(
-    async (req: { method: string; url: string }): Promise<{ statusCode: number; data: unknown }> => {
+    async (req: {
+      method: string
+      url: string
+      headers?: Record<string, string>
+      data?: unknown
+    }): Promise<{ statusCode: number; data: unknown }> => {
+      // 写接口：PUT /records/:id、DELETE /records/:id（不消耗 GET 的失败计数）
+      const writeMatch = req.url.match(/\/records\/([^/?]+)$/)
+      if (writeMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
+        writeCalls += 1
+        if (
+          override.writeFailOnCall !== undefined &&
+          writeCalls === override.writeFailOnCall
+        ) {
+          const body = override.writeFailBody ?? { message: 'write failed' }
+          // 模拟服务端已被他人推进：后续 GET / PUT 能拿到新 revision
+          if (override.writeFailStatus === 409) {
+            const rid = decodeURIComponent(writeMatch[1]!)
+            const row = store.find((r) => r.id === rid)
+            const rev = (body as { currentRevision?: number }).currentRevision
+            if (row && typeof rev === 'number') row.revision = rev
+          }
+          return { statusCode: override.writeFailStatus ?? 500, data: body }
+        }
+        const rid = decodeURIComponent(writeMatch[1]!)
+        const row = store.find((r) => r.id === rid)
+        if (!row) return { statusCode: 404, data: { message: 'nf' } }
+        if (req.method === 'DELETE') {
+          store = store.filter((r) => r.id !== rid)
+          return { statusCode: 204, data: null }
+        }
+        const patch = (req.data ?? {}) as Record<string, unknown>
+        Object.assign(row, patch, { revision: Number(row.revision ?? 0) + 1 })
+        return { statusCode: 200, data: { ...row } }
+      }
+
       if (req.url.includes('/records')) {
         recordsCalls += 1
         if (
@@ -58,7 +102,7 @@ function makeHost(override: Override = {}) {
           return { statusCode: override.recordsFailStatus ?? 500, data: null }
         }
         const usp = new URLSearchParams(req.url.split('?')[1] ?? '')
-        let list = records
+        let list = store
         const f = usp.get('filter')
         if (f) {
           const cond = JSON.parse(f) as Record<string, unknown>
@@ -79,21 +123,26 @@ function makeHost(override: Override = {}) {
       return { statusCode: 404, data: { message: 'nf' } }
     },
   )
-  return { host: { request: spy }, spy }
+  return { host: { request: spy, toast, confirm }, spy, toast, confirm }
 }
 
 function mountList(
   list: NonNullable<PageSchema['list']>,
   override?: Override,
-): { w: ReturnType<typeof mount>; spy: ReturnType<typeof vi.fn> } {
+): {
+  w: ReturnType<typeof mount>
+  spy: ReturnType<typeof vi.fn>
+  toast: ReturnType<typeof vi.fn>
+  confirm: ReturnType<typeof vi.fn>
+} {
   const p = createEmptyPage('p_list', '员工列表')
   p.type = 'list'
   p.list = list
-  const { host, spy } = makeHost(override)
+  const { host, spy, toast, confirm } = makeHost(override)
   const w = mount(LcListPage, {
     props: { schema: p, options: { host } as unknown as PageControllerOptions },
   })
-  return { w, spy }
+  return { w, spy, toast, confirm }
 }
 
 function mountDetail(
@@ -285,6 +334,190 @@ describe('lc-list-page（type=list 标准列表页）', () => {
     const rec = spy.mock.calls.map((c) => c[0] as { url: string }).find((c) => c.url.includes('/records'))!
     expect(rec.url).toContain('sort=empName%3Aasc')
     expect(w.findAll('.lc-row').length).toBeGreaterThan(0)
+  })
+
+  /* ---------------- Phase 4：行内编辑 / 批量删除 ---------------- */
+
+  it('未配置 editable/deletable → 不显示编辑、勾选与批量删除入口', async () => {
+    const { w } = mountList(twoColList)
+    await flushPromises()
+    expect(w.find('[data-testid="list-edit-r1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="list-select-r1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="list-batch-bar"]').exists()).toBe(false)
+  })
+
+  it('行内编辑：先拉最新单条，保存带 If-Match，成功后替换行并关闭编辑器', async () => {
+    const { w, spy, toast } = mountList({ ...twoColList, editable: true })
+    await flushPromises()
+
+    await w.get('[data-testid="list-edit-r1"]').trigger('tap')
+    await flushPromises()
+    expect(w.find('[data-testid="record-editor"]').exists()).toBe(true)
+    // 只编辑展示列：dept 在 columns 中，模型里存在；empName 输入框应带当前值
+    expect((w.get('[data-testid="edit-empName"]').element as HTMLInputElement).value).toBe('张三')
+    // 点编辑/编辑器不触发跳转
+    expect(w.emitted('navigate')).toBeUndefined()
+
+    await w.get('[data-testid="edit-empName"]').setValue('赵六')
+    await w.get('[data-testid="record-edit-save"]').trigger('tap')
+    await flushPromises()
+
+    const put = spy.mock.calls
+      .map((c) => c[0] as { method: string; url: string; headers?: Record<string, string>; data?: unknown })
+      .find((c) => c.method === 'PUT')!
+    expect(put.url).toContain('/models/m_e/records/r1')
+    expect(put.headers?.['if-match']).toBe('"record:m_e/r1:0"')
+    expect(put.data).toMatchObject({ empName: '赵六' })
+    expect(w.find('[data-testid="record-editor"]').exists()).toBe(false)
+    expect(w.text()).toContain('赵六')
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ text: '已保存' }))
+  })
+
+  it('行内编辑只展示 columns 字段（columns 之外的模型字段不出现）', async () => {
+    const { w } = mountList({ modelId: 'm_e', columns: ['empName'], editable: true })
+    await flushPromises()
+    await w.get('[data-testid="list-edit-r1"]').trigger('tap')
+    await flushPromises()
+    expect(w.find('[data-testid="edit-empName"]').exists()).toBe(true)
+    expect(w.find('[data-testid="edit-dept"]').exists()).toBe(false)
+  })
+
+  it('行内编辑 409：保留草稿与编辑器，重新加载后强制重挂载并用新 revision 保存', async () => {
+    const { w, spy } = mountList(
+      { ...twoColList, editable: true },
+      {
+        writeFailOnCall: 1,
+        writeFailStatus: 409,
+        writeFailBody: { code: 'VERSION_CONFLICT', currentRevision: 5 },
+      },
+    )
+    await flushPromises()
+    await w.get('[data-testid="list-edit-r1"]').trigger('tap')
+    await flushPromises()
+    await w.get('[data-testid="edit-empName"]').setValue('赵六')
+    await w.get('[data-testid="record-edit-save"]').trigger('tap')
+    await flushPromises()
+
+    // 不自动覆盖：编辑器仍在，草稿（赵六）仍在，并给出重新加载出口
+    expect(w.find('[data-testid="record-editor"]').exists()).toBe(true)
+    expect(w.find('[data-testid="list-edit-error"]').text()).toContain('本次保存未生效')
+    expect(w.find('[data-testid="list-edit-reload"]').exists()).toBe(true)
+    expect((w.get('[data-testid="edit-empName"]').element as HTMLInputElement).value).toBe('赵六')
+
+    await w.get('[data-testid="list-edit-reload"]').trigger('tap')
+    await flushPromises()
+    expect(w.find('[data-testid="list-edit-error"]').exists()).toBe(false)
+
+    // 重新加载后服务端 revision=5；再次保存必须使用新 ETag
+    await w.get('[data-testid="edit-empName"]').setValue('赵六（已刷新）')
+    await w.get('[data-testid="record-edit-save"]').trigger('tap')
+    await flushPromises()
+    const puts = spy.mock.calls
+      .map((c) => c[0] as { method: string; headers?: Record<string, string> })
+      .filter((c) => c.method === 'PUT')
+    expect(puts).toHaveLength(2)
+    expect(puts[1]!.headers?.['if-match']).toBe('"record:m_e/r1:5"')
+    expect(w.find('[data-testid="record-editor"]').exists()).toBe(false)
+  })
+
+  it('行内编辑 400：errors[].path/message 映射到字段错误', async () => {
+    const { w } = mountList(
+      { ...twoColList, editable: true },
+      {
+        writeFailOnCall: 1,
+        writeFailStatus: 400,
+        writeFailBody: {
+          code: 'RECORD_INVALID',
+          message: '记录校验未通过',
+          errors: [{ path: 'empName', message: '姓名重复' }],
+        },
+      },
+    )
+    await flushPromises()
+    await w.get('[data-testid="list-edit-r1"]').trigger('tap')
+    await flushPromises()
+    await w.get('[data-testid="record-edit-save"]').trigger('tap')
+    await flushPromises()
+    expect(w.find('[data-testid="record-editor"]').exists()).toBe(true)
+    expect(w.find('[data-testid="list-edit-error"]').text()).toContain('本次保存未生效')
+    expect(w.text()).toContain('姓名重复')
+  })
+
+  it('批量删除：勾选两行后逐条 DELETE + If-Match，全部成功后刷新取得下一页', async () => {
+    const { w, spy, toast, confirm } = mountList({ ...twoColList, deletable: true })
+    await flushPromises()
+    expect(w.find('[data-testid="list-batch-bar"]').exists()).toBe(true)
+
+    await w.get('[data-testid="list-select-r1"]').trigger('tap')
+    await w.get('[data-testid="list-select-r2"]').trigger('tap')
+    expect(w.text()).toContain('已选 2 条')
+    await w.get('[data-testid="list-batch-delete"]').trigger('tap')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledTimes(1)
+    const deletes = spy.mock.calls
+      .map((c) => c[0] as { method: string; url: string; headers?: Record<string, string> })
+      .filter((c) => c.method === 'DELETE')
+    expect(deletes).toHaveLength(2)
+    expect(deletes.map((d) => d.url.split('/').pop())).toEqual(['r1', 'r2'])
+    expect(deletes[0]!.headers?.['if-match']).toBe('"record:m_e/r1:0"')
+    // 删除完当前页仍有剩余数据 → 自动重新拉第一页，不误显示空态
+    expect(w.text()).toContain('王五')
+    expect(w.text()).not.toContain('张三')
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ text: '已删除 2 条' }))
+  })
+
+  it('批量删除 409：保留冲突行与选择、给出刷新入口；刷新后可用新 revision 重试', async () => {
+    const { w, spy } = mountList(
+      { ...twoColList, deletable: true },
+      {
+        writeFailOnCall: 1,
+        writeFailStatus: 409,
+        writeFailBody: { code: 'VERSION_CONFLICT', currentRevision: 4 },
+      },
+    )
+    await flushPromises()
+    await w.get('[data-testid="list-select-r1"]').trigger('tap')
+    await w.get('[data-testid="list-select-r2"]').trigger('tap')
+    await w.get('[data-testid="list-batch-delete"]').trigger('tap')
+    await flushPromises()
+
+    expect(w.find('[data-testid="list-batch-error"]').text()).toContain('1 条版本冲突未删除')
+    expect(w.text()).toContain('张三')
+    expect(w.text()).not.toContain('李四')
+    expect(w.text()).toContain('已选 1 条')
+
+    await w.get('[data-testid="list-batch-refresh"]').trigger('tap')
+    await flushPromises()
+    expect(w.find('[data-testid="list-batch-error"]').exists()).toBe(false)
+    expect(w.text()).toContain('已选 1 条')
+
+    await w.get('[data-testid="list-batch-delete"]').trigger('tap')
+    await flushPromises()
+    const deletes = spy.mock.calls
+      .map((c) => c[0] as { method: string; url: string; headers?: Record<string, string> })
+      .filter((c) => c.method === 'DELETE')
+    const retried = deletes.filter((d) => d.url.endsWith('/r1')).at(-1)!
+    expect(retried.headers?.['if-match']).toBe('"record:m_e/r1:4"')
+    expect(w.text()).not.toContain('张三')
+  })
+
+  it('全选只作用于可见行；搜索变化清理不可见选择', async () => {
+    const { w } = mountList({ ...twoColList, deletable: true })
+    await flushPromises()
+    await w.get('[data-testid="list-select-all"]').trigger('tap')
+    expect(w.text()).toContain('已选 2 条')
+
+    await w.get('.lc-list-page__input').setValue('李四')
+    await flushPromises()
+    expect(w.text()).toContain('已选 1 条')
+    expect(w.text()).toContain('李四')
+    expect(w.text()).not.toContain('张三')
+
+    // 清空搜索：原先被隐藏的 r1 选择已被清理，不会“复活”
+    await w.get('.lc-list-page__input').setValue('')
+    await flushPromises()
+    expect(w.text()).toContain('已选 1 条')
   })
 })
 
