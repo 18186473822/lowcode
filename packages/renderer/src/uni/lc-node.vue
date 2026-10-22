@@ -267,6 +267,20 @@ const emit = defineEmits<{ change: []; select: [nodeId: string] }>()
 .lc-node__mask.lc-node__mask--selected:hover {
   border: 2px solid var(--lc-action-primary);
 }
+/* 拖拽幽灵态：由画布在拖起时用 classList 加到源节点上，位移走 CSS 变量
+   （--lc-drag-dx/dy），故本组件不需要知道拖拽状态，也不必新增 prop。
+   pointer-events:none 是必须的 —— 幽灵跟着指针跑，能命中就会挡住下层、也会干扰落点判定。 */
+.lc-node--dragging {
+  position: relative;
+  z-index: 50;
+  /* 0.9 而非半透明：太透会与下层内容叠在一起发糊；"浮起"靠阴影与 z-index，不靠透明度 */
+  opacity: 0.9;
+  transform: translate(var(--lc-drag-dx, 0px), var(--lc-drag-dy, 0px));
+  border-radius: var(--lc-radius-sm);
+  outline: 1px dashed var(--lc-action-primary);
+  box-shadow: var(--lc-shadow-e3);
+  pointer-events: none;
+}
 .lc-node__group {
   padding: var(--lc-space-1) 0 0;
 }

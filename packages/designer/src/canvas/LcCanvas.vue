@@ -137,7 +137,10 @@ onMounted(() => {
   })
   ro.observe(el)
 })
-onUnmounted(() => ro?.disconnect())
+onUnmounted(() => {
+  ro?.disconnect()
+  endDragVisual()
+})
 
 /** 缩放用 transform：不改布局盒，画布滚动区仍按原尺寸算 —— 符合「预览」语义 */
 const zoomStyle = computed<Record<string, string> | undefined>(() => {
@@ -172,6 +175,8 @@ function collectRects(): AnchorRect[] {
   for (const el of root.querySelectorAll('[data-node-id]')) {
     const nodeId = el.getAttribute('data-node-id')
     if (!nodeId) continue
+    // 拖拽中源节点跟着指针跑，必须从落点候选里剔除，否则会吸到自己身上
+    if (session?.armed && nodeId === session.sourceId) continue
     const r = el.getBoundingClientRect()
     const node = findNode(props.schema, nodeId)
     out.push({
@@ -261,6 +266,42 @@ function onMouseDown(e: MouseEvent): void {
   session = { sourceId, startX: e.clientX, startY: e.clientY, armed: false }
 }
 
+/** 拖拽中的源节点元素（避免每帧 querySelector） */
+let dragEl: HTMLElement | null = null
+
+/**
+ * 拖起：源节点打上幽灵态，并在画布根上暴露位移变量。
+ * 位移要**除以 pageZoom** —— 节点在 `.lc-canvas__page` 里，那层有 zoom（750/H5 档），
+ * 指针位移是视口 px，节点内的 transform 是页面坐标 px。
+ */
+function beginDragVisual(): void {
+  const root = rootRef.value
+  if (!root || !session) return
+  const mask = root.querySelector(`[data-node-id="${session.sourceId}"]`)
+  dragEl = mask?.parentElement ?? null
+  dragEl?.classList.add('lc-node--dragging')
+  root.classList.add('lc-canvas--dragging')
+  root.style.setProperty('--lc-drag-dx', '0px')
+  root.style.setProperty('--lc-drag-dy', '0px')
+}
+
+function moveDragVisual(dx: number, dy: number): void {
+  const root = rootRef.value
+  if (!root) return
+  const z = pageZoom.value || 1
+  root.style.setProperty('--lc-drag-dx', `${dx / z}px`)
+  root.style.setProperty('--lc-drag-dy', `${dy / z}px`)
+}
+
+function endDragVisual(): void {
+  const root = rootRef.value
+  dragEl?.classList.remove('lc-node--dragging')
+  dragEl = null
+  root?.classList.remove('lc-canvas--dragging')
+  root?.style.removeProperty('--lc-drag-dx')
+  root?.style.removeProperty('--lc-drag-dy')
+}
+
 function onMouseMove(e: MouseEvent): void {
   if (!session) return
   if (!session.armed) {
@@ -268,7 +309,9 @@ function onMouseMove(e: MouseEvent): void {
     if (dist < 4) return // 阈值内视为点击，不进入拖拽
     session.armed = true
     suppressClick = true
+    beginDragVisual()
   }
+  moveDragVisual(e.clientX - session.startX, e.clientY - session.startY)
   updateHintAt(e.clientX, e.clientY)
 }
 
@@ -277,6 +320,7 @@ function onMouseUp(): void {
   const s = session
   session = null
   if (!s.armed) return // 未武装：这是普通点击，交给遮罩 click → 选中
+  endDragVisual()
   const hit = hint.value?.hit
   hint.value = null
   // suppressClick 由 click capture 消费；click 未派发（源/目标不同元素）的残留由下一次 mousedown 重置
@@ -422,10 +466,16 @@ onUnmounted(() => {
   background: var(--lc-drag-hint-bg);
   box-sizing: border-box;
 }
-/* :not(--into) 单独一类：横线只在非 into 时出现（into 由上面的框样式接管） */
+/* :not(--into) 单独一类：横线只在非 into 时出现（into 由上面的框样式接管）。
+   3px + 1px 白描边：白描边让线在任何底色上都读得出来，2px 纯色在浅底上偏弱。 */
 .lc-canvas__hint:not(.lc-canvas__hint--into) {
-  height: 2px;
+  height: 3px;
   background: var(--lc-drag-hint);
-  border-radius: 1px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--lc-bg-surface);
+}
+/* 拖拽中光标（幽灵已 pointer-events:none，光标来自下层） */
+.lc-canvas--dragging {
+  cursor: grabbing;
 }
 </style>
