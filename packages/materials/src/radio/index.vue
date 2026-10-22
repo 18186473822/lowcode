@@ -88,6 +88,10 @@ function onChange(e: Event): void {
 .lc-radio__item {
   display: flex;
   align-items: center;
+  /* 触控目标（WCAG 2.5.5 / HIG 44）：视觉圆点仍 16，靠行内留白把可点高度补到约 45。
+     label 整体就是热区，故**放大留白即可**，不必放大控件 —— 也不会与相邻选项重叠
+     （行距 6px 仍在两个 45px 盒子之间）。 */
+  padding: var(--lc-space-3) 0;
 }
 .lc-radio__dot {
   transform: scale(0.8);

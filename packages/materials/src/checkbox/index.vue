@@ -95,7 +95,8 @@ function toggle(v: string | number): void {
 .lc-checkbox__option {
   display: flex;
   align-items: center;
-  padding: 12rpx 0;
+  /* 触控目标 44：原 12rpx(6px) 只能到 33，改成 12px 对称留白 → 约 45。见 radio 同款说明 */
+  padding: var(--lc-space-3) 0;
 }
 .lc-checkbox__options--horizontal .lc-checkbox__option {
   margin-right: 28rpx;

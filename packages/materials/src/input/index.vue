@@ -68,6 +68,7 @@ function onInput(e: Event): void {
   margin-left: 4rpx;
 }
 .lc-input__field {
+  position: relative;
   background: var(--lc-bg-surface);
   border: 1rpx solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
@@ -75,6 +76,15 @@ function onInput(e: Event): void {
   font-size: var(--lc-font-body);
   min-height: 44rpx;
 }
+/* 触控目标 44：视觉仍 37，只向下/上各扩 4px（落在 .lc-input 的 8px 内边距里）。
+   字段间距 16px，两侧各吃 4px 后仍余 8px，**不会与相邻字段的热区重叠**。
+   注：伪元素在 uni H5 生效；小程序端不渲染，属渐进增强（布局与点击均不受影响）。 */
+.lc-input__field::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--lc-space-1) * -1) 0;
+}
+
 .lc-input__field--error {
   border-color: var(--lc-status-danger);
 }
