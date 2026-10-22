@@ -154,7 +154,7 @@ function onChange(level: number, e: unknown): void {
 }
 .lc-cascader__placeholder {
   font-size: var(--lc-font-body);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .lc-cascader__sep {
   font-size: var(--lc-font-body-lg);

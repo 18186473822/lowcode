@@ -143,7 +143,11 @@
   --lc-text-primary: var(--lc-neutral-800); /* 一级文字 · 标题与正文主体 */
   --lc-text-label: var(--lc-neutral-700); /* 二级文字 · 表单标签 / 面板字段名 */
   --lc-text-secondary: var(--lc-neutral-500); /* 三级文字 · 说明 / 表格正文 */
-  --lc-text-tertiary: var(--lc-neutral-450); /* 辅助 · 时间戳 / 说明。已提到 450（2.50 → 3.06）；正文级场景请用 secondary */
+  /* 三级灰字在 AA 下无法与二级区分（要达到 4.5 只能取中性 500 = secondary），
+     故 text-tertiary 直接并入 secondary —— 少一级灰字，换来全部正文达标。
+     需要「更淡」的**图形**（图标/箭头/关闭×）请用 icon-muted：非文本只需 3:1。 */
+  --lc-text-tertiary: var(--lc-text-secondary);
+  --lc-icon-muted: var(--lc-neutral-450);
   --lc-text-inverse: #ffffff;
   --lc-text-link: var(--lc-brand-500);
   --lc-text-danger: var(--lc-status-danger); /* 别名：错误文字只有一种红，避免两套色值各自漂移 */
@@ -277,7 +281,8 @@
   --lc-text-primary: #e8ecf2;
   --lc-text-label: #c6cdd8;
   --lc-text-secondary: var(--lc-neutral-400);
-  --lc-text-tertiary: var(--lc-neutral-400);
+  --lc-text-tertiary: var(--lc-text-secondary);
+  --lc-icon-muted: var(--lc-neutral-400);
   --lc-text-inverse: var(--lc-neutral-800);
   --lc-text-link: var(--lc-brand-400);
   --lc-text-danger: var(--lc-status-danger); /* 别名：同上 */

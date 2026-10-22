@@ -113,7 +113,7 @@ function onTime(e: unknown): void {
 }
 .lc-datetime-picker__placeholder {
   font-size: var(--lc-font-body);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .lc-datetime-picker__error {
   margin-top: 6rpx;

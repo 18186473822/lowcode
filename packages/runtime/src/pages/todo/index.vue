@@ -182,7 +182,7 @@ function goLogin(): void {
 }
 .todo__arrow {
   font-size: 40rpx;
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   padding-left: var(--lc-space-2);
 }
 </style>

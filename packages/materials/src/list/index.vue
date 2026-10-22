@@ -60,7 +60,7 @@ const itemList = computed<ListItem[]>(() => (Array.isArray(props.items) ? props.
 }
 .lc-list__arrow {
   font-size: var(--lc-font-h3);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   margin-left: 12rpx;
 }
 </style>

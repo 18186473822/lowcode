@@ -121,7 +121,7 @@ function onCard(card: PortalCard): void {
 .lc-card__head {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  gap: var(--lc-space-1);
   padding: 22rpx var(--lc-space-3);
   border: 1rpx solid var(--lc-border-default);
   border-radius: var(--lc-radius-md);
@@ -131,7 +131,7 @@ function onCard(card: PortalCard): void {
   background: var(--lc-bg-subtle);
 }
 .lc-card__icon {
-  font-size: 36rpx;
+  font-size: var(--lc-font-h2);
   line-height: var(--lc-leading-label);
 }
 .lc-card__title {
@@ -143,7 +143,7 @@ function onCard(card: PortalCard): void {
 .lc-card__badge {
   flex-shrink: 0;
   min-width: 32rpx;
-  padding: 0 8rpx;
+  padding: 0 var(--lc-space-1);
   border-radius: 999rpx;
   background: var(--lc-status-danger-bg);
   color: var(--lc-status-danger);

@@ -106,11 +106,11 @@ function onChange(e: unknown): void {
 .lc-dept-picker__placeholder {
   flex: 1;
   font-size: var(--lc-font-body);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .lc-dept-picker__arrow {
   font-size: var(--lc-font-h3);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   margin-left: 12rpx;
 }
 .lc-dept-picker__error {

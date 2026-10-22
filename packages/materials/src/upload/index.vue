@@ -135,7 +135,7 @@ function remove(index: number): void {
 }
 .lc-upload__plus {
   font-size: var(--lc-font-h1);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   line-height: var(--lc-leading-label);
 }
 .lc-upload__add-text {

@@ -104,11 +104,11 @@ function onChange(e: Event): void {
   color: var(--lc-text-primary);
 }
 .lc-select__value--placeholder {
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .lc-select__arrow {
   font-size: var(--lc-font-h3);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   transform: rotate(90deg);
 }
 .lc-select__error {

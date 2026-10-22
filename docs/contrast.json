@@ -7,7 +7,7 @@
     "--lc-text-label on --lc-bg-surface": 10.31,
     "--lc-text-label on --lc-bg-subtle": 9.77,
     "--lc-text-secondary on --lc-bg-surface": 4.62,
-    "--lc-text-tertiary on --lc-bg-surface": 3.06,
+    "--lc-text-tertiary on --lc-bg-surface": 4.62,
     "--lc-text-inverse on --lc-bg-inverse": 15.78,
     "--lc-action-primary on --lc-bg-surface": 4.71,
     "--lc-action-primary-text on --lc-action-primary": 4.71,
@@ -20,6 +20,7 @@
     "--lc-status-warning on --lc-status-warning-bg": 4.72,
     "--lc-status-danger-active on --lc-bg-surface": 8.88,
     "--lc-input-placeholder on --lc-input-bg": 4.62,
+    "--lc-icon-muted on --lc-bg-surface": 3.06,
     "--lc-border-strong on --lc-bg-surface": 3.06,
     "--lc-action-primary on --lc-bg-canvas": 4.16
   },
@@ -42,6 +43,7 @@
     "--lc-status-warning on --lc-status-warning-bg": 9.67,
     "--lc-status-danger-active on --lc-bg-surface": 7.96,
     "--lc-input-placeholder on --lc-input-bg": 6.83,
+    "--lc-icon-muted on --lc-bg-surface": 6.83,
     "--lc-border-strong on --lc-bg-surface": 3.7,
     "--lc-action-primary on --lc-bg-canvas": 5.41
   }

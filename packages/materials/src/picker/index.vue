@@ -99,11 +99,11 @@ function onChange(e: unknown): void {
 }
 .lc-picker__placeholder {
   font-size: var(--lc-font-body);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .lc-picker__arrow {
   font-size: var(--lc-font-h3);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   margin-left: 12rpx;
 }
 .lc-picker__error {

@@ -127,7 +127,7 @@ async function onSubmit(): Promise<void> {
   font-size: var(--lc-font-body-lg);
 }
 .login__ph {
-  color: var(--lc-text-tertiary);
+  color: var(--lc-input-placeholder);
 }
 .login__err {
   display: block;

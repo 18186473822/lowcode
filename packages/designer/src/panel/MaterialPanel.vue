@@ -130,7 +130,7 @@ function onDragStart(e: VueDragEvent, m: MaterialSchema): void {
 /* 图标默认次级色，悬停跟随父级变主色（层级：图标 < 文字） */
 .lc-material-panel__icon {
   flex: 0 0 16px;
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   transition: color var(--lc-duration-fast) var(--lc-ease-standard);
 }
 .lc-material-panel__label {

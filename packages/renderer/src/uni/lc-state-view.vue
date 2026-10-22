@@ -143,7 +143,7 @@ const emit = defineEmits<{ action: [] }>()
   justify-content: center;
   width: 32px;
   height: 32px;
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
 }
 .lc-state--error .lc-state__icon,
 .lc-state--not-found .lc-state__icon {

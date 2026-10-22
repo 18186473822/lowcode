@@ -191,7 +191,7 @@ watch(
   padding: 0;
   border: none;
   background: none;
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   font-size: var(--lc-font-body-sm);
   line-height: var(--lc-leading-label);
   cursor: pointer;

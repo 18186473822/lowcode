@@ -60,7 +60,7 @@ const emit = defineEmits<{ click: [] }>()
 }
 .lc-cell__arrow {
   font-size: var(--lc-font-h3);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-icon-muted);
   margin-left: var(--lc-space-1);
 }
 </style>

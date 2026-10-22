@@ -2,7 +2,7 @@
 /**
  * build-tokens-rpx.mjs —— 由 tokens.css 派生移动端用的 rpx 变体
  *
- * 为什么要有这个文件（design-system.md §10.3）：
+ * 为什么要有这个文件（design-system-ops.md §10.3）：
  *   移动端（uni-app）的单位是 `rpx`（750 设计宽基准），Web 是 `px`。
  *   我们**不维护第二份手写的 rpx 令牌** —— 那会立刻变成两份真相源，`tokens:check` 只能覆盖一份。
  *   做法是：`tokens.css` 是唯一源，本脚本派生 `tokens.rpx.css`，并由 `--check` 保证产物不漂移。
