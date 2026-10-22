@@ -59,6 +59,8 @@ model Page {
   type           String        @db.VarChar(32)
   status         String        @db.VarChar(16)
   currentVersion Int           @default(0)
+  // 页面行版本：保存草稿/发布/回滚 +1；ETag/If-Match 乐观锁
+  revision       Int           @default(0)
   draft          Json?
   draftUpdatedAt DateTime?     @db.DateTime(3)
   draftUpdatedBy String?       @db.VarChar(64)
@@ -99,6 +101,8 @@ model DataRecord {
   modelId   String    @db.VarChar(64)
   id        String    @db.VarChar(64)
   payload   Json
+  // 记录行版本：每次更新/软删 +1；ETag/If-Match 乐观锁
+  revision  Int       @default(0)
   createdBy String    @db.VarChar(64)
   createdAt DateTime  @db.DateTime(3)
   updatedBy String?   @db.VarChar(64)
@@ -141,6 +145,10 @@ model FlowInstance {
   createdBy     String   @db.VarChar(64)
   createdAt     DateTime @db.DateTime(3)
   updatedAt     DateTime @db.DateTime(3)
+  // 实例行版本：审批推进 +1；多实例并发审批 CAS
+  revision      Int      @default(0)
+  // 记录回写 outbox：实例先落盘，记录回写失败/进程退出时由读取路径补偿
+  pendingPatchJson Json?
   tasksJson     Json
   historyJson   Json
 

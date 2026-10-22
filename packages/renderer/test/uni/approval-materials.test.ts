@@ -68,7 +68,12 @@ function mockHost(opts: {
 }) {
   let items = opts.instances
   const request = vi.fn(
-    async (req: { method: string; url: string; data?: unknown }): Promise<{ statusCode: number; data: unknown }> => {
+    async (req: {
+      method: string
+      url: string
+      data?: unknown
+      headers?: Record<string, string>
+    }): Promise<{ statusCode: number; data: unknown }> => {
       if (req.method === 'POST' && req.url.includes('/flows/instances/')) {
         // 审批动作推进状态 → 后续 GET 返回新状态（decide 后重拉即此链路）
         items = [opts.after ?? approvedInst()]
@@ -132,6 +137,7 @@ describe('ApprovalBar —— 审批操作条', () => {
     expect(post, '未发出 POST decide').toBeTruthy()
     expect(post![0].url).toContain('/flows/instances/i1/tasks/t1')
     expect((post![0].data as { action: string }).action).toBe('approve')
+    expect(post![0].headers?.['Idempotency-Key']).toMatch(/^[A-Za-z0-9-]{8,128}$/)
 
     const ev = w.emitted('decided')
     expect(ev, '未 emit decided').toBeTruthy()

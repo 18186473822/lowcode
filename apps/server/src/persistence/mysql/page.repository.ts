@@ -32,6 +32,7 @@ function mapPage(row: PageWithVersions): PageRecord {
     type: row.type,
     status: (row.status === 'published' ? 'published' : 'draft') as PageStatus,
     currentVersion: row.currentVersion,
+    revision: row.revision,
     draft: row.draft as PageSchema | null,
     ...(row.draftUpdatedAt === null ? {} : { draftUpdatedAt: row.draftUpdatedAt.toISOString() }),
     ...(row.draftUpdatedBy === null ? {} : { draftUpdatedBy: row.draftUpdatedBy }),
@@ -48,6 +49,7 @@ function pageData(record: PageRecord) {
     type: record.type,
     status: record.status,
     currentVersion: record.currentVersion,
+    revision: record.revision ?? 0,
     draft:
       record.draft === null
         ? Prisma.DbNull
@@ -58,6 +60,8 @@ function pageData(record: PageRecord) {
     updatedAt: new Date(record.updatedAt),
   }
 }
+
+class RevisionConflict extends Error {}
 
 export class MysqlPageRepository implements PageRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -81,17 +85,47 @@ export class MysqlPageRepository implements PageRepository {
   }
 
   async save(record: PageRecord): Promise<void> {
+    await this.write(record, null)
+  }
+
+  async saveIfRevision(record: PageRecord, expectedRevision: number): Promise<boolean> {
+    try {
+      await this.write(record, expectedRevision)
+      return true
+    } catch (error) {
+      if (error instanceof RevisionConflict) return false
+      // 并发创建同一 id：唯一键冲突等价于版本冲突
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
+      throw error
+    }
+  }
+
+  private async write(record: PageRecord, expectedRevision: number | null): Promise<void> {
     if (!SAFE_ID_RE.test(record.id)) {
       throw new Error(`非法页面 id：${record.id}`)
     }
 
     const data = pageData(record)
     await this.prisma.$transaction(async (tx) => {
-      await tx.page.upsert({
+      const existing = await tx.page.findUnique({
         where: { id: record.id },
-        create: { id: record.id, ...data },
-        update: data,
+        select: { revision: true },
       })
+
+      if (!existing) {
+        if (expectedRevision !== null && expectedRevision !== 0) {
+          throw new RevisionConflict()
+        }
+        await tx.page.create({ data: { id: record.id, ...data } })
+      } else if (expectedRevision !== null) {
+        const updated = await tx.page.updateMany({
+          where: { id: record.id, revision: expectedRevision },
+          data,
+        })
+        if (updated.count !== 1) throw new RevisionConflict()
+      } else {
+        await tx.page.update({ where: { id: record.id }, data })
+      }
 
       await tx.pageVersion.deleteMany({ where: { pageId: record.id } })
       if (record.versions.length > 0) {

@@ -21,6 +21,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -28,10 +29,12 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
 import { AuthGuard, type AuthedRequest } from '../common/auth.guard.js'
+import { makeEtag } from '../common/etag.js'
 import type { AuthUser } from '../common/jwt.service.js'
 import { FlowService } from './flow.service.js'
 
@@ -62,8 +65,13 @@ export class FlowController {
 
   /** 批 2：单实例查询（待办详情页数据源；不存在 404 FLOW_INSTANCE_NOT_FOUND） */
   @Get('instances/:instanceId')
-  getInstance(@Param('instanceId') instanceId: string) {
-    return this.svc.getInstance(instanceId)
+  async getInstance(
+    @Param('instanceId') instanceId: string,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
+  ) {
+    const inst = await this.svc.getInstance(instanceId)
+    res.setHeader('ETag', makeEtag('flow', instanceId, inst.revision ?? 0))
+    return inst
   }
 
   @Get(':flowId')
@@ -84,11 +92,13 @@ export class FlowController {
 
   @Post('instances/:instanceId/tasks/:taskId')
   @HttpCode(200)
-  decide(
+  async decide(
     @Param('instanceId') instanceId: string,
     @Param('taskId') taskId: string,
     @Body() body: DecideBody,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
     if (body?.action !== 'approve' && body?.action !== 'reject') {
       throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'action 必须是 approve | reject' })
@@ -96,7 +106,22 @@ export class FlowController {
     if (body.comment !== undefined && typeof body.comment !== 'string') {
       throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'comment 必须是字符串' })
     }
-    return this.svc.decide(instanceId, taskId, body.action, body.comment, this.user(req))
+    if (idempotencyKey !== undefined && (!idempotencyKey.trim() || idempotencyKey.length > 128)) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Idempotency-Key 必须为 1~128 字符的非空字符串',
+      })
+    }
+    const inst = await this.svc.decide(
+      instanceId,
+      taskId,
+      body.action,
+      body.comment,
+      this.user(req),
+      idempotencyKey?.trim(),
+    )
+    res.setHeader('ETag', makeEtag('flow', instanceId, inst.revision ?? 0))
+    return inst
   }
 
   /** 守卫已挂载 req.user；此处兜底（同 RecordController 口径） */

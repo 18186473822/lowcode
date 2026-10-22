@@ -19,6 +19,7 @@ import { validatePage, type PageSchema, type ValidationResult } from '@lc/schema
 import { checkExpr } from '@lc/expression'
 import { PAGE_REPOSITORY, type PageRecord, type PageRepository, type PageStatus } from './page.types.js'
 import type { AuthUser } from '../common/jwt.service.js'
+import { parseIfMatch } from '../common/etag.js'
 
 /** 页面 id 白名单：字母/下划线开头，仅限 [A-Za-z0-9_-]，长度 ≤ 64（防路径穿越） */
 const PAGE_ID_RE = /^[A-Za-z_][\w-]{0,63}$/
@@ -44,6 +45,8 @@ export interface PageSaveResponse {
   pageId: string
   status: 'draft'
   currentVersion: number
+  /** 页面行版本（ETag 同源） */
+  revision: number
   updatedAt: string
   validation: { valid: true; warnings: ValidationResult['warnings'] }
 }
@@ -52,6 +55,7 @@ export interface PagePublishResponse {
   pageId: string
   status: 'published'
   version: number
+  revision: number
   publishedAt: string
   createdBy: string
   note?: string
@@ -61,6 +65,7 @@ export interface PageRollbackResponse {
   pageId: string
   status: 'draft'
   currentVersion: number
+  revision: number
   /** 草稿被回退到的历史版本 */
   rolledBackTo: number
   updatedAt: string
@@ -95,6 +100,7 @@ export interface PageSummary {
   type: string
   status: PageStatus
   currentVersion: number
+  revision: number
   /** 从未发布过为 0 */
   versionCount: number
   updatedAt: string
@@ -155,6 +161,7 @@ export class PageService {
         pageId: id,
         status: record.status,
         currentVersion: record.currentVersion,
+        revision: record.revision ?? 0,
         version: 'draft' as const,
         schema: record.draft,
         updatedAt: record.draftUpdatedAt,
@@ -175,6 +182,7 @@ export class PageService {
         pageId: id,
         status: record.status,
         currentVersion: record.currentVersion,
+        revision: record.revision ?? 0,
         version: published.version,
         schema: published.schema,
         createdAt: published.createdAt,
@@ -194,6 +202,7 @@ export class PageService {
       pageId: id,
       status: record.status,
       currentVersion: record.currentVersion,
+      revision: record.revision ?? 0,
       version: found.version,
       schema: found.schema,
       createdAt: found.createdAt,
@@ -202,9 +211,19 @@ export class PageService {
     }
   }
 
-  /** 保存草稿（页面不存在时自动建档）；校验不过 400 */
-  async saveDraft(id: string, body: SaveDraftBody | undefined, user: AuthUser): Promise<PageSaveResponse> {
+  /**
+   * 保存草稿（页面不存在时自动建档）；校验不过 400。
+   * 携带 `If-Match` 时做乐观锁校验；未携带仍按当前 revision 做 CAS，
+   * 这样即使旧客户端不传头，也不会在「读 → 写」窗口内覆盖同时到达的写。
+   */
+  async saveDraft(
+    id: string,
+    body: SaveDraftBody | undefined,
+    user: AuthUser,
+    ifMatch?: string,
+  ): Promise<PageSaveResponse> {
     assertPageId(id)
+    const expected = parseIfMatch(ifMatch, 'page', id)
 
     const result = validateSchemaInput(body?.schema)
     if (!result.valid) {
@@ -218,7 +237,12 @@ export class PageService {
     const schema = body!.schema as PageSchema
 
     const now = new Date().toISOString()
-    const record = (await this.repo.find(id)) ?? this.newRecord(id, body, now)
+    const existing = await this.repo.find(id)
+    const currentRevision = existing?.revision ?? 0
+    if (expected !== undefined && expected !== currentRevision) {
+      throw this.versionConflict(id, expected, currentRevision)
+    }
+    const record = existing ?? this.newRecord(id, body, now)
 
     if (body?.appId !== undefined) {
       if (typeof body.appId !== 'string' || !body.appId.trim()) {
@@ -234,21 +258,37 @@ export class PageService {
     record.type = schema.type ?? record.type
     record.status = 'draft' // 有未发布改动
     record.updatedAt = now
+    record.revision = currentRevision + 1
 
-    await this.repo.save(record)
+    const saved = await this.repo.saveIfRevision(record, currentRevision)
+    if (!saved) {
+      const latest = await this.repo.find(id)
+      throw this.versionConflict(id, expected ?? currentRevision, latest?.revision ?? currentRevision + 1)
+    }
 
     return {
       pageId: id,
       status: 'draft',
       currentVersion: record.currentVersion,
+      revision: record.revision,
       updatedAt: now,
       validation: { valid: true, warnings: result.warnings },
     }
   }
 
   /** 发布：把当前草稿固化为新版本（方案 8.4「发布即插入一条」） */
-  async publish(id: string, body: PublishBody | undefined, user: AuthUser): Promise<PagePublishResponse> {
+  async publish(
+    id: string,
+    body: PublishBody | undefined,
+    user: AuthUser,
+    ifMatch?: string,
+  ): Promise<PagePublishResponse> {
     const record = await this.mustFind(id)
+    const expected = parseIfMatch(ifMatch, 'page', id)
+    const currentRevision = record.revision ?? 0
+    if (expected !== undefined && expected !== currentRevision) {
+      throw this.versionConflict(id, expected, currentRevision)
+    }
     if (!record.draft) {
       throw new ConflictException({ code: 'NO_DRAFT', message: '没有可发布的草稿' })
     }
@@ -261,15 +301,38 @@ export class PageService {
     record.currentVersion = version
     record.status = 'published' // 草稿已全部发布
     record.updatedAt = now
+    record.revision = currentRevision + 1
 
-    await this.repo.save(record)
+    const saved = await this.repo.saveIfRevision(record, currentRevision)
+    if (!saved) {
+      const latest = await this.repo.find(id)
+      throw this.versionConflict(id, expected ?? currentRevision, latest?.revision ?? currentRevision + 1)
+    }
 
-    return { pageId: id, status: 'published', version, publishedAt: now, createdBy: user.username, note }
+    return {
+      pageId: id,
+      status: 'published',
+      version,
+      revision: record.revision,
+      publishedAt: now,
+      createdBy: user.username,
+      note,
+    }
   }
 
   /** 回滚：把历史版本复制为新的当前草稿（需再次发布才对外生效） */
-  async rollback(id: string, body: RollbackBody | undefined, user: AuthUser): Promise<PageRollbackResponse> {
+  async rollback(
+    id: string,
+    body: RollbackBody | undefined,
+    user: AuthUser,
+    ifMatch?: string,
+  ): Promise<PageRollbackResponse> {
     const record = await this.mustFind(id)
+    const expected = parseIfMatch(ifMatch, 'page', id)
+    const currentRevision = record.revision ?? 0
+    if (expected !== undefined && expected !== currentRevision) {
+      throw this.versionConflict(id, expected, currentRevision)
+    }
 
     const { version } = body ?? {}
     if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
@@ -286,10 +349,22 @@ export class PageService {
     record.draftUpdatedBy = user.username
     record.status = 'draft' // 回滚产生未发布改动
     record.updatedAt = now
+    record.revision = currentRevision + 1
 
-    await this.repo.save(record)
+    const saved = await this.repo.saveIfRevision(record, currentRevision)
+    if (!saved) {
+      const latest = await this.repo.find(id)
+      throw this.versionConflict(id, expected ?? currentRevision, latest?.revision ?? currentRevision + 1)
+    }
 
-    return { pageId: id, status: 'draft', currentVersion: record.currentVersion, rolledBackTo: version, updatedAt: now }
+    return {
+      pageId: id,
+      status: 'draft',
+      currentVersion: record.currentVersion,
+      revision: record.revision,
+      rolledBackTo: version,
+      updatedAt: now,
+    }
   }
 
   /**
@@ -322,6 +397,7 @@ export class PageService {
         type: r.type,
         status: r.status,
         currentVersion: r.currentVersion,
+        revision: r.revision ?? 0,
         versionCount: r.versions.length,
         updatedAt: r.updatedAt,
         createdAt: r.createdAt,
@@ -361,11 +437,21 @@ export class PageService {
       type: 'form',
       status: 'draft',
       currentVersion: 0,
+      revision: 0,
       draft: null,
       versions: [],
       createdAt: now,
       updatedAt: now,
     }
+  }
+
+  private versionConflict(id: string, expected: number, current: number): ConflictException {
+    return new ConflictException({
+      code: 'VERSION_CONFLICT',
+      message: `页面 ${id} 已被其他请求修改，请刷新后重试`,
+      expectedRevision: expected,
+      currentRevision: current,
+    })
   }
 }
 

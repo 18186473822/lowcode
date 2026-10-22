@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性与 **MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）完成，其余生产化与开放能力未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）与**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）完成，其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -38,7 +38,7 @@ pnpm -F @lc/runtime dev:h5
 
 > 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
 >
-> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。
+> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。页面、记录、流程实例写接口已启用 `revision` 乐观锁；审批支持 `Idempotency-Key`，流程结束回写记录走 `pendingPatch` 补偿（ADR-011）。
 
 ### 数据库（Phase 4 三批：MySQL 8 + Prisma）
 
@@ -154,8 +154,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 4 道：令牌漂移 / 硬编码色值 / rpx 同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（71 文件 / 1070 通过 + 8 条件跳过）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 92.15/87.81/90.37/92.15）
+pnpm -r test         # 单元测试（73 文件 / 1096 通过 + 9 条件跳过；设 LC_TEST_DATABASE_URL 时 1105 全通过）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 95.74/86.59/95.98/95.74）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：
@@ -179,17 +179,18 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范） |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
 | [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
-| [`docs/adr/`](docs/adr/) | 10 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批、ADR-010 文件落库） |
+| [`docs/adr/`](docs/adr/) | 11 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批、ADR-010 文件落库、ADR-011 乐观锁/幂等） |
 | [`docs/phase2-plan.md`](docs/phase2-plan.md) / [`docs/phase3-plan.md`](docs/phase3-plan.md) | 分阶段拆批详设 |
 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
 - **CI 未在真实环境跑过**：代码已推送 Gitee `origin/master`，但 Gitee 托管 CI 无法运行 Node 22；GitHub Actions workflow 已存在，GitHub 镜像/远端 Actions 尚未创建与实跑。
-- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容（ADR-008 / ADR-009 / ADR-010）。
+- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
 - **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。
-- **并发编辑无乐观锁**：同一页面同时开多个编辑方会互相覆盖（B-32），联调时请只留一个编辑方。
-- 图表为纯 SVG 渲染，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。
+- **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器已携带 `If-Match`，**业务记录更新/删除暂无前端编辑入口**（后端 API 已支持，接入时需处理 `409 VERSION_CONFLICT`）。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
+- **流程回写为至少一次**：审批结束后实例先落终态并写 `pendingPatch`，再回写记录；进程中断时由后续读/审批补偿，短暂窗口内可能出现「流程已通过、记录字段尚未更新」，`setField` 重复补偿无副作用。JSON 模式多副本无法保证并发安全，多实例部署必须用 MySQL。
+- **图表为纯 SVG 渲染**，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。

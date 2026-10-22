@@ -15,6 +15,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -22,11 +23,13 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
 import { AuthGuard, type AuthedRequest } from '../common/auth.guard.js'
 import type { AuthUser } from '../common/jwt.service.js'
+import { makeEtag } from '../common/etag.js'
 import { RecordService, type ListQuery } from './record.service.js'
 
 @Controller('models/:modelId/records')
@@ -36,12 +39,15 @@ export class RecordController {
 
   @Post()
   @HttpCode(200)
-  create(
+  async create(
     @Param('modelId') modelId: string,
     @Body() body: unknown,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.create(modelId, body, this.user(req))
+    const created = await this.svc.create(modelId, body, this.user(req))
+    res.setHeader('ETag', makeEtag('record', `${modelId}/${String(created.id)}`, Number(created.revision ?? 0)))
+    return created
   }
 
   @Get()
@@ -50,23 +56,31 @@ export class RecordController {
   }
 
   @Put(':rid')
-  update(
+  async update(
     @Param('modelId') modelId: string,
     @Param('rid') rid: string,
     @Body() body: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.update(modelId, rid, body, this.user(req))
+    const updated = await this.svc.update(modelId, rid, body, this.user(req), ifMatch)
+    res.setHeader('ETag', makeEtag('record', `${modelId}/${rid}`, Number(updated.revision ?? 0)))
+    return updated
   }
 
   @Delete(':rid')
   @HttpCode(200)
-  remove(
+  async remove(
     @Param('modelId') modelId: string,
     @Param('rid') rid: string,
+    @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.remove(modelId, rid, this.user(req))
+    const removed = await this.svc.remove(modelId, rid, this.user(req), ifMatch)
+    res.setHeader('ETag', makeEtag('record', `${modelId}/${rid}`, removed.revision))
+    return removed
   }
 
   /** 守卫已挂载 req.user；此处兜底，防止未来重构漏挂守卫导致 undefined 泄漏 */

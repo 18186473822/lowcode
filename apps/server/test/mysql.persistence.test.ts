@@ -289,6 +289,122 @@ describeMysql('MySQL 仓储', () => {
     expect((await flows.listInstances()).some((item) => item.id === 'fi_mysql_test')).toBe(true)
   })
 
+  it('乐观锁 CAS：页面/记录/流程实例 revision 与 pendingPatch 回读', async () => {
+    const t = now()
+
+    // 页面：创建 revision=0，CAS 0→1 成功，再用旧 0 写失败。
+    const page = {
+      id: 'p_mysql_lock',
+      appId: 'app_test',
+      name: 'CAS 页面',
+      type: 'form',
+      status: 'draft' as const,
+      currentVersion: 0,
+      revision: 0,
+      draft: schema(),
+      versions: [],
+      createdAt: t,
+      updatedAt: t,
+    }
+    await pages.save(page)
+    expect((await pages.find('p_mysql_lock'))?.revision).toBe(0)
+    expect(await pages.saveIfRevision({ ...page, name: 'CAS 页面 v2', revision: 1 }, 0)).toBe(true)
+    expect(await pages.find('p_mysql_lock')).toMatchObject({ name: 'CAS 页面 v2', revision: 1 })
+    expect(await pages.saveIfRevision({ ...page, name: '陈旧写', revision: 2 }, 0)).toBe(false)
+    await pages.remove('p_mysql_lock')
+
+    // 记录：同样验证 CAS 与 revision 回读（data_records 对 modelId 有外键）。
+    await models.save('md_mysql_lock', {
+      schema: {
+        schemaVersion: '1.0.0',
+        id: 'md_mysql_lock',
+        name: 'CAS 模型',
+        code: 'md_mysql_lock',
+        fields: [{ key: 'name', name: '名称', type: 'string' }],
+      } as never,
+      createdAt: t,
+      updatedAt: t,
+      createdBy: 'tester',
+      updatedBy: 'tester',
+    })
+    const base = {
+      id: 'rec_mysql_lock',
+      payload: { name: '记录' },
+      revision: 0,
+      createdBy: 'tester',
+      createdAt: t,
+      updatedAt: t,
+    }
+    await records.save('md_mysql_lock', base)
+    expect((await records.find('md_mysql_lock', 'rec_mysql_lock'))?.revision).toBe(0)
+    expect(
+      await records.saveIfRevision(
+        'md_mysql_lock',
+        { ...base, payload: { name: '记录 v2' }, revision: 1 },
+        0,
+      ),
+    ).toBe(true)
+    expect(await records.find('md_mysql_lock', 'rec_mysql_lock')).toMatchObject({
+      payload: { name: '记录 v2' },
+      revision: 1,
+    })
+    expect(
+      await records.saveIfRevision(
+        'md_mysql_lock',
+        { ...base, payload: { name: '陈旧写' }, revision: 2 },
+        0,
+      ),
+    ).toBe(false)
+    await prisma.dataRecord.deleteMany({ where: { modelId: 'md_mysql_lock' } })
+    await prisma.modelDef.deleteMany({ where: { id: 'md_mysql_lock' } })
+
+    // 流程实例：revision 回读、pendingPatchJson 回读、CAS 与清空 pendingPatch。
+    const instance: FlowInstance = {
+      id: 'fi_mysql_lock',
+      flowId: 'fl_mysql_test',
+      modelId: 'md_mysql_test',
+      recordId: 'rec_mysql_test',
+      status: 'running',
+      currentNodeId: 'n2',
+      createdBy: 'tester',
+      createdAt: t,
+      updatedAt: t,
+      revision: 0,
+      pendingPatch: { status: 'approved' },
+      tasks: [
+        {
+          id: 'task_mysql_lock',
+          nodeId: 'n2',
+          nodeName: '审批',
+          assignee: { type: 'role', value: 'admin' },
+          status: 'pending',
+          createdAt: t,
+        },
+      ],
+      history: [],
+    }
+    await flows.saveInstance(instance)
+    expect(await flows.findInstance('fi_mysql_lock')).toMatchObject({
+      revision: 0,
+      pendingPatch: { status: 'approved' },
+    })
+    expect(
+      await flows.saveInstanceIfRevision(
+        { ...instance, status: 'approved', revision: 1, pendingPatch: undefined },
+        0,
+      ),
+    ).toBe(true)
+    expect(await flows.findInstance('fi_mysql_lock')).toMatchObject({
+      status: 'approved',
+      revision: 1,
+    })
+    expect((await flows.findInstance('fi_mysql_lock'))?.pendingPatch).toBeUndefined()
+    expect(
+      await flows.saveInstanceIfRevision({ ...instance, status: 'rejected', revision: 2 }, 0),
+    ).toBe(false)
+    await prisma.flowInstance.deleteMany({ where: { id: 'fi_mysql_lock' } })
+  })
+
   it('运维事件仓储保留 pageVersion/detail/duration 与写入顺序', async () => {
     const t = now()
     const events: OpsEvent[] = [

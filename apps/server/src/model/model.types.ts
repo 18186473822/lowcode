@@ -26,6 +26,8 @@ export interface DataRecordEntity {
   id: string
   /** 仅含模型声明字段的载荷（服务端 sanitize 后） */
   payload: Record<string, unknown>
+  /** 记录行版本（乐观锁）；旧 JSON 文件缺失时按 0 处理 */
+  revision?: number
   createdBy: string
   createdAt: string
   updatedBy?: string
@@ -46,6 +48,11 @@ export interface ModelRepository {
 export interface RecordRepository {
   find(modelId: string, recordId: string): Promise<DataRecordEntity | null>
   save(modelId: string, record: DataRecordEntity): Promise<void>
+  /**
+   * 乐观写：仅当当前 revision === expectedRevision 时写入。
+   * 返回 false 表示版本已被推进（service 转 409 VERSION_CONFLICT）。
+   */
+  saveIfRevision(modelId: string, record: DataRecordEntity, expectedRevision: number): Promise<boolean>
   /** 列出某模型全部记录（含已软删，由 service 过滤） */
   list(modelId: string): Promise<DataRecordEntity[]>
 }

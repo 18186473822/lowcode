@@ -22,6 +22,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -29,12 +30,14 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
 import { AuthGuard, type AuthedRequest } from '../common/auth.guard.js'
 import type { AuthUser } from '../common/jwt.service.js'
 import { RbacService } from '../rbac/rbac.service.js'
+import { makeEtag } from '../common/etag.js'
 import {
   PageService,
   type PublishBody,
@@ -79,6 +82,7 @@ export class PageController {
     @Param('id') id: string,
     @Query('version') version: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
     const user = this.user(req)
     if (!(await this.rbac.canSeePage(user, id))) {
@@ -87,36 +91,51 @@ export class PageController {
         message: `无权访问页面 ${id}`,
       })
     }
-    return this.svc.getSchema(id, version)
+    const body = await this.svc.getSchema(id, version)
+    res.setHeader('ETag', makeEtag('page', id, body.revision))
+    res.setHeader('Cache-Control', 'no-cache')
+    return body
   }
 
   @Put(':id/schema')
-  saveDraft(
+  async saveDraft(
     @Param('id') id: string,
     @Body() body: SaveDraftBody | undefined,
+    @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.saveDraft(id, body, this.user(req))
+    const saved = await this.svc.saveDraft(id, body, this.user(req), ifMatch)
+    res.setHeader('ETag', makeEtag('page', id, saved.revision))
+    return saved
   }
 
   @Post(':id/publish')
   @HttpCode(200)
-  publish(
+  async publish(
     @Param('id') id: string,
     @Body() body: PublishBody | undefined,
+    @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.publish(id, body, this.user(req))
+    const published = await this.svc.publish(id, body, this.user(req), ifMatch)
+    res.setHeader('ETag', makeEtag('page', id, published.revision))
+    return published
   }
 
   @Post(':id/rollback')
   @HttpCode(200)
-  rollback(
+  async rollback(
     @Param('id') id: string,
     @Body() body: RollbackBody | undefined,
+    @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
+    @Res({ passthrough: true }) res: { setHeader(name: string, value: string): void },
   ) {
-    return this.svc.rollback(id, body, this.user(req))
+    const rolled = await this.svc.rollback(id, body, this.user(req), ifMatch)
+    res.setHeader('ETag', makeEtag('page', id, rolled.revision))
+    return rolled
   }
 
   /** 版本历史列表（批 5：倒序元数据；与 :id/schema 静态尾段不同，无路由歧义） */

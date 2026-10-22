@@ -9,6 +9,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Inject, Injectable } from '@nestjs/common'
 import { DATA_DIR } from '../common/tokens.js'
+import { KeyedLock } from '../common/keyed-lock.js'
 import type { DataRecordEntity, RecordRepository } from './model.types.js'
 
 /** 模型 id 白名单：字母/下划线开头（用作子目录名，防路径穿越） */
@@ -19,9 +20,15 @@ const SAFE_RECORD_RE = /^[A-Za-z0-9][\w-]{0,63}$/
 @Injectable()
 export class FileRecordRepository implements RecordRepository {
   private readonly root: string
+  /** 同一记录文件的「读 → 版本比较 → 写」串行化（仅当前进程） */
+  private readonly lock = new KeyedLock()
 
   constructor(@Inject(DATA_DIR) dataDir: string) {
     this.root = path.join(dataDir, 'data')
+  }
+
+  private key(modelId: string, recordId: string): string {
+    return `${modelId}/${recordId}`
   }
 
   async find(modelId: string, recordId: string): Promise<DataRecordEntity | null> {
@@ -29,7 +36,8 @@ export class FileRecordRepository implements RecordRepository {
 
     try {
       const raw = await readFile(path.join(this.root, modelId, `${recordId}.json`), 'utf8')
-      return JSON.parse(raw) as DataRecordEntity
+      const record = JSON.parse(raw) as DataRecordEntity
+      return { ...record, revision: record.revision ?? 0 }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
@@ -37,6 +45,24 @@ export class FileRecordRepository implements RecordRepository {
   }
 
   async save(modelId: string, record: DataRecordEntity): Promise<void> {
+    await this.lock.runExclusive(this.key(modelId, record.id), () => this.writeUnlocked(modelId, record))
+  }
+
+  async saveIfRevision(
+    modelId: string,
+    record: DataRecordEntity,
+    expectedRevision: number,
+  ): Promise<boolean> {
+    return this.lock.runExclusive(this.key(modelId, record.id), async () => {
+      const current = await this.find(modelId, record.id)
+      const currentRevision = current?.revision ?? 0
+      if (currentRevision !== expectedRevision) return false
+      await this.writeUnlocked(modelId, record)
+      return true
+    })
+  }
+
+  private async writeUnlocked(modelId: string, record: DataRecordEntity): Promise<void> {
     if (!SAFE_MODEL_RE.test(modelId)) {
       throw new Error(`非法模型 id：${modelId}`)
     }
@@ -69,7 +95,8 @@ export class FileRecordRepository implements RecordRepository {
     for (const name of names) {
       if (!name.endsWith('.json')) continue
       const raw = await readFile(path.join(dir, name), 'utf8')
-      out.push(JSON.parse(raw) as DataRecordEntity)
+      const record = JSON.parse(raw) as DataRecordEntity
+      out.push({ ...record, revision: record.revision ?? 0 })
     }
     return out
   }

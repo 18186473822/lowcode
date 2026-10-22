@@ -84,6 +84,9 @@ const busy = ref(false)
 const error = ref('')
 const inst = ref<FlowInstanceLike | null>(null)
 const canDecide = ref(false)
+/** 同一审批动作重试复用 Idempotency-Key；动作/意见变化才换新键 */
+const retryKey = ref('')
+const retrySignature = ref('')
 
 /** 当前停留节点的 pending 任务 */
 const currentTask = computed<FlowTaskLike | null>(() => {
@@ -171,12 +174,26 @@ async function askComment(
   return { confirm: false, comment: '' }
 }
 
+/** UUID v4 优先；小程序无 crypto 时退回时间戳 + 随机串（≤128 字符即可） */
+function makeIdempotencyKey(): string {
+  const cryptoObj = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (typeof cryptoObj?.randomUUID === 'function') return cryptoObj.randomUUID()
+  return `flow-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+}
+
 async function onDecide(action: 'approve' | 'reject'): Promise<void> {
   const i = inst.value
   const t = currentTask.value
   if (!i || !t || !host || busy.value) return
   const ask = await askComment(action)
   if (!ask.confirm) return
+
+  const signature = `${i.id}|${t.id}|${action}|${ask.comment.trim()}`
+  if (retrySignature.value !== signature || !retryKey.value) {
+    retryKey.value = makeIdempotencyKey()
+    retrySignature.value = signature
+  }
+  const idempotencyKey = retryKey.value
 
   busy.value = true
   error.value = ''
@@ -185,12 +202,16 @@ async function onDecide(action: 'approve' | 'reject'): Promise<void> {
       method: 'POST',
       url: `/api/v1/flows/instances/${i.id}/tasks/${t.id}`,
       data: { action, comment: ask.comment || undefined },
+      headers: { 'Idempotency-Key': idempotencyKey },
     })
     if (res.statusCode !== 200) {
       const body = res.data as { message?: string } | null
       error.value = body?.message ?? `审批失败（${res.statusCode}）`
       return
     }
+    // 成功即消费该键；后续新动作重新生成
+    retryKey.value = ''
+    retrySignature.value = ''
     const after = res.data as FlowInstanceLike
     if (typeof uni !== 'undefined' && typeof uni.showToast === 'function') {
       uni.showToast({ title: action === 'approve' ? '已同意' : '已驳回', icon: 'success' })

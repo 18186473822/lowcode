@@ -1,6 +1,6 @@
 # 低代码平台协议规范（protocol.md）
 
-> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）
+> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 10 章修订：2026-10-22**（Phase 4 乐观锁与审批幂等：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**纯服务端契约，协议结构未变，不升 `schemaVersion`**，ADR-011）
 >
 > **事实源（唯一权威）**：`lowcode/packages/schema/src/types/*.ts`（结构）+ `lowcode/packages/schema/src/validate/index.ts`（校验规则）+ `lowcode/packages/expression/src/`（表达式语义）+ `lowcode/apps/server/src/`（第 10 章接口）。
 > 本文件是面向**协议使用者（设计器 / 运行时 / 服务端 / 第三方集成方）**的规范说明，字段结构以 TS 类型为准，语义与约束以本文件为准。
@@ -492,12 +492,12 @@
 | GET | `/apps/config` | — | `200 { theme?: { primary?: '#RRGGBB', radius?: '12px', dark?: boolean } }`（**批 3 / D-P3-8**：应用配置读取，登录即可；无配置时无 `theme` 键；存储 `<DATA_DIR>/apps.json`） |
 | PUT | `/apps/config` | `{ theme: { primary?, radius?, dark? } }`（**patch 语义**：缺键保留旧值、显式 `null` 清除该键） | `200 { theme }`（合并后的完整 theme；**仅 `'*'` 通配角色**，否则 `403 PERMISSION_DENIED`；校验失败 `400 APP_CONFIG_INVALID`：primary 须 `#RGB/#RRGGBBB`、radius 须如 `12px` 的 px 串、dark 须布尔、未知键拒绝） |
 | POST | `/pages/validate` | `{ schema }` | `200 { valid, errors, warnings }`（**恒 200**，设计器渲染问题列表） |
-| GET | `/pages` | — | `200 Array<{ id, appId, name, type, status, currentVersion, versionCount, updatedAt, createdAt }>`（**页面列表（2026-10-20 补）**：轻量摘要、`updatedAt` **倒序**、同刻按 `id` 升序；**不含 `draft` / `versions` 全文** —— 换页请再调 `GET :id/schema`；可见性口径与 `GET /apps/bootstrap` 完全一致（无条目=全员可见，`'*'` 恒通）） |
+| GET | `/pages` | — | `200 Array<{ id, appId, name, type, status, currentVersion, revision, versionCount, updatedAt, createdAt }>`（**页面列表（2026-10-20 补）**：轻量摘要、`updatedAt` **倒序**、同刻按 `id` 升序；**不含 `draft` / `versions` 全文** —— 换页请再调 `GET :id/schema`；可见性口径与 `GET /apps/bootstrap` 完全一致（无条目=全员可见，`'*'` 恒通）） |
 | DELETE | `/pages/:id` | — | `200 { pageId, deleted: true, removedVersions: number }`（**删除页面（2026-10-20 补）**：草稿与**全部历史版本一并删除**、不可恢复；**仅 `'*'` 通配角色**，否则 `403 PERMISSION_DENIED`；不存在 `404 PAGE_NOT_FOUND`；`id` 非法 `400 INVALID_PAGE_ID`） |
-| GET | `/pages/:id/schema?version=` | `version`: `draft`（默认）/ `published` / `vN` | 见 10.2；**页面可见性守卫（批 6）**：用户对页面无权限时 `403 PAGE_FORBIDDEN`（draft/published/vN 一视同仁，防直达绕过菜单） |
-| PUT | `/pages/:id/schema` | `{ schema, appId? }` | `200 { pageId, status: 'draft', currentVersion, updatedAt, validation: { valid: true, warnings } }` |
-| POST | `/pages/:id/publish` | `{ note? }`（≤500 字） | `200 { pageId, status: 'published', version, publishedAt, createdBy, note? }` |
-| POST | `/pages/:id/rollback` | `{ version: number }`（≥1 整数） | `200 { pageId, status: 'draft', currentVersion, rolledBackTo, updatedAt }` |
+| GET | `/pages/:id/schema?version=` | `version`: `draft`（默认）/ `published` / `vN` | 见 10.2；响应带页面行 `revision` 与 `ETag`；**页面可见性守卫（批 6）**：用户对页面无权限时 `403 PAGE_FORBIDDEN`（draft/published/vN 一视同仁，防直达绕过菜单） |
+| PUT | `/pages/:id/schema` | `{ schema, appId? }`，可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, updatedAt, validation: { valid: true, warnings } }`，响应带新 `ETag`；版本冲突 `409 VERSION_CONFLICT` |
+| POST | `/pages/:id/publish` | `{ note? }`（≤500 字），可选 `If-Match` | `200 { pageId, status: 'published', version, revision, publishedAt, createdBy, note? }`，响应带新 `ETag` |
+| POST | `/pages/:id/rollback` | `{ version: number }`（≥1 整数），可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, rolledBackTo, updatedAt }`，响应带新 `ETag` |
 | GET | `/pages/:id/versions` | — | `200 { pageId, status: 'draft' \| 'published', currentVersion, versions: Array<{ version, createdBy, createdAt, note? }> }`（**版本历史列表**，`versions` **倒序**且**不含 schema 全文** —— 查全文走 `GET :id/schema?version=vN`；Phase 2 批 5 / D-P2-8） |
 
 **数据模型与业务记录（方案 8.3 动态 CRUD，Phase 1 落地）**
@@ -507,10 +507,10 @@
 | GET | `/models` | — | `200 Array<{ id, name, code, type?, fieldCount, updatedAt }>`（按 `updatedAt` 倒序）。**勘误 2026-10-20**：原文写作 `{ items: [...] }`，与实现及前端 `listModels()` 消费形状不符，实现返回裸数组 |
 | GET | `/models/:id` | — | `200` `ModelSchema` + `{ createdAt, updatedAt, createdBy, updatedBy }`；不存在 `404 MODEL_NOT_FOUND` |
 | PUT | `/models/:id` | `ModelSchema`（**upsert**：不存在即建档） | `200` 定义体 + 审计字段 + `validation: { valid: true, warnings }` |
-| POST | `/models/:modelId/records` | 业务字段对象 | `200 { ...payload, id, createdAt, updatedAt, createdBy, updatedBy }` |
-| GET | `/models/:modelId/records` | `?filter=&sort=&page=&size=`（见 10.4） | `200 { items, total, page, size }`（软删记录不返回） |
-| PUT | `/models/:modelId/records/:rid` | **部分**字段（合并后整体再校验） | `200` 合并后的完整记录 |
-| DELETE | `/models/:modelId/records/:rid` | — | `200 { id, deleted: true, deletedAt }`（**软删**，列表不再返回） |
+| POST | `/models/:modelId/records` | 业务字段对象 | `200 { ...payload, id, revision, createdAt, updatedAt, createdBy, updatedBy }`，响应带 `ETag` |
+| GET | `/models/:modelId/records` | `?filter=&sort=&page=&size=`（见 10.4） | `200 { items, total, page, size }`（每项含 `revision`；软删记录不返回） |
+| PUT | `/models/:modelId/records/:rid` | **部分**字段（合并后整体再校验），可选 `If-Match` | `200` 合并后的完整记录（含新 `revision`）；版本冲突 `409 VERSION_CONFLICT` |
+| DELETE | `/models/:modelId/records/:rid` | 可选 `If-Match` | `200 { id, deleted: true, deletedAt, revision }`（**软删**，列表不再返回） |
 
 **文件（方案 8.3）**
 
@@ -543,15 +543,15 @@
 | PUT | `/flows/:flowId` | `FlowSchema`（**upsert**，路径 id 与 `body.flowId` 须一致） | `200` 定义体；校验未过 `400 INVALID_FLOW`（附 `issues`/`warnings` —— `validateFlow` + `checkExpr` 同源） |
 | DELETE | `/flows/:flowId` | — | `204`（**只删定义，实例保留审计**）；不存在 `404 FLOW_NOT_FOUND` |
 | GET | `/flows/tasks/todo` | — | `200 { items: [{ taskId, instanceId, flowId, flowName, modelId, recordId, nodeName, createdBy, createdAt }] }`（当前用户待办：running 实例**当前节点** pending 任务且 assignee 命中，`createdAt` 倒序） |
-| GET | `/flows/instances?recordId=&modelId=` | 两参数均可选 | `200 { items: FlowInstance[] }`（**Timeline 时间轴数据源**：含 `tasks` + `history`，新实例在前；无过滤 = 全量，内部数据量小） |
-| GET | `/flows/instances/:instanceId` | 路径参数 | `200 FlowInstance`（单实例全量：`tasks` + `history`，**待办详情页数据源**，2026-10-16 批 2 补）；不存在 `404 { code: 'FLOW_INSTANCE_NOT_FOUND' }` |
-| POST | `/flows/instances/:instanceId/tasks/:taskId` | `{ action: 'approve' \| 'reject', comment? }` | `200` 推进后的 `FlowInstance`（审批人不命中 `403 TASK_FORBIDDEN`、非 running `400 FLOW_NOT_RUNNING`、非当前 pending `400 FLOW_TASK_STALE`、任务/实例不存在 `404`） |
+| GET | `/flows/instances?recordId=&modelId=` | 两参数均可选 | `200 { items: FlowInstance[] }`（**Timeline 时间轴数据源**：含 `tasks` + `history`，新实例在前；无过滤 = 全量，内部数据量小；读取时补偿未完成的 `pendingPatch`） |
+| GET | `/flows/instances/:instanceId` | 路径参数 | `200 FlowInstance`（单实例全量：`tasks` + `history`，**待办详情页数据源**，2026-10-16 批 2 补；读取时补偿未完成的 `pendingPatch`；响应带 `ETag`）；不存在 `404 { code: 'FLOW_INSTANCE_NOT_FOUND' }` |
+| POST | `/flows/instances/:instanceId/tasks/:taskId` | `{ action: 'approve' \| 'reject', comment? }`，可选 `Idempotency-Key`（1~128 字符） | `200` 推进后的 `FlowInstance`，响应带新 `ETag`（审批人不命中 `403 TASK_FORBIDDEN`、非 running `400 FLOW_NOT_RUNNING`、非当前 pending `400 FLOW_TASK_STALE`、任务/实例不存在 `404`；并发推进 `409 FLOW_CONFLICT`；同一键重放返回当前实例；同键改任务/动作/意见/审批人 `409 IDEMPOTENCY_KEY_REUSED`） |
 
 - **提交联动**：`POST /models/:modelId/records` 成功后按 `modelId` 匹配定义**自动启动实例**并推进到首个审批节点（**弱保证**：启动失败只记日志、不影响记录提交 —— 记录是业务真相）。
 - **推进语义**：`start` 自动通过（history 记 `start` / 驳回重入记 `reenter`）；`approve` 在 `mode=condition` 且 `condition` 求值为假时**跳过**（求值异常按 `true` 走审批，fail-open 防漏审），否则创建 pending 任务停下等审批；到达 `end` → 实例 `approved` 并应用 `onApprove.setField`；`reject` 有 `onReject` 则回退到目标节点、无则实例 `rejected` 终态。
 - **assignee 命中（单一事实源 `FlowService.canDecide`）**：`starter` = 实例发起人；`role` = 用户角色命中 **或 RBAC perms 含 `'*'` 超级豁免**；`dept` 首期无组织服务**不可命中**（与批 6 dataScope dept 降级同口径）。
-- **setField 回写**：服务端内部直写记录 payload（**不经表单 sanitize** —— 8.6 `status: approved` 回写语义）；顺序 = **先回写记录、再落实例**（记录写失败直接抛、任务状态未落可重试）。
-- **存储**：`<LC_DATA_DIR>/flows.json`（定义）+ `flow-instances.json`（实例，只追加与就地更新，不删），原子写同 rbac.json；`FlowInstance` 形状 = `{ id, flowId, modelId, recordId, status: running\|approved\|rejected, currentNodeId, createdBy, createdAt, updatedAt, tasks[], history[] }`，history `action` ∈ `start\|approve\|reject\|skip\|end\|reenter`。
+- **setField 回写**：服务端内部直写记录 payload（**不经表单 sanitize** —— 8.6 `status: approved` 回写语义）；顺序 = **先 CAS 落实例（写入 `pendingPatch` outbox）、再 CAS 回写记录、最后清空 outbox**。记录写失败或进程退出时，后续 GET 实例 / 列表 / 审批会补偿（见 10.6）。
+- **存储**：JSON 模式为 `<LC_DATA_DIR>/flows.json`（定义）+ `flow-instances.json`（实例，只追加与就地更新，不删），原子写同 rbac.json；MySQL 模式为 `flow_definitions` / `flow_instances`。`FlowInstance` 形状 = `{ id, flowId, modelId, recordId, status: running\|approved\|rejected, currentNodeId, createdBy, createdAt, updatedAt, revision, pendingPatch?, tasks[], history[] }`，history `action` ∈ `start\|approve\|reject\|skip\|end\|reenter`。
 
 **运维事件（Phase 3 批 5，D-P3-12：埋点 / 错误 / 性能）**
 
@@ -581,15 +581,20 @@
 ### 10.2 版本语义（对应方案 8.4 双表模型）
 
 ```
-pages(id, app_id, name, type, current_version, status)
+pages(id, app_id, name, type, current_version, status, revision)
 page_versions(page_id, version, schema, created_by, created_at, note)
+data_records(model_id, id, payload, revision, ...)
+flow_instances(id, ..., status, revision, pending_patch_json)
       ↑ 发布即插入一条；回滚 = 把某条 version 复制为新的 current draft（需再发布才生效）
 ```
 
 - `status`：`published` = 草稿已全部发布；`draft` = 存在未发布改动（首次 PUT 自动建档也是 `draft`）；
-- `GET ?version=draft` → `{ version: 'draft', schema, updatedAt, updatedBy }`；
-- `GET ?version=published|vN` → `{ version: number, schema, createdAt, createdBy, note }`；
+- `GET ?version=draft` → `{ version: 'draft', schema, revision, updatedAt, updatedBy }`；
+- `GET ?version=published|vN` → `{ version: number, schema, revision, createdAt, createdBy, note }`；
 - **历史不可变**：回滚只改草稿，`currentVersion` 不回退，旧版本始终可读；
+- **`revision`**：页面行级乐观锁，行从 `0` 起，首次保存草稿即 `1`（建档本身算一次写），之后每次成功写（保存/发布/回滚）**单调 +1**；读取响应同时用 `ETag: "page:<id>:<revision>"` 暴露。记录与流程实例同规则，但**创建响应为 `0`**，ETag 前缀分别为 `record:<modelId>/<recordId>:<n>`、`flow:<instanceId>:<n>`。
+- 写接口的 `If-Match` **可选**：旧客户端不带仍可写，服务端仍用请求开始读到的 `revision` 做 CAS，避免「读→写」窗口丢更新；一旦携带，`If-Match` 与当前 `revision` 不等即 `409 VERSION_CONFLICT`，响应体含 `expectedRevision` / `currentRevision`。格式非法（空串、非本资源 ETag、非数字）→ `400 INVALID_IF_MATCH`。
+- **并发实现**：JSON 模式用进程内 `KeyedLock` 串行化同一资源的「读→判版本→写」，只保证单进程；MySQL 模式用 `UPDATE ... WHERE revision = ?` 行级 CAS，多实例安全。JSON 多实例部署不在支持范围（文件仓储本身也不支持共享目录并发写）。
 - 存储实现：`LC_STORAGE=json`（默认）为 `<LC_DATA_DIR>/pages/<id>.json` 原子写；`LC_STORAGE=mysql` 使用 Prisma + MySQL 的 `pages` / `page_versions` 双表（ADR-008）。接口 `PageRepository` 不变。
 
 ### 10.3 服务端错误码
@@ -598,7 +603,8 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 
 | 状态 | code | 场景 |
 |---|---|---|
-| 400 | `INVALID_REQUEST` | 字段缺失/类型错（登录入参、note、rollback version、请求体非对象、`body.id` 与路径 id 不一致） |
+| 400 | `INVALID_REQUEST` | 字段缺失/类型错（登录入参、note、rollback version、请求体非对象、`body.id` 与路径 id 不一致、`Idempotency-Key` 空或 >128 字符） |
+| 400 | `INVALID_IF_MATCH` | `If-Match` 非空但格式非法：不是本资源的 `"<kind>:<id>:<revision>"`、revision 非非负整数 |
 | 400 | `INVALID_PAGE_ID` | 页面 id 不符合白名单 |
 | 400 | `INVALID_VERSION` | `?version=` 不是 draft/published/vN |
 | 400 | `SCHEMA_INVALID` | **Schema 校验未通过，附完整 `errors`/`warnings`** |
@@ -621,6 +627,9 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 404 | `FLOW_NOT_FOUND` / `FLOW_INSTANCE_NOT_FOUND` / `FLOW_TASK_NOT_FOUND` | 流程定义 / 实例 / 任务不存在（批 1） |
 | 409 | `NOT_PUBLISHED` | 取 `published` 但从未发布 |
 | 409 | `NO_DRAFT` | 发布时没有草稿 |
+| 409 | `VERSION_CONFLICT` | **乐观锁冲突**：页面保存/发布/回滚或记录更新/删除时，`If-Match` 或服务端读到的 `revision` 已过期；响应含 `expectedRevision` / `currentRevision`（记录另含 `modelId`） |
+| 409 | `FLOW_CONFLICT` | **流程实例并发冲突**：审批推进时实例 `revision` CAS 失败（另一请求已先推进），客户端应重新 GET 实例后再决定 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | **审批幂等键复用**：同一 `Idempotency-Key` 已用于同实例的其他任务，或同一任务但动作/意见/审批人不同；相同内容的重放返回 `200` 当前实例，不报此错 |
 | 413 | （multer `LIMIT_FILE_SIZE`） | 文件超 10MB；Nest 包装为 413，**无业务 `code`** |
 
 **记录/模型校验的 `errors[]` Issue 码**（由服务端产生，与页面校验共用同一 `Issue` 形状；页面侧全集见第 7 章）：
@@ -648,9 +657,9 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | `page` | 正整数，默认 `1` | 越界返回空 `items`（`total` 仍为过滤后总数） |
 | `size` | 正整数，默认 `20`，**上限 `100`** | 超限 → `400 INVALID_QUERY`（`size 取值 1~100`） |
 
-- **系统字段**（可参与 `filter`/`sort`，但**不可出现在写入 payload**）：`id` `createdAt` `updatedAt` `createdBy` `updatedBy` `deletedAt`；
-- **软删**：`DELETE` 只置 `deletedAt`，列表默认排除，记录再读/再改/再删均 `404 RECORD_NOT_FOUND`；
-- **审计字段服务端权威**：请求体伪造 `createdAt/createdBy` 无效（保存时覆盖）。
+- **系统字段**（可参与 `filter`/`sort`，但**不可出现在写入 payload**）：`id` `revision` `createdAt` `updatedAt` `createdBy` `updatedBy`；`revision` 为乐观锁版本号（新建 `0`，每次更新/软删 `+1`），响应中的每条记录都带；
+- **软删**：`DELETE` 只置 `deletedAt`，列表默认排除，记录再读/再改/再删均 `404 RECORD_NOT_FOUND`；`deletedAt` 不作为查询字段暴露；
+- **审计字段服务端权威**：请求体伪造 `createdAt/createdBy/revision` 无效（保存时覆盖）。
 
 ### 10.5 安全与限流（Phase 4 安全加固）
 
@@ -673,13 +682,49 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 
 | `LC_STORAGE` | 数据位置 | 适用 |
 |---|---|---|
-| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
-| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants` | 本地联调、生产；需 `DATABASE_URL` |
+| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files`（13 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
-- flows / flow-instances / ops / apps.json **本批仍为 JSON**；跨存储无分布式事务。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md)。
+- **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md) / [ADR-009](adr/009-mysql-prisma-second-batch.md) / [ADR-010](adr/010-mysql-files.md) / [ADR-011](adr/011-optimistic-locking.md)。
 
----
+### 10.6 乐观锁、审批幂等与流程 outbox（Phase 4，ADR-011）
+
+**① ETag / If-Match**
+
+| 资源 | 响应 ETag | 接受 `If-Match` 的写接口 |
+|---|---|---|
+| 页面 | `"page:<pageId>:<revision>"` | `PUT /pages/:id/schema`、`POST /pages/:id/publish`、`POST /pages/:id/rollback` |
+| 记录 | `"record:<modelId>/<recordId>:<revision>"` | `PUT/DELETE /models/:modelId/records/:rid`（创建响应也给 ETag） |
+| 流程实例 | `"flow:<instanceId>:<revision>"` | 审批接口**不**使用 `If-Match`，走 `Idempotency-Key`；GET/审批响应给 ETag 供缓存/诊断 |
+
+- `If-Match` 接受带引号或 `W/` 前缀的单个 ETag；多个逗号值、空串、其他资源 id 均 `400 INVALID_IF_MATCH`。
+- **不携带 `If-Match` 仍兼容**：服务端读取当前 `revision` 后以该值做 CAS，请求内不会静默丢更新；并发请求只有一个成功，其余 `409 VERSION_CONFLICT`。
+- 冲突响应示例：`409 { code: 'VERSION_CONFLICT', expectedRevision: 3, currentRevision: 4 }`；记录另带 `modelId`。
+- 页面/记录 ETag 同时覆盖写响应；记录列表逐项返回 `revision`，不设置单条 ETag（HTTP 响应头只能有一个）。
+
+**② `Idempotency-Key`（仅审批动作）**
+
+- 格式：去空格后 1~128 字符；非法 → `400 INVALID_REQUEST`。作用域 = **单个流程实例**。
+- 首次成功审批时，键与 `action` / `comment` / `decidedBy` 一起记入任务；重放（同实例 + 同任务 + 同动作/意见/审批人）直接 `200` 返回当前实例，**不重复推进、不重复写历史、不重复回写记录**。
+- 同键但任务/动作/意见/审批人不同 → `409 IDEMPOTENCY_KEY_REUSED`。
+- 终态重放优先于 `FLOW_NOT_RUNNING`：最后一次审批的响应丢失后重试，仍返回 `200` 当前实例，而不是误报「流程已结束」。
+- 不带键的旧客户端保持原行为：重复审批仍由 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING` 拒绝。待办审批物料会在同一动作重试时复用键（动作或意见变化才换新键）。
+
+**③ 流程 `pendingPatch` outbox**
+
+1. 审批到达 `end` 时，先在实例 CAS 中写入 `pendingPatch = { status: 'approved', ... }`，实例进入终态；
+2. 再对记录做 CAS 回写（按记录当前 `revision`，冲突则重读重试）；
+3. 成功后清空 `pendingPatch`；若记录写失败或进程在 1~2 之间退出，实例保留 outbox；
+4. 之后任意 `GET /flows/instances`、`GET /flows/instances/:id` 或审批请求会先补偿 outbox，再返回/推进。
+
+语义为**至少一次**回写：`setField` 是幂等赋值（同一字段同一值重复写无副作用），不会因补偿产生重复业务记录。实例先落终态、记录后回写，因此短暂窗口内可能看到「流程已通过但记录字段尚未更新」；补偿会收敛，前端不应把该窗口当作失败。
+
+**④ 边界与现状**
+
+- JSON 仓储锁是**单进程**的；多副本部署必须用 `LC_STORAGE=mysql`（行级 CAS）。文件仓储也不适合多实例共享目录并发写。
+- 设计器已携带 `If-Match` 保存/发布/回滚；业务记录的更新/删除目前没有前端编辑入口，服务端 API 已支持，接入时需回传 ETag 并处理 409。
+- 本批未实现自动重试中间件；`Idempotency-Key` 的重放由调用方（待办审批物料）在同一次用户动作内复用。
 
 ## 11. 生命周期受信 API（`app.*`）
 

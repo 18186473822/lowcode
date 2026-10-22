@@ -74,12 +74,19 @@ export interface ModelSummary {
  * designer-web 提供 fetch 实现（自动登录 + Bearer），单测提供 mock —— store 不直接发请求。
  */
 export interface DesignerApi {
-  /** 打开页面：返回草稿 schema 与版本标识；`version` 可选（批 5：指定 `vN` 取历史版全文做 diff） */
-  getSchema(pageId: string, version?: string): Promise<{ schema: PageSchema; version: string | number }>
-  /** 保存草稿（服务端 upsert：页面不存在自动建档）；服务端会再校验一次 */
-  saveSchema(pageId: string, schema: PageSchema): Promise<void>
-  /** 发布当前草稿为新版本，返回版本号 */
-  publish(pageId: string): Promise<{ version?: number }>
+  /** 打开页面：返回草稿 schema、版本标识与页面行 revision（乐观锁） */
+  getSchema(
+    pageId: string,
+    version?: string,
+  ): Promise<{ schema: PageSchema; version: string | number; revision?: number }>
+  /** 保存草稿；带 revision 时发送 If-Match，服务端版本冲突返回 409 */
+  saveSchema(
+    pageId: string,
+    schema: PageSchema,
+    revision?: number,
+  ): Promise<{ revision?: number } | void>
+  /** 发布当前草稿为新版本，返回版本号与页面行 revision */
+  publish(pageId: string, revision?: number): Promise<{ version?: number; revision?: number }>
   /** 列出全部数据模型（批 4：页面级「提交模型」下拉） */
   listModels(): Promise<ModelSummary[]>
   /** 取完整模型定义（批 4：节点级「字段绑定」下拉需要 fields） */
@@ -89,7 +96,7 @@ export interface DesignerApi {
   /** 版本历史列表（Phase 2 批 5 / D-P2-8：轻量元数据倒序，不含 schema 全文） */
   listVersions(pageId: string): Promise<VersionList>
   /** 回滚：把历史版本复制为当前草稿（服务端已有接口，批 5 接 UI） */
-  rollback(pageId: string, version: number): Promise<{ rolledBackTo: number }>
+  rollback(pageId: string, version: number, revision?: number): Promise<{ rolledBackTo: number }>
   /** RBAC 全量配置（Phase 2 批 6 / D-P2-10：角色 + 页面可见性白名单） */
   listRbac(): Promise<RbacConfig>
   /** upsert 角色（批 6：perms 逐项格式由服务端校验） */
@@ -163,6 +170,11 @@ export const useDesignerStore = defineStore('lc-designer', () => {
 
   /** 当前编辑的页面 id（打开/保存/发布的路由键；服务端 upsert 可用任意新 id 创建） */
   const pageId = ref('demo')
+  /**
+   * 当前页面行 revision（乐观锁）：openPage 从响应回填，save/publish/rollback 作为 If-Match 发送。
+   * 新建页面从 0 开始；服务端首次建档接受 0。
+   */
+  const pageRevision = ref(0)
   /** 保存状态机（顶栏徽标）：demo 是本地 fixture、尚未保存 → 初始 dirty */
   const saveState = ref<SaveState>('dirty')
   /** 最近一次操作结果文本（顶栏徽标旁 / 底栏状态） */
@@ -367,7 +379,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       return false
     }
     try {
-      await api.rollback(pageId.value, v)
+      await api.rollback(pageId.value, v, pageRevision.value)
     } catch (e) {
       statusText.value = `回滚失败：${errMsg(e)}`
       return false
@@ -523,6 +535,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       const r = await api.getSchema(target)
       const schemaMs = Date.now() - t0
       pageId.value = target
+      pageRevision.value = r.revision ?? 0
       replaceSchema(r.schema) // touch → dirty，下一行覆盖为 idle
       saveState.value = 'idle'
       statusText.value = `已打开 ${target}（${r.version}）`
@@ -565,7 +578,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     }
     saveState.value = 'saving'
     try {
-      await api.saveSchema(pageId.value, schema.value)
+      const r = await api.saveSchema(pageId.value, schema.value, pageRevision.value)
+      if (r && typeof r.revision === 'number') pageRevision.value = r.revision
       saveState.value = 'idle'
       statusText.value = `已保存 ${pageId.value}`
       return true
@@ -584,7 +598,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     }
     if (saveState.value !== 'idle' && !(await save())) return false
     try {
-      const r = await api.publish(pageId.value)
+      const r = await api.publish(pageId.value, pageRevision.value)
+      if (typeof r.revision === 'number') pageRevision.value = r.revision
       statusText.value = `已发布 ${pageId.value} v${r.version ?? '?'}`
       return true
     } catch (e) {
@@ -598,6 +613,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     const target = id.trim()
     if (!target) return false
     pageId.value = target
+    pageRevision.value = 0 // 新建/换页从 0 开始；首次保存由服务端建档
     const fresh = demoPage()
     fresh.name = target // D-P2-3：name 默认 = pageId —— 模板名「画布演示」残留会致 runtime 菜单多页撞名
     replaceSchema(fresh) // touch → dirty
@@ -1134,6 +1150,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   return {
     schema,
     pageId,
+    pageRevision,
     saveState,
     statusText,
     validation,

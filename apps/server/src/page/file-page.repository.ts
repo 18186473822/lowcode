@@ -9,6 +9,7 @@ import { mkdir, readFile, rename, readdir, unlink, writeFile } from 'node:fs/pro
 import path from 'node:path'
 import { Inject, Injectable } from '@nestjs/common'
 import { DATA_DIR } from '../common/tokens.js'
+import { KeyedLock } from '../common/keyed-lock.js'
 import type { PageRecord, PageRepository } from './page.types.js'
 
 /** 页面 id 白名单（与 service 层一致）：字母/下划线开头，可含数字、下划线、连字符 */
@@ -17,6 +18,8 @@ const SAFE_ID_RE = /^[A-Za-z_][\w-]{0,63}$/
 @Injectable()
 export class FilePageRepository implements PageRepository {
   private readonly dir: string
+  /** 同一页面文件的「读 → 版本比较 → 写」串行化（仅当前进程） */
+  private readonly lock = new KeyedLock()
 
   constructor(@Inject(DATA_DIR) dataDir: string) {
     this.dir = path.join(dataDir, 'pages')
@@ -27,7 +30,9 @@ export class FilePageRepository implements PageRepository {
 
     try {
       const raw = await readFile(path.join(this.dir, `${id}.json`), 'utf8')
-      return JSON.parse(raw) as PageRecord
+      const record = JSON.parse(raw) as PageRecord
+      // 旧文件没有 revision：按 0 处理，首次写入后自然升级为 1。
+      return { ...record, revision: record.revision ?? 0 }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error // 文件损坏等异常原样上抛 → 500，不静默吞掉
@@ -56,6 +61,20 @@ export class FilePageRepository implements PageRepository {
   }
 
   async save(record: PageRecord): Promise<void> {
+    await this.lock.runExclusive(record.id, () => this.writeUnlocked(record))
+  }
+
+  async saveIfRevision(record: PageRecord, expectedRevision: number): Promise<boolean> {
+    return this.lock.runExclusive(record.id, async () => {
+      const current = await this.find(record.id)
+      const currentRevision = current?.revision ?? 0
+      if (currentRevision !== expectedRevision) return false
+      await this.writeUnlocked(record)
+      return true
+    })
+  }
+
+  private async writeUnlocked(record: PageRecord): Promise<void> {
     if (!SAFE_ID_RE.test(record.id)) {
       throw new Error(`非法页面 id：${record.id}`)
     }

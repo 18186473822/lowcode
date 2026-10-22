@@ -37,6 +37,11 @@ export interface PageRecord {
   status: PageStatus
   /** 最近一次发布的版本号；0 = 从未发布 */
   currentVersion: number
+  /**
+   * 页面行整体版本（乐观锁，2026-10-22）。每次保存草稿/发布/回滚 +1；
+   * 旧 JSON 文件没有该字段时按 0 处理。
+   */
+  revision?: number
   /** 当前草稿；null = 尚未保存过 */
   draft: PageSchema | null
   draftUpdatedAt?: string
@@ -52,6 +57,12 @@ export interface PageRepository {
   /** 全量页面记录（应用菜单 `GET /apps/bootstrap` 用）；目录不存在时返回 `[]` */
   list(): Promise<PageRecord[]>
   save(record: PageRecord): Promise<void>
+  /**
+   * 乐观写：仅当当前 revision === expectedRevision 时写入。
+   * 返回 false 表示版本已被其他请求推进（service 转 409 VERSION_CONFLICT）。
+   * `expectedRevision = 0` 且不存在记录时执行创建；并发创建只有一个成功。
+   */
+  saveIfRevision(record: PageRecord, expectedRevision: number): Promise<boolean>
   /**
    * 删除整条页面记录（含全部历史版本，二者同文件故一次删除即无孤儿）。
    * 返回 `false` 表示本来就不存在（由 service 转成 404，避免仓储层抛业务异常）。

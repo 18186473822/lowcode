@@ -137,7 +137,7 @@ describe('批 5：版本历史 / 回滚 / 对比（store actions）', () => {
     api.getSchema.mockResolvedValueOnce({ schema: old, version: 'draft' })
     const ok = await store.rollbackTo(1)
     expect(ok).toBe(true)
-    expect(api.rollback).toHaveBeenCalledWith('demo', 1)
+    expect(api.rollback).toHaveBeenCalledWith('demo', 1, 0)
     expect(store.historyOpen).toBe(false)
     expect(store.diffEntries).toHaveLength(0)
     expect(store.diffVersion).toBeNull()

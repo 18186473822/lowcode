@@ -82,25 +82,41 @@ export const themeApi: ThemeApi = {
   },
 }
 
+/** 页面 ETag 与服务端 `makeEtag('page', id, revision)` 同源 */
+function pageEtag(pageId: string, revision: number): string {
+  return `"page:${pageId}:${revision}"`
+}
+
+function ifMatchFor(pageId: string, revision: number | undefined): Record<string, string> {
+  return revision === undefined ? {} : { 'If-Match': pageEtag(pageId, revision) }
+}
+
 export const designerApi: DesignerApi = {
   async getSchema(pageId, version) {
     const qs = version ? `?version=${encodeURIComponent(version)}` : ''
     const res = await req(`/pages/${encodeURIComponent(pageId)}/schema${qs}`)
-    const data = (await res.json()) as { schema: PageSchema; version: string | number }
-    return { schema: data.schema, version: data.version }
+    const data = (await res.json()) as {
+      schema: PageSchema
+      version: string | number
+      revision?: number
+    }
+    return { schema: data.schema, version: data.version, revision: data.revision }
   },
-  async saveSchema(pageId, schema) {
-    await req(`/pages/${encodeURIComponent(pageId)}/schema`, {
+  async saveSchema(pageId, schema, revision) {
+    const res = await req(`/pages/${encodeURIComponent(pageId)}/schema`, {
       method: 'PUT',
+      headers: ifMatchFor(pageId, revision),
       body: JSON.stringify({ schema }),
     })
+    return (await res.json()) as { revision?: number }
   },
-  async publish(pageId) {
+  async publish(pageId, revision) {
     const res = await req(`/pages/${encodeURIComponent(pageId)}/publish`, {
       method: 'POST',
+      headers: ifMatchFor(pageId, revision),
       body: JSON.stringify({ note: '设计器发布' }),
     })
-    return (await res.json()) as { version?: number }
+    return (await res.json()) as { version?: number; revision?: number }
   },
   /* 批 4：字段绑定 —— 模型列表（提交模型下拉）/ 模型定义（字段下拉） */
   async listModels() {
@@ -123,12 +139,13 @@ export const designerApi: DesignerApi = {
     const res = await req(`/pages/${encodeURIComponent(pageId)}/versions`)
     return (await res.json()) as VersionList
   },
-  async rollback(pageId, version) {
+  async rollback(pageId, version, revision) {
     const res = await req(`/pages/${encodeURIComponent(pageId)}/rollback`, {
       method: 'POST',
+      headers: ifMatchFor(pageId, revision),
       body: JSON.stringify({ version }),
     })
-    return (await res.json()) as { rolledBackTo: number }
+    return (await res.json()) as { rolledBackTo: number; revision?: number }
   },
   /* Phase 2 批 6：RBAC 全量配置（角色 + 页面可见性白名单）+ upsert 角色/页面授权 + 全页面摘要 */
   async listRbac() {

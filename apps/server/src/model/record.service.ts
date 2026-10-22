@@ -13,7 +13,13 @@
  * 已知边界（台账「未实现」同步登记）：expression 规则服务端作用域仅 `formData` +
  * 空的 `appData/params`（协议约定规则只引用 formData）；async 规则仅前端执行。
  */
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { evalExpr, type Scope } from '@lc/expression'
 import { checkRule, isEmpty } from '@lc/renderer'
 import type { FieldSchema, Issue, ModelSchema } from '@lc/schema'
@@ -21,6 +27,7 @@ import { randomUUID } from 'node:crypto'
 import type { AuthUser } from '../common/jwt.service.js'
 import { RbacService, rowVisible } from '../rbac/rbac.service.js'
 import { FlowService } from '../flow/flow.service.js'
+import { parseIfMatch } from '../common/etag.js'
 import { assertModelId, isPlainObject } from './model.service.js'
 import {
   MODEL_REPOSITORY,
@@ -34,7 +41,7 @@ import {
 const RECORD_ID_RE = /^[A-Za-z0-9][\w-]{0,63}$/
 
 /** 系统字段（记录元信息；可参与 filter/sort，但不可出现在 payload） */
-const SYSTEM_FIELDS = ['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'] as const
+const SYSTEM_FIELDS = ['id', 'revision', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'] as const
 
 /** 分页默认值与上限 */
 const DEFAULT_SIZE = 20
@@ -262,6 +269,7 @@ function toItem(entity: DataRecordEntity): Record<string, unknown> {
   return {
     ...entity.payload,
     id: entity.id,
+    revision: entity.revision ?? 0,
     createdAt: entity.createdAt,
     updatedAt: entity.updatedAt,
     createdBy: entity.createdBy,
@@ -307,6 +315,7 @@ export class RecordService {
     const entity: DataRecordEntity = {
       id: randomUUID(),
       payload,
+      revision: 0,
       createdBy: user.username,
       createdAt: now,
       updatedAt: now,
@@ -356,12 +365,19 @@ export class RecordService {
     recordId: string,
     body: unknown,
     user: AuthUser,
+    ifMatch?: string,
   ): Promise<Record<string, unknown>> {
     const model = await this.mustModel(modelId)
     await this.rbac.assertModelAction(user, model, 'update')
     assertRecordId(recordId)
     const entity = await this.mustRecord(modelId, recordId)
     await this.rbac.assertRowOwned(user, model, entity.createdBy)
+
+    const currentRevision = entity.revision ?? 0
+    const expected = parseIfMatch(ifMatch, 'record', `${modelId}/${recordId}`)
+    if (expected !== undefined && expected !== currentRevision) {
+      throw this.versionConflict(modelId, recordId, expected, currentRevision)
+    }
 
     if (!isPlainObject(body)) {
       throw new BadRequestException({ code: 'INVALID_REQUEST', message: '请求体必须是 JSON 对象' })
@@ -375,24 +391,57 @@ export class RecordService {
     entity.payload = merged
     entity.updatedAt = now
     entity.updatedBy = user.username
-    await this.records.save(modelId, entity)
+    entity.revision = currentRevision + 1
+
+    const saved = await this.records.saveIfRevision(modelId, entity, currentRevision)
+    if (!saved) {
+      const latest = await this.records.find(modelId, recordId)
+      throw this.versionConflict(
+        modelId,
+        recordId,
+        expected ?? currentRevision,
+        latest?.revision ?? currentRevision + 1,
+      )
+    }
     return toItem(entity)
   }
 
   /** 软删（DELETE）：置 deletedAt，列表不再返回。批 6：③ delete 权限 + ④ 行归属检查 */
-  async remove(modelId: string, recordId: string, user: AuthUser): Promise<{ id: string; deleted: true; deletedAt: string }> {
+  async remove(
+    modelId: string,
+    recordId: string,
+    user: AuthUser,
+    ifMatch?: string,
+  ): Promise<{ id: string; deleted: true; deletedAt: string; revision: number }> {
     const model = await this.mustModel(modelId)
     await this.rbac.assertModelAction(user, model, 'delete')
     assertRecordId(recordId)
     const entity = await this.mustRecord(modelId, recordId)
     await this.rbac.assertRowOwned(user, model, entity.createdBy)
 
+    const currentRevision = entity.revision ?? 0
+    const expected = parseIfMatch(ifMatch, 'record', `${modelId}/${recordId}`)
+    if (expected !== undefined && expected !== currentRevision) {
+      throw this.versionConflict(modelId, recordId, expected, currentRevision)
+    }
+
     const now = new Date().toISOString()
     entity.deletedAt = now
     entity.updatedAt = now
     entity.updatedBy = user.username
-    await this.records.save(modelId, entity)
-    return { id: entity.id, deleted: true, deletedAt: now }
+    entity.revision = currentRevision + 1
+
+    const saved = await this.records.saveIfRevision(modelId, entity, currentRevision)
+    if (!saved) {
+      const latest = await this.records.find(modelId, recordId)
+      throw this.versionConflict(
+        modelId,
+        recordId,
+        expected ?? currentRevision,
+        latest?.revision ?? currentRevision + 1,
+      )
+    }
+    return { id: entity.id, deleted: true, deletedAt: now, revision: entity.revision }
   }
 
   /* ------------------------------ 内部 ------------------------------ */
@@ -439,6 +488,21 @@ export class RecordService {
       throw new NotFoundException({ code: 'RECORD_NOT_FOUND', message: `记录 ${recordId} 不存在` })
     }
     return entity
+  }
+
+  private versionConflict(
+    modelId: string,
+    recordId: string,
+    expected: number,
+    current: number,
+  ): ConflictException {
+    return new ConflictException({
+      code: 'VERSION_CONFLICT',
+      message: `记录 ${recordId} 已被其他请求修改，请刷新后重试`,
+      expectedRevision: expected,
+      currentRevision: current,
+      modelId,
+    })
   }
 }
 

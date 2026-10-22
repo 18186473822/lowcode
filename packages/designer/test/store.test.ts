@@ -195,9 +195,13 @@ describe('setProp / replaceSchema / 选中元信息', () => {
 /** DesignerApi mock 工厂（批 3 起共用；批 4 补 listModels/getModel，默认空表；Phase 2 批 1 补 putModel；批 5 补 listVersions/rollback） */
 function mockApi() {
   return {
-    getSchema: vi.fn<(id: string, version?: string) => Promise<{ schema: PageSchema; version: string | number }>>(),
-    saveSchema: vi.fn<(id: string, s: PageSchema) => Promise<void>>(),
-    publish: vi.fn<(id: string) => Promise<{ version?: number }>>(),
+    getSchema: vi.fn<
+      (id: string, version?: string) => Promise<{ schema: PageSchema; version: string | number; revision?: number }>
+    >(),
+    saveSchema: vi.fn<
+      (id: string, s: PageSchema, revision?: number) => Promise<{ revision?: number } | void>
+    >(),
+    publish: vi.fn<(id: string, revision?: number) => Promise<{ version?: number; revision?: number }>>(),
     // 批 4 字段绑定：默认空表（新测试用 mockResolvedValue 覆盖成有数据的）
     listModels: vi.fn<() => Promise<ModelSummary[]>>().mockResolvedValue([]),
     getModel: vi.fn<(id: string) => Promise<ModelSchema>>(),
@@ -210,7 +214,7 @@ function mockApi() {
       versions: [],
     }),
     rollback: vi
-      .fn<(id: string, v: number) => Promise<{ rolledBackTo: number }>>()
+      .fn<(id: string, v: number, revision?: number) => Promise<{ rolledBackTo: number }>>()
       .mockResolvedValue({ rolledBackTo: 1 }),
     // 批 6 RBAC：默认空配置（本文件不测 RBAC，只需满足 DesignerApi 形状）
     listRbac: vi.fn<() => Promise<RbacConfig>>().mockResolvedValue({ roles: [], pages: {} }),
@@ -264,6 +268,7 @@ describe('批 3：校验 touch / 打开 / 保存 / 发布', () => {
     expect(await store.save()).toBe(true)
     expect(api.saveSchema).toHaveBeenCalledTimes(1)
     expect(api.saveSchema.mock.calls[0]![0]).toBe('demo')
+    expect(api.saveSchema.mock.calls[0]![2]).toBe(0)
     expect(store.saveState).toBe('idle')
     expect(store.statusText).toContain('已保存')
   })
@@ -315,6 +320,28 @@ describe('批 3：校验 touch / 打开 / 保存 / 发布', () => {
     expect(store.selectedId).toBe('')
     expect(store.saveState).toBe('idle')
     expect(store.statusText).toContain('已打开')
+  })
+
+  it('openPage 回填 revision；save/publish 透传并回写新版本', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    const loaded = JSON.parse(JSON.stringify(store.schema)) as PageSchema
+    loaded.id = 'p_rev'
+    api.getSchema.mockResolvedValue({ schema: loaded, version: 'draft', revision: 7 })
+    api.saveSchema.mockResolvedValue({ revision: 8 })
+    api.publish.mockResolvedValue({ version: 2, revision: 9 })
+    store.setApi(api)
+
+    expect(await store.openPage('page-rev')).toBe(true)
+    expect(store.pageRevision).toBe(7)
+
+    expect(await store.save()).toBe(true)
+    expect(api.saveSchema).toHaveBeenCalledWith('page-rev', expect.anything(), 7)
+    expect(store.pageRevision).toBe(8)
+
+    expect(await store.publish()).toBe(true)
+    expect(api.publish).toHaveBeenCalledWith('page-rev', 8)
+    expect(store.pageRevision).toBe(9)
   })
 
   it('openPage 失败 → error + 本地内容保留', async () => {

@@ -15,6 +15,7 @@
 | [008](008-mysql-prisma-first-batch.md) | 核心业务数据落 MySQL 8 + Prisma（第一批） | 已接受 | 方案 8.1 / 8.4 / 8.5；ADR-004 |
 | [009](009-mysql-prisma-second-batch.md) | 流程、运维事件与应用配置落 MySQL（第二批） | 已接受 | ADR-008；方案 8.1 / 8.2 / 8.6 |
 | [010](010-mysql-files.md) | 文件元数据与内容落 MySQL（第三批） | 已接受 | ADR-004 / ADR-008 / ADR-009；方案 8.2 / 8.3 |
+| [011](011-optimistic-locking.md) | 乐观锁、审批幂等与流程 outbox | 已接受 | ADR-008 / ADR-009 / ADR-010；方案 8.3 / 8.4 / 8.6 |
 
 ## 模板
 

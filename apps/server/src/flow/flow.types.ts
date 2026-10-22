@@ -18,6 +18,8 @@ export interface FlowTask {
   comment?: string
   decidedBy?: string
   decidedAt?: string
+  /** 客户端幂等键；同一任务用同一键重放时返回当前实例而不是 400 */
+  idempotencyKey?: string
   createdAt: string
 }
 
@@ -46,6 +48,13 @@ export interface FlowInstance {
   createdBy: string
   createdAt: string
   updatedAt: string
+  /** 实例版本（乐观锁）；旧 JSON 缺失时按 0 处理 */
+  revision?: number
+  /**
+   * 待回写记录的字段（outbox）。实例先落盘，再回写记录；若进程在两步之间退出，
+   * 下次读取/审批时继续补偿，避免「审批已通过但业务状态没变」。
+   */
+  pendingPatch?: Record<string, unknown>
   tasks: FlowTask[]
   history: FlowHistoryEntry[]
 }
@@ -57,7 +66,13 @@ export interface FlowRepository {
   saveFlow(flow: FlowSchema): Promise<void>
   deleteFlow(flowId: string): Promise<boolean>
   listInstances(): Promise<FlowInstance[]>
+  findInstance(instanceId: string): Promise<FlowInstance | null>
   saveInstance(instance: FlowInstance): Promise<void>
+  /**
+   * 乐观写实例：仅当当前 revision === expectedRevision 时写入。
+   * 返回 false 表示并发审批已推进实例（service 转 409 FLOW_CONFLICT）。
+   */
+  saveInstanceIfRevision(instance: FlowInstance, expectedRevision: number): Promise<boolean>
 }
 
 export const FLOW_REPOSITORY = 'LC:FLOW_REPOSITORY'

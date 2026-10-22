@@ -11,6 +11,7 @@ import path from 'node:path'
 import { Inject, Injectable } from '@nestjs/common'
 import type { FlowSchema } from '@lc/schema'
 import { DATA_DIR } from '../common/tokens.js'
+import { KeyedLock } from '../common/keyed-lock.js'
 import type { FlowInstance, FlowRepository } from './flow.types.js'
 
 interface FlowsFile {
@@ -25,6 +26,8 @@ interface InstancesFile {
 export class FileFlowRepository implements FlowRepository {
   private readonly flowsFile: string
   private readonly instancesFile: string
+  /** 实例文件是单文件集合：所有实例写共用一把锁，避免并发 append 丢数据 */
+  private readonly instancesLock = new KeyedLock()
 
   constructor(@Inject(DATA_DIR) dataDir: string) {
     this.flowsFile = path.join(dataDir, 'flows.json')
@@ -76,14 +79,37 @@ export class FileFlowRepository implements FlowRepository {
 
   async listInstances(): Promise<FlowInstance[]> {
     const data = await this.readJson<InstancesFile>(this.instancesFile, { instances: [] })
-    return Array.isArray(data.instances) ? data.instances : []
+    return Array.isArray(data.instances)
+      ? data.instances.map((inst) => ({ ...inst, revision: inst.revision ?? 0 }))
+      : []
+  }
+
+  async findInstance(instanceId: string): Promise<FlowInstance | null> {
+    const instances = await this.listInstances()
+    return instances.find((inst) => inst.id === instanceId) ?? null
   }
 
   async saveInstance(instance: FlowInstance): Promise<void> {
-    const instances = await this.listInstances()
-    const idx = instances.findIndex((i) => i.id === instance.id)
-    if (idx >= 0) instances[idx] = instance
-    else instances.push(instance)
-    await this.writeJson(this.instancesFile, { instances })
+    await this.instancesLock.runExclusive('flow-instances', async () => {
+      const instances = await this.listInstances()
+      const idx = instances.findIndex((i) => i.id === instance.id)
+      if (idx >= 0) instances[idx] = instance
+      else instances.push(instance)
+      await this.writeJson(this.instancesFile, { instances })
+    })
+  }
+
+  async saveInstanceIfRevision(instance: FlowInstance, expectedRevision: number): Promise<boolean> {
+    return this.instancesLock.runExclusive('flow-instances', async () => {
+      const instances = await this.listInstances()
+      const idx = instances.findIndex((i) => i.id === instance.id)
+      const currentRevision = idx >= 0 ? (instances[idx].revision ?? 0) : 0
+      if (currentRevision !== expectedRevision) return false
+
+      if (idx >= 0) instances[idx] = instance
+      else instances.push(instance)
+      await this.writeJson(this.instancesFile, { instances })
+      return true
+    })
   }
 }

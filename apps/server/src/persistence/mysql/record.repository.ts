@@ -13,6 +13,7 @@ const SAFE_RECORD_RE = /^[A-Za-z0-9][\w-]{0,63}$/
 function mapRecord(row: {
   id: string
   payload: Prisma.JsonValue
+  revision: number
   createdBy: string
   createdAt: Date
   updatedBy: string | null
@@ -22,6 +23,7 @@ function mapRecord(row: {
   return {
     id: row.id,
     payload: row.payload as unknown as Record<string, unknown>,
+    revision: row.revision,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     ...(row.updatedBy === null ? {} : { updatedBy: row.updatedBy }),
@@ -51,6 +53,7 @@ export class MysqlRecordRepository implements RecordRepository {
 
     const data = {
       payload: record.payload as unknown as Prisma.InputJsonValue,
+      revision: record.revision ?? 0,
       createdBy: record.createdBy,
       createdAt: new Date(record.createdAt),
       updatedBy: record.updatedBy ?? null,
@@ -62,6 +65,47 @@ export class MysqlRecordRepository implements RecordRepository {
       create: { modelId, id: record.id, ...data },
       update: data,
     })
+  }
+
+  async saveIfRevision(
+    modelId: string,
+    record: DataRecordEntity,
+    expectedRevision: number,
+  ): Promise<boolean> {
+    if (!SAFE_MODEL_RE.test(modelId)) {
+      throw new Error(`非法模型 id：${modelId}`)
+    }
+    if (!SAFE_RECORD_RE.test(record.id)) {
+      throw new Error(`非法记录 id：${record.id}`)
+    }
+
+    const data = {
+      payload: record.payload as unknown as Prisma.InputJsonValue,
+      revision: record.revision ?? 0,
+      createdBy: record.createdBy,
+      createdAt: new Date(record.createdAt),
+      updatedBy: record.updatedBy ?? null,
+      updatedAt: new Date(record.updatedAt),
+      deletedAt: record.deletedAt ? new Date(record.deletedAt) : null,
+    }
+
+    try {
+      const updated = await this.prisma.dataRecord.updateMany({
+        where: { modelId, id: record.id, revision: expectedRevision },
+        data,
+      })
+      if (updated.count === 1) return true
+      // 已存在但版本不符：直接冲突，不再尝试创建
+      if (await this.prisma.dataRecord.findUnique({ where: { modelId_id: { modelId, id: record.id } } })) {
+        return false
+      }
+      if (expectedRevision !== 0) return false
+      await this.prisma.dataRecord.create({ data: { modelId, id: record.id, ...data } })
+      return true
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
+      throw error
+    }
   }
 
   async list(modelId: string): Promise<DataRecordEntity[]> {

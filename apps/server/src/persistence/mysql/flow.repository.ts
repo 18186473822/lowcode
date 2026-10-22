@@ -14,6 +14,12 @@ function asArray<T>(value: Prisma.JsonValue): T[] {
   return Array.isArray(value) ? (value as T[]) : []
 }
 
+function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
 function date(value: string, fallback = new Date()): Date {
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? fallback : parsed
@@ -66,13 +72,68 @@ export class MysqlFlowRepository implements FlowRepository {
       createdBy: row.createdBy,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      revision: row.revision,
+      ...(asRecord(row.pendingPatchJson) === undefined
+        ? {}
+        : { pendingPatch: asRecord(row.pendingPatchJson) }),
       tasks: asArray<FlowInstance['tasks'][number]>(row.tasksJson),
       history: asArray<FlowInstance['history'][number]>(row.historyJson),
     }))
   }
 
+  async findInstance(instanceId: string): Promise<FlowInstance | null> {
+    const row = await this.prisma.flowInstance.findUnique({ where: { id: instanceId } })
+    if (!row) return null
+    return {
+      id: row.id,
+      flowId: row.flowId,
+      modelId: row.modelId,
+      recordId: row.recordId,
+      status: row.status as FlowInstance['status'],
+      currentNodeId: row.currentNodeId,
+      createdBy: row.createdBy,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      revision: row.revision,
+      ...(asRecord(row.pendingPatchJson) === undefined
+        ? {}
+        : { pendingPatch: asRecord(row.pendingPatchJson) }),
+      tasks: asArray<FlowInstance['tasks'][number]>(row.tasksJson),
+      history: asArray<FlowInstance['history'][number]>(row.historyJson),
+    }
+  }
+
   async saveInstance(instance: FlowInstance): Promise<void> {
-    const data = {
+    const data = this.instanceData(instance)
+    await this.prisma.flowInstance.upsert({
+      where: { id: instance.id },
+      create: { id: instance.id, ...data },
+      update: data,
+    })
+  }
+
+  async saveInstanceIfRevision(instance: FlowInstance, expectedRevision: number): Promise<boolean> {
+    const data = this.instanceData(instance)
+    try {
+      const updated = await this.prisma.flowInstance.updateMany({
+        where: { id: instance.id, revision: expectedRevision },
+        data,
+      })
+      if (updated.count === 1) return true
+      if (await this.prisma.flowInstance.findUnique({ where: { id: instance.id }, select: { id: true } })) {
+        return false
+      }
+      if (expectedRevision !== 0) return false
+      await this.prisma.flowInstance.create({ data: { id: instance.id, ...data } })
+      return true
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false
+      throw error
+    }
+  }
+
+  private instanceData(instance: FlowInstance) {
+    return {
       flowId: instance.flowId,
       modelId: instance.modelId,
       recordId: instance.recordId,
@@ -81,23 +142,13 @@ export class MysqlFlowRepository implements FlowRepository {
       createdBy: instance.createdBy,
       createdAt: date(instance.createdAt),
       updatedAt: date(instance.updatedAt),
+      revision: instance.revision ?? 0,
+      pendingPatchJson:
+        instance.pendingPatch === undefined
+          ? Prisma.DbNull
+          : (instance.pendingPatch as unknown as Prisma.InputJsonValue),
       tasksJson: instance.tasks as unknown as Prisma.InputJsonValue,
       historyJson: instance.history as unknown as Prisma.InputJsonValue,
     }
-    await this.prisma.flowInstance.upsert({
-      where: { id: instance.id },
-      create: { id: instance.id, ...data },
-      update: {
-        flowId: data.flowId,
-        modelId: data.modelId,
-        recordId: data.recordId,
-        status: data.status,
-        currentNodeId: data.currentNodeId,
-        createdBy: data.createdBy,
-        updatedAt: data.updatedAt,
-        tasksJson: data.tasksJson,
-        historyJson: data.historyJson,
-      },
-    })
   }
 }

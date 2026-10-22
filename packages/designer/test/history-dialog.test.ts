@@ -196,7 +196,7 @@ describe('批 5：HistoryDialog 版本历史弹层', () => {
     await w.find('[data-testid="confirm-rollback-v1"]').trigger('click')
     await flushPromises()
 
-    expect(api.rollback).toHaveBeenCalledWith('demo', 1)
+    expect(api.rollback).toHaveBeenCalledWith('demo', 1, 0)
     expect(store.historyOpen).toBe(false)
     expect(w.find('[data-testid="history-dialog"]').exists()).toBe(false)
     expect(store.statusText).toBe('已回滚到 v1（草稿，需重新发布生效）')

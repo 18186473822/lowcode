@@ -17,12 +17,20 @@
  *  - `end` → 流程 `approved` + 应用 `onApprove.setField`；
  *  - `reject` → 节点配置 `onReject` 则回退到目标节点（start 目标 = 重新发起），缺省 = 流程 `rejected` 终态。
  */
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
 import type { FlowSchema, FlowNode } from '@lc/schema'
 import { validateFlow } from '@lc/schema'
 import { checkExpr, evalExpr } from '@lc/expression'
 import type { AuthUser } from '../common/jwt.service.js'
+import { KeyedLock } from '../common/keyed-lock.js'
 import { RbacService } from '../rbac/rbac.service.js'
 import { RECORD_REPOSITORY } from '../model/model.types.js'
 import type { RecordRepository } from '../model/model.types.js'
@@ -47,6 +55,9 @@ const nowIso = (): string => new Date().toISOString()
 
 @Injectable()
 export class FlowService {
+  /** 同一实例的审批在单进程内串行；跨实例互不影响 */
+  private readonly decideLock = new KeyedLock()
+
   constructor(
     @Inject(FLOW_REPOSITORY) private readonly repo: FlowRepository,
     @Inject(RECORD_REPOSITORY) private readonly records: RecordRepository,
@@ -113,6 +124,7 @@ export class FlowService {
           createdBy: user.username,
           createdAt: nowIso(),
           updatedAt: nowIso(),
+          revision: 0,
           tasks: [],
           history: [],
         }
@@ -136,14 +148,18 @@ export class FlowService {
     if (query.recordId) items = items.filter((i) => i.recordId === query.recordId)
     if (query.modelId) items = items.filter((i) => i.modelId === query.modelId)
     // 新实例在前（待办与时间轴都偏好最近）
-    return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    // 读取即补偿：上次进程在「实例已落盘、记录未回写」之间退出时，这里把 outbox 收尾。
+    const out: FlowInstance[] = []
+    for (const inst of items) out.push(inst.pendingPatch ? await this.flushPendingPatch(inst) : inst)
+    return out
   }
 
   /** 单实例查询（批 2：待办详情页 / 审批物料按 instanceId 取完整上下文）。 */
   async getInstance(instanceId: string): Promise<FlowInstance> {
-    const inst = (await this.repo.listInstances()).find((i) => i.id === instanceId)
+    const inst = await this.repo.findInstance(instanceId)
     if (!inst) throw new NotFoundException({ code: 'FLOW_INSTANCE_NOT_FOUND', message: '流程实例不存在' })
-    return inst
+    return inst.pendingPatch ? this.flushPendingPatch(inst) : inst
   }
 
   /** 当前用户待办（status=running 实例中、当前节点 pending 且 assignee 命中的任务）。 */
@@ -176,8 +192,12 @@ export class FlowService {
   /* ---------------------------------------------------------------- */
 
   /**
-   * 同意 / 驳回。顺序：校验（存在/running/当前任务/assignee）→ 改内存实例 → **先回写记录** → 落实例
-   * （记录写失败直接抛、任务状态未落盘可重试；反向顺序会先污染任务状态）。
+   * 同意 / 驳回（并发安全）：
+   *
+   * 1. 同一实例在本进程内串行（KeyedLock）；
+   * 2. 实例带 revision，保存走 CAS；多实例同时审批只有一个成功，另一个 409 `FLOW_CONFLICT`；
+   * 3. `Idempotency-Key` 相同且任务已是该动作结果时，直接返回当前实例（网络重试不重复推进）；
+   * 4. 先落实例（含 `pendingPatch` outbox），再回写记录；失败/进程退出后由读取路径补偿。
    */
   async decide(
     instanceId: string,
@@ -185,17 +205,55 @@ export class FlowService {
     action: 'approve' | 'reject',
     comment: string | undefined,
     user: AuthUser,
+    idempotencyKey?: string,
   ): Promise<FlowInstance> {
-    const inst = (await this.repo.listInstances()).find((i) => i.id === instanceId)
+    return this.decideLock.runExclusive(instanceId, () =>
+      this.decideUnlocked(instanceId, taskId, action, comment, user, idempotencyKey),
+    )
+  }
+
+  private async decideUnlocked(
+    instanceId: string,
+    taskId: string,
+    action: 'approve' | 'reject',
+    comment: string | undefined,
+    user: AuthUser,
+    idempotencyKey?: string,
+  ): Promise<FlowInstance> {
+    let inst = await this.repo.findInstance(instanceId)
     if (!inst) throw new NotFoundException({ code: 'FLOW_INSTANCE_NOT_FOUND', message: '流程实例不存在' })
+    // 上次只落了实例、没回写记录：先补偿，再做本次审批。
+    inst = await this.flushPendingPatch(inst)
+
+    const task = inst.tasks.find((t) => t.id === taskId)
+    if (!task) throw new NotFoundException({ code: 'FLOW_TASK_NOT_FOUND', message: '任务不存在' })
+
+    // 终态重放也要先认幂等键：否则「最后一次审批」的网络重试会误报 FLOW_NOT_RUNNING。
+    const expectedStatus = action === 'approve' ? 'approved' : 'rejected'
+    if (idempotencyKey !== undefined) {
+      const used = inst.tasks.find((t) => t.idempotencyKey === idempotencyKey)
+      if (used) {
+        const sameRequest =
+          used.id === taskId &&
+          used.status === expectedStatus &&
+          used.decidedBy === user.username &&
+          (used.comment ?? '') === (comment ?? '')
+        if (sameRequest) return inst
+        throw new ConflictException({
+          code: 'IDEMPOTENCY_KEY_REUSED',
+          message: '同一 Idempotency-Key 已用于不同任务或不同审批内容',
+        })
+      }
+    }
+
     if (inst.status !== 'running' || !inst.currentNodeId) {
       throw new BadRequestException({ code: 'FLOW_NOT_RUNNING', message: `流程已结束（${inst.status}）` })
     }
-    const task = inst.tasks.find((t) => t.id === taskId)
-    if (!task) throw new NotFoundException({ code: 'FLOW_TASK_NOT_FOUND', message: '任务不存在' })
+
     if (task.status !== 'pending' || task.nodeId !== inst.currentNodeId) {
       throw new BadRequestException({ code: 'FLOW_TASK_STALE', message: '任务不是当前待办（可能已被处理）' })
     }
+
     if (!(await this.canDecide(task, inst, user))) {
       throw new ForbiddenException({ code: 'TASK_FORBIDDEN', message: '当前用户不是该任务的审批人' })
     }
@@ -203,6 +261,9 @@ export class FlowService {
     const flow = await this.getFlow(inst.flowId)
     const idx = flow.nodes.findIndex((n) => n.id === inst.currentNodeId)
     const node = flow.nodes[idx]
+    if (!node) {
+      throw new NotFoundException({ code: 'FLOW_NODE_NOT_FOUND', message: `流程节点不存在：${inst.currentNodeId}` })
+    }
     const at = nowIso()
 
     let setFields: Record<string, unknown>[] = []
@@ -211,6 +272,7 @@ export class FlowService {
       task.comment = comment
       task.decidedBy = user.username
       task.decidedAt = at
+      if (idempotencyKey !== undefined) task.idempotencyKey = idempotencyKey
       inst.history.push({ nodeId: node.id, nodeName: node.name, action: 'approve', actor: user.username, comment, at })
       if (node.onApprove?.setField) setFields.push(node.onApprove.setField)
       // 同意后从下一节点继续推进（可能直达 end / 经 skip / 停在下一审批）
@@ -220,6 +282,7 @@ export class FlowService {
       task.comment = comment
       task.decidedBy = user.username
       task.decidedAt = at
+      if (idempotencyKey !== undefined) task.idempotencyKey = idempotencyKey
       inst.history.push({ nodeId: node.id, nodeName: node.name, action: 'reject', actor: user.username, comment, at })
       const target = node.onReject
       if (!target) {
@@ -238,11 +301,23 @@ export class FlowService {
     }
 
     inst.updatedAt = at
-    // ① 先回写记录（失败 → 抛 500，实例未落盘、任务仍 pending 可重试）
-    if (setFields.length > 0) await this.patchRecord(inst, setFields)
-    // ② 再落实例
-    await this.repo.saveInstance(inst)
-    return inst
+    const currentRevision = inst.revision ?? 0
+    const patch = mergeFields(setFields)
+    if (Object.keys(patch).length > 0) inst.pendingPatch = patch
+    inst.revision = currentRevision + 1
+
+    // ① 先落实例（CAS，含 outbox）；失败说明另一审批已推进 → 409，不产生重复推进。
+    const saved = await this.repo.saveInstanceIfRevision(inst, currentRevision)
+    if (!saved) {
+      throw new ConflictException({
+        code: 'FLOW_CONFLICT',
+        message: '审批已被其他请求处理，请刷新后重试',
+        expectedRevision: currentRevision,
+      })
+    }
+
+    // ② 再回写记录；失败由 pendingPatch 在后续读取时补偿。
+    return this.applyPendingPatch(inst)
   }
 
   /* ---------------------------------------------------------------- */
@@ -345,13 +420,61 @@ export class FlowService {
     return rec && !rec.deletedAt ? rec.payload : {}
   }
 
-  /** 合并 setField 回写记录（服务端内部写：不经 sanitize —— 8.6 status 回写语义）。 */
-  private async patchRecord(inst: FlowInstance, fields: Record<string, unknown>[]): Promise<void> {
-    const rec = await this.records.find(inst.modelId, inst.recordId)
-    if (!rec || rec.deletedAt) return // 记录已删：无处回写（不阻塞审批）
-    const patch: Record<string, unknown> = {}
-    for (const f of fields) Object.assign(patch, f)
-    const next = { ...rec, payload: { ...rec.payload, ...patch }, updatedAt: nowIso() }
-    await this.records.save(inst.modelId, next)
+  /**
+   * 补偿 outbox：把 `pendingPatch` 合并到最新记录（只覆盖流程声明的字段，保留用户并发修改），
+   * 成功后清空实例上的 pendingPatch。记录已删则直接清空，不阻塞审批。
+   */
+  private async flushPendingPatch(inst: FlowInstance): Promise<FlowInstance> {
+    return this.applyPendingPatch(inst)
   }
+
+  private async applyPendingPatch(inst: FlowInstance): Promise<FlowInstance> {
+    const patch = inst.pendingPatch
+    if (!patch || Object.keys(patch).length === 0) return inst
+
+    // 记录可能被并发修改：CAS 失败就重新读取后把 setField 合并到最新 payload，最多重试 3 次。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const rec = await this.records.find(inst.modelId, inst.recordId)
+      if (!rec || rec.deletedAt) return this.clearPendingPatch(inst)
+
+      const currentRevision = rec.revision ?? 0
+      const next = {
+        ...rec,
+        payload: { ...rec.payload, ...patch },
+        updatedAt: nowIso(),
+        revision: currentRevision + 1,
+      }
+      if (await this.records.saveIfRevision(inst.modelId, next, currentRevision)) {
+        return this.clearPendingPatch(inst)
+      }
+    }
+
+    // 仍冲突：保留 pendingPatch，下一次 GET / 审批会继续补偿（不把审批结果丢掉）。
+    console.error('[flow] pendingPatch 回写记录连续冲突，保留待补偿', inst.id)
+    return (await this.repo.findInstance(inst.id)) ?? inst
+  }
+
+  private async clearPendingPatch(inst: FlowInstance): Promise<FlowInstance> {
+    const latest = await this.repo.findInstance(inst.id)
+    if (!latest) return inst
+    if (!latest.pendingPatch) return latest
+
+    const currentRevision = latest.revision ?? 0
+    const next: FlowInstance = {
+      ...latest,
+      pendingPatch: undefined,
+      revision: currentRevision + 1,
+      updatedAt: nowIso(),
+    }
+    const saved = await this.repo.saveInstanceIfRevision(next, currentRevision)
+    // 另一个进程已清空/推进：以库里的最新状态为准，避免把旧快照返回给调用方。
+    return saved ? next : ((await this.repo.findInstance(inst.id)) ?? next)
+  }
+}
+
+/** 多个 setField 按节点顺序合并，后者覆盖前者（与旧 patchRecord 的 Object.assign 语义一致）。 */
+function mergeFields(fields: Record<string, unknown>[]): Record<string, unknown> {
+  const patch: Record<string, unknown> = {}
+  for (const f of fields) Object.assign(patch, f)
+  return patch
 }
