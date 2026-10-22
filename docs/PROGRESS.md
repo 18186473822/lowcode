@@ -14,7 +14,7 @@
 | Phase 1 | 最小闭环 MVP | 4 周 | 🟡 **主线收口（物料 12 个 ✅ + 设计器批 1~5 ✅ + 服务端动态 CRUD ✅ + 运行时壳 ✅ → 出口判据全通）** | 物料库 12 个归位并 H5 实测 ✅（2026-10-09）；**设计器批 1「画布能渲染」✅ + 批 2「能拖入删除」✅ + 批 3「能配置保存」✅**（批 3 于 2026-10-10）+ **批 4「页面↔模型字段绑定」✅**（2026-10-12，D-A11 双层配置，见「已实现 16」）+ **批 5「出口判据闭环」✅**（2026-10-14，D-A12 必填联动 + D-A13 动作绑定 + textarea setter，见「已实现 18」）；**服务端动态 CRUD ✅**（2026-10-10，9 接口 + 真实启动冒烟 18/18，见「已实现 15」）；**运行时壳（登录/菜单/`pageId` 路由）✅**（2026-10-12，见「已实现 17」）；**主方案 Phase 1 出口判据 1/2/3 全通 ✅**（2026-10-14）—— Phase 1 主线就此收口，余项为环境/可选（mp 真机、CI 实跑）与 Phase 2 归属 |
 | Phase 2 | 企业级能力 | 6 周 | 🟢 **全线收口（批 1~7 全部 ✅，出口判据全通）** | 拆 7 批见 `lowcode/docs/phase2-plan.md`；**批 1「模型可视化建模」✅**（2026-10-14，D-P2-1 视图切换 + ModelPanel/model-ops + putModel，服务端零改动，见「已实现 19」）；**批 2「列表/详情标准页」✅**（2026-10-14，D-P2-2 协议补 `DetailPageConfig` + lc-list/detail-page + runtime 按 type 分发 + 设计器配置面板，见「已实现 20」）；**批 3「物料 12→30」✅**（2026-10-14，18 新物料对齐 `FieldType` 全集 + optionList/color setter + demo 30 全量演示，服务端零改动，见「已实现 21」）；**批 4「设计器可用性」✅**（2026-10-14，D-P2-7 快照双栈撤销重做 + 大纲树 + 跨页剪贴板 + D-P2-3 修复，服务端零改动，见「已实现 22」）；**批 5「版本管理 UI」✅**（2026-10-14，D-P2-8 补 `GET /pages/:id/versions` + D-P2-9 自研结构化 diff + HistoryDialog 历史/回滚/对比，见「已实现 23」）；**批 6「权限 RBAC」✅**（2026-10-15，D-P2-10 单文件配置 + D-P2-11 四层判定单一事实源 + D-P2-12 权限管理视图/节点 perm/模型数据权限，双账号 DoD 四点全过，见「已实现 24」）；**批 7「出口判据 Demo + 多端打包」✅**（2026-10-15，请假申请三页 Demo 全流程十步留档 + B-41 物料默认值残留清理 + D-P2-13 受控回显兜底 + mp 分包产物验证，见「已实现 25」）—— **Phase 2 七批全部收口，出口判据「30 分钟搭出申请-列表-详情；小程序端跑通（产物级，真机受环境限制）」达成** |
 | Phase 3 | 流程与体验 | 4 周 | 🟢 **全线收口（批 1~5 全部 ✅）** | 拆 5 批见 `lowcode/docs/phase3-plan.md`（2026-10-15 立项，与负责人对齐：导出/消息裁剪）；出口判据（拟定已确认）：**带审批的申请应用**（提交 → 待办 → 同意 → 状态变更 + 时间轴可见；门户图表 + 主题换色）；**批 1「流程引擎核心」✅**（2026-10-15，D-P3-1 FlowSchema 协议 + `validateFlow` + 服务端 flow 模块 7 接口 + 记录提交联动启动实例 + assignee 判定 D-P3-2 + 依赖方向 D-P3-3，见「已实现 26」）；**批 2「审批物料 + 待办中心」✅**（2026-10-16，D-P3-4 物料数据通道 + D-P3-4b `$expr` recordId 绑定 + D-P3-5 待办两页 + D-P3-6 单实例接口 + **B-44** optimizeDeps 双实例教训，见「已实现 27」）；**批 3「本地草稿 + 主题配置」✅**（2026-10-19，D-P3-7 草稿时机/存储分层 + D-P3-8 apps.json 配置与档位覆盖主题 + D-P3-9 dark 配置优先，见「已实现 28」）；**批 4「图表物料 + Portal 页型」✅**（2026-10-20，D-P3-10 Chart 三形态纯 SVG + Statistic + 客户端聚合，D-P3-11 `PortalPageConfig` 卡片导航与拖拽区共存，H5 + 设计器双实测，见「已实现 29」）；**批 5「埋点与错误上报 + Profiler」✅**（2026-10-20，D-P3-12 ops 事件表/三接口、D-P3-13 上报队列 + 不白屏、D-P3-14 Profiler 双端可见，H5 DoD + 冒烟 23/23，见「已实现 30」）—— **Phase 3 五批全部收口** |
-| Phase 4 | 生产化与开放 | 4 周 | 🟡 **安全 + 可观测性 + 数据库两批完成** | 2026-10-20：JWT 生产 fail-closed、CORS 白名单、普通/登录限流已完成并回归（见 `docs/security-hardening-2026-10-20.md`）；2026-10-21：健康/就绪探针、`X-Request-Id`、结构化访问日志、部署/备份文档完成（见 `docs/observability-deployment-2026-10-21.md`）；**MySQL 8 + Prisma 两批完成**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置共 12 表；`LC_STORAGE=json` 仍为默认/测试路径，上传文件与元数据仍落盘，见 ADR-008 / ADR-009 / 「已实现 32」）；**运维事件写入改为追加 + 裁剪**（避免并发上报后写覆盖先写，见「已实现 33」）；开放集成、多环境/远程物料/压测、导出打印/消息/文档仍未开始 |
+| Phase 4 | 生产化与开放 | 4 周 | 🟡 **安全 + 可观测性 + 数据库三批完成** | 2026-10-20：JWT 生产 fail-closed、CORS 白名单、普通/登录限流已完成并回归（见 `docs/security-hardening-2026-10-20.md`）；2026-10-21：健康/就绪探针、`X-Request-Id`、结构化访问日志、部署/备份文档完成（见 `docs/observability-deployment-2026-10-21.md`）；**MySQL 8 + Prisma 三批完成**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容共 13 表；`LC_STORAGE=json` 仍为默认/测试路径，见 ADR-008 / ADR-009 / ADR-010 / 「已实现 32、34」）；**运维事件写入改为追加 + 裁剪**（避免并发上报后写覆盖先写，见「已实现 33」）；开放集成、多环境/远程物料/压测、导出打印/消息/文档仍未开始 |
 
 **图例**：✅ 已完成并验证 ｜ 🟡 部分完成 ｜ ⬜ 未开始 ｜ ❌ 阻塞/放弃
 
@@ -1083,7 +1083,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 - **测试隔离加固**：实测发现 Vitest 自动加载 `.env` 会覆盖 `test.env`，普通 e2e 曾把测试页写进开发库；新增 `test/setup-json-storage.ts` 在模块导入前强制 `LC_STORAGE=json` 并删除 `DATABASE_URL`。修复后复跑 server 测试，开发库计数保持不变。
 - **验证**：`mysql.persistence.test.ts` 7/7 PASS（流程/实例/运维/配置仓储）；`smoke-mysql.mjs` 9/9 PASS（新增 flow_definitions、flow_instances、ops_events、app_config 回读）；开发库回读 `pages=10 / models=3 / records=24 / flows=1 / instances=6 / ops=19 / app_config=1`。
 
-**明确未做**：上传文件与文件元数据落库（仍在 `LC_DATA_DIR`，不在 MySQL 事务内）；多实例严格 500 条上限（当前各事务按快照裁剪，可能瞬时略超）；页面/记录乐观锁；多实例 Redis 限流；安全审计/账号锁定/JWT 轮换；CI 实跑 MySQL；小程序真机。
+**明确未做**：~~上传文件与文件元数据落库~~ → ✅ **已于「已实现 34」完成（2026-10-22，`files` 表）**；多实例严格 500 条上限（当前各事务按快照裁剪，可能瞬时略超）；页面/记录乐观锁；多实例 Redis 限流；安全审计/账号锁定/JWT 轮换；CI 实跑 MySQL；小程序真机。
 
 ---
 
@@ -1106,6 +1106,30 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 - MySQL 仓储集成 ✅ **7/7 PASS**（含裁剪/并发）；MySQL 真启动冒烟 ✅ **9/9 PASS**。
 
 **明确未做**：多实例同时 append/裁剪仍可能因各事务快照瞬时略超 500 条，下一次上报收敛；若要求严格上限，需单写队列或 Redis 协调。JSON 模式跨进程写仍非原子。
+
+---
+
+### 34. 文件元数据与内容落 MySQL（第三批，2026-10-22）
+
+**背景**：文件仍按 `<DATA_DIR>/files/<id>` + `files-meta/<id>.json` 双文件保存：字节成功、元信息失败会留下半状态；跨机部署要额外共享盘；备份要 SQL + 文件目录两份。第三批把元数据与内容统一进 MySQL。
+
+**实现**：
+
+- **第 13 张表 `files`**：`id`（uuid + 白名单扩展名）、`originalName`（TEXT）、`mimeType`、`size`、`uploadedAt`、`uploadedBy`、`content`（`LONGBLOB`）；`uploadedAt` 建索引。元数据与内容同一行，上传天然原子。
+- **仓储抽象**：新增 `FileRepository`（`save(StoredFile)` / `find(id)`）与 `FILE_REPOSITORY` token；`DiskFileRepository` 原样保留旧目录布局及「元信息缺失降级、损坏 500」语义；`MysqlFileRepository` 用 `upsert` 写单行，读取回填 ISO 时间与 `Buffer`。
+- **服务层零契约变化**：`FileService` 只保留文件名 basename 化、扩展名白名单、10MB 上限、`fileId` 生成与 404 判断；`StorageModule` 按 `LC_STORAGE` 注入磁盘或 MySQL 实现，`FileModule` 不再直接依赖 fs。
+- **存量迁移**：`import-json-to-mysql.mjs` 增加 `files/<id>` + `files-meta/<id>.json` 导入，元信息缺失时按运行时语义降级；开发库已补录 8 个历史文件。
+- **迁移**：新增 `20261022000000_files`，已应用到开发库 `lowcode` 与测试库 `lowcode_test`。
+
+**验证（2026-10-22 实测）**：
+
+- `pnpm -r typecheck` ✅ 7 包 exit 0；`pnpm design:check` ✅ 42 组达标 / 0 缺口 / 0 退化；`pnpm -r build` ✅ 5 包 exit 0。
+- `pnpm -r test` ✅ **1070 passed + 8 skipped / 71 文件**（server 214 passed + 8 skipped / 13 文件；MySQL 文件用例无连接时按设计跳过）。
+- `pnpm coverage` ✅ **92.15 / 87.81 / 90.37 / 92.15** exit 0（门禁 90/85/90/90）。
+- MySQL 仓储集成 ✅ **8/8 PASS**（新增文件元数据、二进制字节、同 id 覆盖、缺失返回 null）；MySQL 真启动冒烟 ✅ **10/10 PASS**（HTTP 上传 → Prisma 回读 `files` → HTTP 下载字节一致）。
+- 存量导入实测：临时目录 `files=1` 回读通过；开发库 `files=8`，其余计数保持 `pages=10 / page_versions=27 / models=3 / records=24 / flows=1 / instances=6 / ops=19 / app_config=1 / users=2 / roles=2 / grants=0`。
+
+**明确未做**：对象存储/CDN/Range 下载；大于 10MB 的附件；文件列表/删除/回收站接口；文件哈希去重；上传病毒扫描与下载鉴权（公开只读语义未变）；MySQL 模式不自动双读旧磁盘文件，切换前需执行导入脚本。
 
 ---
 
@@ -1145,7 +1169,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | Phase 1 | ✅ 物料库 12 个（2026-10-09 完成并 H5 实测）；✅ **设计器批 1「画布能渲染」+ 批 2「能拖入删除」（2026-10-09 完成并浏览器实测，B-22~B-26 修正 + D-A8 注记已回写，meta ×13 随批 2 合流）**；✅ **设计器批 3「能配置保存」（2026-10-10 完成并浏览器实测，B-27 修正 + D-A9 注记回写，4 setter 真渲染 + 保存/打开/发布链路）**；✅ **设计器批 4「页面↔模型字段绑定」（2026-10-12 完成并浏览器实测，D-A11 双层配置 + B-29/B-30 修正，designer 测试 101→123，见「已实现 16」）**；✅ **服务端动态 CRUD（2026-10-10 完成，9 接口 + 93 测试 + 真实启动冒烟 18/18，见「已实现 15」）**；✅ **运行时壳补全「登录 / 应用菜单 / `pageId → Schema` 路由」（2026-10-12 完成并浏览器实测 7 点，`GET /apps/bootstrap` 最小实现 + submit 动作失败透传引擎修复，见「已实现 17」）**；❌ **批 5 闭环 Demo**（出口判据，前置已全部就绪）、数据源配置接口、字段智能匹配与批量生成表单页、其余 9 种 setter（Phase 2） |
 | Phase 2 | ✅ 数据模型可视化建模（批 1，2026-10-14）；✅ **列表/详情标准页（批 2，2026-10-14，见「已实现 20」）**；✅ **物料补至 30 个（批 3，2026-10-14，见「已实现 21」）**；✅ **设计器可用性：撤销重做/大纲树/复制粘贴（批 4，2026-10-14，见「已实现 22」）**；✅ **版本管理 UI：历史/回滚/diff（批 5，2026-10-14，见「已实现 23」）**；✅ **RBAC 权限：页面/按钮/数据行级（批 6，2026-10-15，见「已实现 24」）**；小程序分包与包体积裁剪（批 7）；动态表方案 A 维持不做（D-9 沿用方案 B JSON 存储） |
 | Phase 3 | ✅ **轻量流程引擎状态机（批 1，2026-10-15，见「已实现 26」——协议 `FlowSchema`/`validateFlow` + 服务端 flow 7 接口 + 提交联动 + 待办/审批动作）**；✅ **审批物料 + 待办中心（批 2，2026-10-16，见「已实现 27」——ApprovalBar/Timeline 物料 + `LcFlowHost` 通道 + 待办两页 + 设计器绑定配置 + H5 闭环实测）**；✅ **本地草稿与主题配置（批 3，2026-10-19，见「已实现 28」——DraftStore 可选注入恢复链 + apps.json GET/PUT config + brand 十档派生全站变色 + ThemePanel 设计器入口 + H5 实测 DoD 全过）**；✅ **图表物料 + Portal 页型（批 4，2026-10-20，见「已实现 29」——Chart 三形态纯 SVG + Statistic + 客户端聚合 + PortalPageConfig 卡片导航/拖拽区 + H5/设计器双实测）**；✅ **埋点与错误上报 + Schema Profiler（批 5，2026-10-20，见「已实现 30」——ops 事件表三接口 + createOpsQueue 上报队列 + 表达式/动作/加载失败接线 + H5/设计器 Profiler 双端可见 + 冒烟 23/23）**；~~消息通知、数据导出/打印~~（2026-10-15 决策裁剪留 Phase 4）；离线队列按方案 7.3 二期、BPMN 按 8.6 二期、真机扫码受环境限制 |
-| Phase 4 | ✅ 安全加固首批（JWT/CORS/限流）、可观测性/部署探针、MySQL 8 + Prisma 两批（12 表）已完成；❌ 开放集成（OpenAPI/Webhook/远程物料）、多环境晋级与灰度、压测与稳定性、导出/打印/消息、文档培训；❌ 生产剩余：Redis 多实例限流、安全审计/账号锁定/JWT 轮换、页面/记录乐观锁、上传文件与元数据落库、CI 实跑 MySQL、小程序真机 |
+| Phase 4 | ✅ 安全加固首批（JWT/CORS/限流）、可观测性/部署探针、MySQL 8 + Prisma 三批（13 表，含文件元数据/内容）已完成；❌ 开放集成（OpenAPI/Webhook/远程物料）、多环境晋级与灰度、压测与稳定性、导出/打印/消息、文档培训；❌ 生产剩余：Redis 多实例限流、安全审计/账号锁定/JWT 轮换、页面/记录乐观锁、CI 实跑 MySQL、小程序真机 |
 
 ---
 
@@ -1161,7 +1185,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | D-6 | 3.4 | 表达式支持 `=` 相关的 action 上下文赋值 | 见 D-1 | 同上 |
 | D-7 | 3.1 生命周期 vs 5.x 禁止赋值 | 3.1 规定 `onInit/onMount/onSubmit` 是**表达式**，用途含「设置默认值」；5.x 及 D-1 明确**表达式禁止赋值** | **✅ 已解决（第 3 批，选型 C）**。查证后修正定性：3.1 示例 `app.setFormData(...)` 与 3.4「`app` 方法对象（受限 API）」本就不靠赋值，真正缺口是**渲染引擎没注入 `app`**；仅 7.2「可做赋值」一句措辞不严谨（已改）。现生命周期通过受信任 `app` 获得写入/取数能力 | ✅ 已回写方案 3.4（`app` 作用域边界说明）与 7.2；`onMount` 示例 `ds.ds_dept.load()` 改为 `app.loadDs('ds_dept')` → 见 D-8 |
 | D-8 | 3.1 `onMount` 示例 | `"onMount": "ds.ds_dept.load()"`（在 `ds.<id>` 状态对象上挂方法） | `ds` 是**纯数据状态**，挂方法会污染序列化与 Vue 响应式；且 `ctx.data.ds` 由 runner 管理而非挂载点 | 已改方案示例为 `app.loadDs('ds_dept')`；`ds` 保持只读数据视图（渲染期 `ds.ds_dept.data` 用法不变） |
-| D-9 | 8.1 技术栈 A | NestJS + **Prisma + PostgreSQL + Redis** | 第 3 批只落了 NestJS：存储为 **JSON 文件仓储**（`PageRepository` 接口，文件即 8.4 双表合并视图），无 Prisma / PG / Redis；用户为内存种子。**2026-10-21 两批已落 MySQL 8 + Prisma**（PostgreSQL 改 MySQL；用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置 12 表），JSON 保留为默认/测试实现；Redis 仍未引入 | 已回写方案「实施状态」与偏差清单；ADR-008 / ADR-009 记录 MySQL 路线与边界；上传文件与元数据仍落盘，ops 已改追加裁剪，乐观锁边界已列账 |
+| D-9 | 8.1 技术栈 A | NestJS + **Prisma + PostgreSQL + Redis** | 第 3 批只落了 NestJS：存储为 **JSON 文件仓储**（`PageRepository` 接口，文件即 8.4 双表合并视图），无 Prisma / PG / Redis；用户为内存种子。**2026-10-21 两批 + 2026-10-22 文件批已落 MySQL 8 + Prisma**（PostgreSQL 改 MySQL；用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容 13 表），JSON 保留为默认/测试实现；Redis 仍未引入 | 已回写方案「实施状态」与偏差清单；ADR-008 / ADR-009 / ADR-010 记录 MySQL 路线与边界；ops 已改追加裁剪，乐观锁边界已列账 |
 | D-10 | 台账「下一步」原第 4 项 / 方案 9.1 目录树 | 「uni-app 运行时壳：**HBuilderX 工程**」 | 环境无 HBuilderX → 改走 **uni-app 官方 CLI（Vite）工程**（`packages/runtime`，`uni` / `uni build` 双命令）；产物与 HBuilderX 路线一致（`dist/build/*`），目录对齐方案 9.1 | 已回写方案 Phase 0 表（渲染器骨架行）与本表；功能等价，装 HBuilderX 后可迁移 |
 | D-11 | （未约定 npm 源） | — | npmjs.org 不可达 → workspace 根 `.npmrc` 设 `registry=npmmirror.com`；`pnpm-workspace.yaml` allowBuilds 增加 `core-js`（uni 依赖其构建脚本） | 保留（环境约束）；如需回官方源删 `.npmrc` 即可 |
 | D-12 | 4.2 easycom 规则 | 仅 `^lc-(.*)$` 一条：按名映射到 `@lc/renderer/uni/$1.vue` | 实际 3 条：`^lc-renderer$` / `^lc-node$` **精确匹配**（指向 `@lc/renderer/uni/*.vue`，它们在 renderer 包内而非物料目录）+ 原 `^lc-(.*)$` 物料规则（`src/materials/$1/index.vue`） | 对方案的最小扩展；已回写方案 4.2 与 `pages.json` 注释 |
@@ -1330,6 +1354,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | 2026-10-21 | 设计系统 · 对比度与尺寸令牌收口 | **设计一致性 5 道门禁**：① 语义色对比度调整（正文/次要/状态/焦点等，`docs/contrast.json` 同步）；② 新增 `tokenize-dimensions.mjs`：px 间距 → `--lc-space-*`、无单位行高 → `--lc-leading-*`，只替换刻度内值，`--check` 进 `design:check`；③ 新增 `audit-token-usage.mjs` 体检报告（不阻断），回答 L1/L2/L3 令牌实际引用率与断链；④ 设计器/物料/渲染器/runtime 共 30+ 文件改用令牌，`tokens.css` / `tokens.rpx.css` / `tokens.w3c.json` / `docs/design-system.md` 同步；⑤ `design:check` 扩展为 tokens + color + spacing + rpx + contrast 五道。**未做**：剩余「占位/辅助文字 3.06:1」的既有 AA 缺口（本轮显式列账、不阻断）、全量视觉回归。 | design:check ✅ exit 0（39 达标 / 既有缺口 1 / 退化 0，新增 spacing:check 后复跑）/ typecheck ✅ 7 包 exit 0 / build ✅ 5 包 exit 0 / test ✅ **1068 passed + 4 skipped / 70 文件** / coverage ✅ **93.82/87.91/92.84/93.82** exit 0 |
 | 2026-10-21 | Phase 4 · 运维事件追加写入 | **去掉 ops 整表覆盖**：① `OpsRepository` 从 `save(events)` 改为 `append(events, limit)`，返回 `{total,dropped}`；② `MysqlOpsRepository` 事务内 `createMany` 后按自增 `seq` 删除超限最旧行，不再 delete + create；③ `FileOpsRepository` 加单进程 Promise 写队列，并发 append 串行化「读 → 合并 → 裁剪 → tmp + rename」；④ service `ingest` 不再先读整表，`POST /ops/events` 响应形状不变；⑤ 新增 `ops-repository.test.ts` 2 例，MySQL 集成补裁剪/10 条并发回读。**未做**：多实例严格 500 上限、JSON 跨进程原子写。 | typecheck ✅ 7 包 exit 0 / design:check ✅ exit 0 / build ✅ 5 包 exit 0 / test ✅ **1070 passed + 7 skipped / 71 文件**（server 214 + 7 skipped）/ coverage ✅ **92.4/87.83/90.75/92.4** exit 0（74.53s）/ MySQL 仓储集成 ✅ **7/7 PASS** / MySQL 真启动冒烟 ✅ **9/9 PASS** |
 | 2026-10-21 | Phase 4 · MySQL 8 + Prisma 第二批 | **流程/运维/应用配置落库（ADR-009）**：① 新增 4 表 `flow_definitions / flow_instances / ops_events / app_config` 与迁移 `20261021150000_flows_ops_appconfig`（已应用 dev + test）；② 新增 `MysqlFlowRepository / MysqlOpsRepository / MysqlAppConfigRepository`，流程定义删除不级联删实例，ops 用自增 `seq` 保同毫秒顺序，app_config 单行 `id='default'`；③ 抽出 `AppConfigRepository` + 文件/MySQL 双实现，`AppConfigService` 改仓储注入，`GET/PUT /apps/config` 契约不变；④ `FlowModule / OpsModule` 统一由 `StorageModule` 注入；⑤ 导入脚本扩展 flows/instances/ops/apps，冒烟扩到 9 项；⑥ **修复测试污染开发库**：发现 Vitest 自动加载 `.env` 覆盖 `test.env`，新增 `setup-json-storage.ts` 强制 JSON + 删除 `DATABASE_URL`，复跑后开发库计数不变。**未做**：文件元数据落库、乐观锁、Redis 限流、CI 实跑 MySQL、小程序真机（ops 追加写入已由「已实现 33」补齐）。 | typecheck ✅ 7 包 exit 0 / design:check ✅ exit 0 / build ✅ 5 包 exit 0 / test ✅ **1068 passed + 7 skipped / 70 文件**（server 212 + 7 skipped）/ coverage ✅ **92.51/87.82/90.82/92.51** exit 0（78.99s）/ MySQL 仓储集成 ✅ **7/7 PASS** / MySQL 真启动冒烟 ✅ **9/9 PASS** / JSON→MySQL 导入 ✅ **flows=1, instances=6, ops=19, appConfig=yes**（开发库已回读） |
+| 2026-10-22 | Phase 4 · MySQL 8 + Prisma 第三批（文件） | **文件元数据与内容落库（ADR-010）**：① 新增第 13 张表 `files`（`id` / `originalName TEXT` / `mimeType` / `size` / `uploadedAt` / `uploadedBy` / `content LONGBLOB`，`uploadedAt` 索引）；② 抽出 `FileRepository` + `StoredFile`，`DiskFileRepository` 保持原双文件布局与降级语义，`MysqlFileRepository` 用 upsert 单行写入，`StorageModule` 按 `LC_STORAGE` 注入；③ `FileService` 契约、10MB 上限、404/500 语义不变；④ 迁移 `20261022000000_files` 已应用 `lowcode` + `lowcode_test`；⑤ 导入脚本补 `files/` + `files-meta/`，开发库补录 8 个历史文件；⑥ 测试扩至 MySQL 仓储 8/8、真启动冒烟 10/10（HTTP 上传 → Prisma 回读 → HTTP 下载字节一致）。**未做**：对象存储/CDN/Range、文件列表/删除/回收站、哈希去重、病毒扫描、下载鉴权。 | typecheck ✅ 7 包 exit 0 / design:check ✅ 42 达标 / build ✅ 5 包 exit 0 / test ✅ **1070 passed + 8 skipped / 71 文件**（server 214 + 8 skipped）/ coverage ✅ **92.15/87.81/90.37/92.15** exit 0（61.29s）/ MySQL 仓储集成 ✅ **8/8 PASS** / MySQL 真启动冒烟 ✅ **10/10 PASS** / 开发库回读 ✅ `files=8`，其余 12 表计数不变 / 存量导入 ✅ 临时目录 `files=1` 回读通过 |
 
 ---
 
@@ -1340,8 +1365,8 @@ cd D:\mimo\lowcode
 pnpm install          # 首次需 pnpm approve-builds esbuild（vue-demi 已在 allowBuilds 白名单）
 pnpm typecheck        # 期望：7 个包全部 Done（tokens/schema/expression/renderer/server/designer/designer-web）
 pnpm build            # 期望：5 包 Done（packages/{schema,expression,renderer}/dist + apps/server/dist + apps/designer-web/dist）
-pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 309 + server 214 passed + 7 skipped + designer 335 = 1070 passed / 7 skipped
-pnpm coverage         # 期望：92.4/87.83/90.75/92.4（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
+pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 309 + server 214 passed + 8 skipped + designer 335 = 1070 passed / 8 skipped / 71 文件
+pnpm coverage         # 期望：92.15/87.81/90.37/92.15（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
                       # B-45/B-46 更正：脚本内含 --no-file-parallelism；vitest 2.1.9 **无 rpcTimeout 选项**（birpc 默认 60s），
                       #      各包 vitest.config.ts 里的 rpcTimeout 为惰性配置 —— 真解法是消除日志洪泛（B-46）+ 串行/限并发
                       # 分包实测（批 2 自 coverage-final.json 聚合）：designer panel 99.91/core 99.46、renderer core 97.24/uni 95.05、server flow 94.79/81.20（stmts 均 ≥90；分包 branch 不设阈值，以总 branch 过 85）
@@ -1354,15 +1379,16 @@ pnpm coverage         # 期望：92.4/87.83/90.75/92.4（阈值 90/85/90/90 强�
                       #      2026-10-20 安全加固后 68 文件 1057 例 / exit 0；
                       #      2026-10-21 可观测性后 69 文件 1068 例 72.13s / exit 0；
                       #      2026-10-21 运维事件追加后 71 文件（70 通过 + 1 跳过）1070 例 74.53s / exit 0）
+                      #      2026-10-22 文件落库后 71 文件 1070 passed + 8 skipped / 61.29s / exit 0（92.15/87.81/90.37/92.15）
 
 # MySQL 仓储集成（需本机 MySQL，库名必须以 _test 结尾）：
 $env:LC_TEST_DATABASE_URL='mysql://lc_app:<password>@127.0.0.1:3306/lowcode_test'
-pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts   # 期望：7/7 PASS
+pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts   # 期望：8/8 PASS
 
 # MySQL 真启动冒烟（先 build；脚本拒绝非 *_test 库）：
 $env:LC_SMOKE_DATABASE_URL=$env:LC_TEST_DATABASE_URL
 pnpm -F @lc/server build
-pnpm -F @lc/server smoke:mysql             # 期望：9/9 PASS
+pnpm -F @lc/server smoke:mysql             # 期望：10/10 PASS
 
 # 批 4 冒烟（门户页配置校验 + 落库回读 B-35；需服务端已启动）：
 node apps/server/scripts/smoke-p3b4.mjs   # 期望：13/13 PASS、exit 0（含非法卡片 400 SCHEMA_INVALID path 精确断言 + 复原）

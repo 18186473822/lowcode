@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性与 **MySQL 数据库两批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置，共 12 表）完成，其余生产化与开放能力未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性与 **MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）完成，其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -38,9 +38,9 @@ pnpm -F @lc/runtime dev:h5
 
 > 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
 >
-> **当前阶段决策（2026-10-21）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；上传文件及其元数据仍落 `LC_DATA_DIR`（ADR-008 / ADR-009）。
+> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。
 
-### 数据库（Phase 4 两批：MySQL 8 + Prisma）
+### 数据库（Phase 4 三批：MySQL 8 + Prisma）
 
 默认 `LC_STORAGE=json`，不依赖数据库；需要事务/多进程写入时切 MySQL：
 
@@ -61,7 +61,7 @@ pnpm -F @lc/server seed:mysql                 # 仅开发：admin/admin123、des
 pnpm -F @lc/server build
 pnpm -F @lc/server start:mysql
 
-# 可选：把现有 JSON 页面/模型/记录/RBAC/流程/运维事件/应用配置导入（幂等 upsert）
+# 可选：把现有 JSON 页面/模型/记录/RBAC/流程/运维事件/应用配置/上传文件导入（幂等 upsert）
 pnpm -F @lc/server import:json-to-mysql
 ```
 
@@ -69,10 +69,10 @@ pnpm -F @lc/server import:json-to-mysql
 |---|---|---|
 | `LC_STORAGE` | `json` | `json` / `mysql`；非法值启动失败 |
 | `DATABASE_URL` | — | `mysql://user:pass@host:3306/db`，`LC_STORAGE=mysql` 时必填 |
-| `LC_DATA_DIR` | `<cwd>/data` | 上传文件/元数据仍使用该目录；JSON 模式下列表数据也在此 |
+| `LC_DATA_DIR` | `<cwd>/data` | JSON 模式下列表数据与上传文件根目录；MySQL 模式仅保留历史兼容目录，文件已入 `files` 表 |
 
 > 服务端本身**不自动加载 `.env`**：`start:mysql` 用 Node `--env-file=.env`，生产请由 systemd/容器注入环境变量。Prisma CLI 会自动读取 `apps/server/.env`。
-> MySQL 两批表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config`。流程定义删除不级联删除实例；上传文件与文件元数据仍在 `LC_DATA_DIR`，不参与数据库事务。
+> MySQL 三批表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files`。流程定义删除不级联删除实例；文件元数据与 `LONGBLOB` 内容同行，上传/下载在同一事务边界内完成。
 
 ### 安全配置（Phase 4）
 
@@ -154,8 +154,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 4 道：令牌漂移 / 硬编码色值 / rpx 同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（70 文件 / 1068 通过 + 4 条件跳过）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 93.82/87.91/92.84/93.82）
+pnpm -r test         # 单元测试（71 文件 / 1070 通过 + 8 条件跳过）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 92.15/87.81/90.37/92.15）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：
@@ -168,7 +168,7 @@ node apps/server/scripts/smoke-p3b2.mjs   # 审批流
 node apps/server/scripts/smoke-flow.mjs   # 流程引擎
 pnpm smoke:security                       # JWT/CORS/限流 10 项
 pnpm smoke:observability                  # 探针/请求 ID/访问日志 4 项
-pnpm -F @lc/server smoke:mysql            # MySQL 真启动 6 项（需 *_test 库 + 已构建）
+pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 库 + 已构建）
 ```
 
 ## 关键文档
@@ -179,16 +179,16 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 6 项（需 *_test �
 | [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范） |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
 | [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
-| [`docs/adr/`](docs/adr/) | 9 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批 MySQL/Prisma） |
+| [`docs/adr/`](docs/adr/) | 10 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批、ADR-010 文件落库） |
 | [`docs/phase2-plan.md`](docs/phase2-plan.md) / [`docs/phase3-plan.md`](docs/phase3-plan.md) | 分阶段拆批详设 |
 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
 - **CI 未在真实环境跑过**：代码已推送 Gitee `origin/master`，但 Gitee 托管 CI 无法运行 Node 22；GitHub Actions workflow 已存在，GitHub 镜像/远端 Actions 尚未创建与实跑。
-- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置，上传文件与文件元数据仍落 `LC_DATA_DIR`（ADR-008 / ADR-009）。
+- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容（ADR-008 / ADR-009 / ADR-010）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
-- **上传文件不在数据库事务内**：`files/` 与 `files-meta/` 仍是本地文件，跨机部署需共享存储或对象存储，备份需 SQL + 文件目录两份。
+- **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
 - **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。
 - **并发编辑无乐观锁**：同一页面同时开多个编辑方会互相覆盖（B-32），联调时请只留一个编辑方。

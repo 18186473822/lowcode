@@ -10,6 +10,7 @@
  *   flow-instances.json        → flow_instances
  *   ops/events.json            → ops_events
  *   apps.json                  → app_config
+ *   files/<id> + files-meta/<id>.json → files（字节 + 元信息）
  *
  * 用户/口令不走 JSON，执行前先 `pnpm -F @lc/server seed:mysql`。
  *
@@ -314,6 +315,56 @@ async function importAppConfig() {
   return true
 }
 
+/** 文件 id 白名单与服务端一致：防止把目录里的临时文件/异常名导入数据库 */
+const FILE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+
+async function importFiles() {
+  const dir = path.join(dataDir, 'files')
+  let names
+  try {
+    names = (await readdir(dir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+
+  let count = 0
+  for (const id of names.sort()) {
+    if (!FILE_ID_RE.test(id)) {
+      console.warn(`跳过文件：非法 id ${id}`)
+      continue
+    }
+
+    const content = await readFile(path.join(dir, id))
+    let meta
+    try {
+      meta = await readJson(path.join(dataDir, 'files-meta', `${id}.json`))
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+      // 与运行时磁盘仓储的降级语义一致：元信息缺失仍可导入字节
+      meta = {}
+    }
+
+    const data = {
+      originalName: meta.originalName ?? id,
+      mimeType: meta.mimeType ?? 'application/octet-stream',
+      size: content.length,
+      uploadedAt: date(meta.uploadedAt),
+      uploadedBy: meta.uploadedBy ?? 'system',
+      content,
+    }
+    await prisma.fileObject.upsert({
+      where: { id },
+      create: { id, ...data },
+      update: data,
+    })
+    count += 1
+  }
+  return count
+}
+
 try {
   console.log(`数据目录：${dataDir}`)
   const pages = await importPages()
@@ -324,9 +375,10 @@ try {
   const instances = await importFlowInstances()
   const ops = await importOps()
   const appConfig = await importAppConfig()
+  const files = await importFiles()
   console.log(
     `导入完成：pages=${pages}, models=${models}, records=${records}, rbac=${rbac ? 'yes' : 'skip'}, ` +
-      `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}`,
+      `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}, files=${files}`,
   )
 } catch (error) {
   console.error('导入失败：', error)

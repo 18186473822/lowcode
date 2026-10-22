@@ -2,7 +2,7 @@
 
 ## 1. 背景与边界
 
-本文最初在数据库暂缓时写；同日 MySQL 第一批（ADR-008）与第二批（ADR-009）已落地。当前为双轨：`LC_STORAGE=json`（默认，页面/模型/RBAC/流程/运维事件/应用配置都在 `LC_DATA_DIR`）与 `LC_STORAGE=mysql`（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置落库；上传文件与元数据仍在 `LC_DATA_DIR`）。本批仍不引入 Prometheus/OTel/Sentry，先把「部署后能判断进程活着、能按请求追踪、日志可被采集」做扎实。
+本文最初在数据库暂缓时写；同日 MySQL 第一批（ADR-008）、第二批（ADR-009）与 2026-10-22 文件第三批（ADR-010）已落地。当前为双轨：`LC_STORAGE=json`（默认，页面/模型/RBAC/流程/运维事件/应用配置/上传文件都在 `LC_DATA_DIR`）与 `LC_STORAGE=mysql`（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容落库）。本批仍不引入 Prometheus/OTel/Sentry，先把「部署后能判断进程活着、能按请求追踪、日志可被采集」做扎实。
 
 **本批已实现**
 
@@ -15,7 +15,7 @@
 | 启动自检 | `LC_ACCESS_LOG` 非法值在监听端口前失败（`main.ts`） |
 | 回归 | `test/observability.test.ts`（11 例）+ `scripts/smoke-observability.mjs`（4 项真实启动冒烟） |
 
-**明确未实现**：指标（Prometheus / OpenTelemetry）、分布式追踪、日志轮转/集中式采集、告警、多实例共享限流；上传文件与文件元数据仍落 `LC_DATA_DIR`，不在数据库事务内。
+**明确未实现**：指标（Prometheus / OpenTelemetry）、分布式追踪、日志轮转/集中式采集、告警、多实例共享限流；文件已入 MySQL `files` 表（`LONGBLOB`，单文件 10MB），但仍无对象存储 / CDN / Range 下载，大附件场景需后续演进。
 
 ## 2. 探针契约
 
@@ -91,7 +91,7 @@ proxy_set_header X-Request-Id $request_id;
 | `LC_APP_VERSION` | `0.1.0` | 健康检查版本号 |
 | `LC_STORAGE` | `json` | `json` / `mysql`；非法值启动失败 |
 | `DATABASE_URL` | — | MySQL 连接串；`LC_STORAGE=mysql` 时必填 |
-| `LC_DATA_DIR` | `<cwd>/data` | 上传文件与未迁移 JSON 数据根目录；`/ready` 检查其可写 |
+| `LC_DATA_DIR` | `<cwd>/data` | JSON 模式下列表数据与上传文件根目录；MySQL 模式仅保留历史兼容目录（文件已入 `files` 表）；`/ready` 检查其可写 |
 | `LC_JWT_SECRET` | 非生产回退开发密钥 | 生产必填 ≥32 字符 |
 | `LC_CORS_ORIGINS` | 开发 localhost | 生产显式白名单 |
 | `LC_TRUST_PROXY` | `false` | 反代后设 `true`（仅一层） |
@@ -194,33 +194,32 @@ JSON 模式下数据都在 `LC_DATA_DIR`（生产示例 `/var/lib/lowcode/data`�
 4. 定期做**恢复演练**；只备份不演练等于没有备份。
 5. 迁数据库前的兼容策略：仓储接口已按 `PageRepository` / `RecordRepository` 等抽象，迁 Prisma 时保留 JSON 作为导入源；本批不改变数据形状。
 
-### MySQL 模式（两批）
+### MySQL 模式（三批）
 
-`LC_STORAGE=mysql` 时，用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置均在 MySQL；`LC_DATA_DIR` 只保留上传文件与文件元数据（`files/`、`files-meta/`），文档中的 `flows.json` 等 JSON 路径仅用于 JSON 模式或历史迁移源。两部分要分别备份：
+`LC_STORAGE=mysql` 时，用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据与内容均在 MySQL；文档中的 `flows.json`、`files-meta/` 等路径仅用于 JSON 模式或历史迁移源。备份以数据库为主：
 
 ```bash
-# 数据库一致性快照（InnoDB）
+# 数据库一致性快照（InnoDB；含 files 表的 LONGBLOB 内容）
 mysqldump --single-transaction --routines --triggers \
   --default-character-set=utf8mb4 -u lc_app -p lowcode > /backup/lowcode-$(date +%F-%H%M).sql
-
-# 上传文件与元数据（建议停机或快照）
-rsync -a /var/lib/lowcode/data/files/ /backup/lowcode/files-$(date +%F-%H%M)/
-rsync -a /var/lib/lowcode/data/files-meta/ /backup/lowcode/files-meta-$(date +%F-%H%M)/
 ```
 
-恢复顺序：停服 → 导入 SQL → 恢复文件目录 → `prisma migrate deploy` 确认 schema 版本 → `curl -fsS .../ready` 应返回 `database: ok`。备份文件含业务数据，按敏感数据管理权限与保留周期。
+存量切换：首次切到 MySQL 前先执行 `pnpm -F @lc/server import:json-to-mysql`，把 `files/` + `files-meta/` 补录进 `files` 表；MySQL 模式不会自动双读旧磁盘文件。
 
-## 8. 验证记录（2026-10-21）
+恢复顺序：停服 → 导入 SQL → `prisma migrate deploy` 确认 schema 版本 → `curl -fsS .../ready` 应返回 `database: ok`。若仍有未导入的历史磁盘文件，可额外恢复 `LC_DATA_DIR` 后再执行一次导入。备份文件含业务数据与附件，按敏感数据管理权限与保留周期。
+
+## 8. 验证记录（2026-10-22，含文件第三批）
 
 | 项 | 结果 |
 |---|---|
-| `pnpm -F @lc/server typecheck` | exit 0 |
-| `pnpm -F @lc/server test` | 13 文件（12 通过 + 1 跳过）/ 214 用例通过 + 7 跳过（新增数据库第二批仓储与 ops 队列用例） |
-| `pnpm -F @lc/server build` | exit 0 |
+| `pnpm -r typecheck` | 7 包 exit 0 |
+| `pnpm -F @lc/server test` | 13 文件（12 通过 + 1 跳过）/ 214 用例通过 + 8 跳过（MySQL 文件用例无连接时按设计跳过） |
+| `pnpm -r build` | 5 包 exit 0 |
 | `node apps/server/scripts/smoke-observability.mjs` | 4/4 PASS |
 | `pnpm smoke:security` | 10/10 PASS（沿用上批） |
-| MySQL 仓储集成 / 真启动冒烟 | 7/7 PASS / 9/9 PASS（`lowcode_test`；含 ops 并发追加） |
-| 全量门禁 | 见 `docs/PROGRESS.md` 最新行 |
+| MySQL 仓储集成 / 真启动冒烟 | **8/8 PASS / 10/10 PASS**（`lowcode_test`；含文件元数据、二进制字节、HTTP 上传 → Prisma 回读 → HTTP 下载） |
+| 全量测试 / 覆盖率 | **1070 passed + 8 skipped / 71 文件**；**92.15 / 87.81 / 90.37 / 92.15** exit 0 |
+| 开发库回读 | `pages=10 / page_versions=27 / models=3 / records=24 / flows=1 / instances=6 / ops=19 / app_config=1 / users=2 / roles=2 / grants=0 / files=8` |
 
 冒烟覆盖：`/health` 200 + 版本 + 请求 ID 回写；非法 ID 替换 UUID；`/ready` 200 + `dataDir: ok`；404 请求访问日志为单行 JSON、path 不含 query token。
 
@@ -228,7 +227,8 @@ rsync -a /var/lib/lowcode/data/files-meta/ /backup/lowcode/files-meta-$(date +%F
 
 - **单实例限流**：限流仍是进程内计数；多副本会各算各的额度。扩副本前需换 Redis 等共享限流。MySQL 模式已支持多进程读写，但页面/记录没有乐观锁，并发编辑仍可能后写覆盖先写。
 - **运维事件追加写入**：`ops_events` 已由整表 delete + create 改为事务内追加 + 按 `seq` 裁剪；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报收敛。JSON 模式用单进程写队列，跨进程非原子。
-- **上传文件仍在本地盘**：`files/` 与 `files-meta/` 不在 MySQL 事务内，跨机部署需共享存储或对象存储；数据库备份与文件备份要分别做恢复演练。
+- **文件已入库但仍是数据库大字段**：`files.content` 为 `LONGBLOB`，单文件上限 10MB；SQL 备份会随附件一起变大，恢复时长和数据库容量需按业务附件量评估。当前无对象存储 / CDN / Range 下载，大附件或高并发下载应迁 OSS/COS/MinIO 并保留 `files` 元数据。
+- **存量文件不会自动双读**：MySQL 模式只读 `files` 表；切换前必须执行 `import:json-to-mysql`，否则旧 `files/` 目录中的附件会 404。
 - **无指标/追踪/告警**：目前只能靠探针和访问日志；错误率、P95、队列积压没有时序数据。下一批可接 OpenTelemetry + Prometheus，或在现有 ops 事件上做聚合告警。
 - **日志无轮转**：交给外部采集；若直接重定向到文件，需要 logrotate。
 - **健康检查暴露版本**：低风险；如不希望暴露，设 `LC_APP_VERSION` 为通用值或后续加开关。

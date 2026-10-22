@@ -20,6 +20,7 @@ import { MysqlRbacRepository } from '../src/persistence/mysql/rbac.repository.js
 import { MysqlFlowRepository } from '../src/persistence/mysql/flow.repository.js'
 import { MysqlOpsRepository } from '../src/persistence/mysql/ops.repository.js'
 import { MysqlAppConfigRepository } from '../src/persistence/mysql/app-config.repository.js'
+import { MysqlFileRepository } from '../src/persistence/mysql/file.repository.js'
 import type { FlowSchema } from '@lc/schema'
 import type { FlowInstance } from '../src/flow/flow.types.js'
 import type { OpsEvent } from '../src/ops/ops.types.js'
@@ -57,6 +58,7 @@ describeMysql('MySQL 仓储', () => {
   let flows: MysqlFlowRepository
   let ops: MysqlOpsRepository
   let appConfig: MysqlAppConfigRepository
+  let files: MysqlFileRepository
 
   beforeAll(async () => {
     prisma = new PrismaClient({ datasources: { db: { url } } })
@@ -68,6 +70,7 @@ describeMysql('MySQL 仓储', () => {
     flows = new MysqlFlowRepository(prisma)
     ops = new MysqlOpsRepository(prisma)
     appConfig = new MysqlAppConfigRepository(prisma)
+    files = new MysqlFileRepository(prisma)
 
     await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=0')
     for (const table of [
@@ -83,6 +86,7 @@ describeMysql('MySQL 仓储', () => {
       'flow_definitions',
       'ops_events',
       'app_config',
+      'files',
     ]) {
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``)
     }
@@ -355,5 +359,35 @@ describeMysql('MySQL 仓储', () => {
     })
     await appConfig.write({})
     expect(await appConfig.read()).toEqual({})
+  })
+
+  it('文件仓储保存元数据与字节，缺失返回 null', async () => {
+    const id = 'f_mysql_test.txt'
+    const data = Buffer.from([0x00, 0x01, 0x7f, 0x80, 0xff, 0x41])
+    const meta = {
+      originalName: '测试文件.txt',
+      mimeType: 'text/plain',
+      size: data.length,
+      uploadedAt: now(),
+      uploadedBy: 'tester',
+    }
+    await files.save({ id, meta, data })
+
+    const found = await files.find(id)
+    expect(found?.meta).toEqual(meta)
+    expect(found?.data.equals(data)).toBe(true)
+    expect(await files.find('f_missing.txt')).toBeNull()
+
+    // 同 id 覆盖：与磁盘仓储语义一致，更新元信息与内容
+    const next = Buffer.from('updated-content')
+    await files.save({
+      id,
+      meta: { ...meta, originalName: '覆盖.txt', size: next.length },
+      data: next,
+    })
+    const updated = await files.find(id)
+    expect(updated?.meta.originalName).toBe('覆盖.txt')
+    expect(updated?.meta.size).toBe(next.length)
+    expect(updated?.data.toString('utf8')).toBe('updated-content')
   })
 })

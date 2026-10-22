@@ -179,3 +179,20 @@ model AppConfig {
 
   @@map("app_config")
 }
+
+// 文件元数据与内容同表（Phase 4 文件落库）：
+// - id 为 uuid + 白名单扩展名，服务层仍做路径穿越白名单校验；
+// - content 用 LONGBLOB，单文件上限 10MB，避免元数据与字节分表后的半写状态；
+// - 文件名用 TEXT，不因客户端超长原名导致写库失败（磁盘模式原本也不截断）。
+model FileObject {
+  id           String   @id @db.VarChar(160)
+  originalName String   @db.Text
+  mimeType     String   @db.VarChar(255)
+  size         Int
+  uploadedAt   DateTime @db.DateTime(3)
+  uploadedBy   String   @db.VarChar(128)
+  content      Bytes    @db.LongBlob
+
+  @@index([uploadedAt])
+  @@map("files")
+}

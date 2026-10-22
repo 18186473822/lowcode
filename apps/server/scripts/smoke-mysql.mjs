@@ -6,8 +6,8 @@
  *   2. 已对 lowcode_test 执行 `prisma migrate deploy`
  *   3. 设置 LC_SMOKE_DATABASE_URL（或 LC_TEST_DATABASE_URL）指向 *_test 库
  *
- * 验证（9 项）：MySQL readiness、登录、页面草稿/发布/版本、模型/记录、流程定义/实例、
- * RBAC、ops 事件、app_config、级联删除；并通过 Prisma 回读数据库行，
+ * 验证（10 项）：MySQL readiness、登录、页面草稿/发布/版本、模型/记录、流程定义/实例、
+ * RBAC、ops 事件、app_config、文件元数据/内容、级联删除；并通过 Prisma 回读数据库行，
  * 证明不是只写了内存/文件。
  */
 import { spawn } from 'node:child_process'
@@ -111,6 +111,7 @@ try {
     'flow_definitions',
     'ops_events',
     'app_config',
+    'files',
   ]) {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``)
   }
@@ -181,6 +182,29 @@ try {
   assert(login.data.user.roles.includes('admin'), 'admin roles from MySQL')
   const token = login.data.accessToken
   console.log('PASS login from MySQL user/role tables')
+
+  const fileBytes = Buffer.from('mysql-smoke-file-content')
+  const form = new FormData()
+  form.append('file', new Blob([new Uint8Array(fileBytes)], { type: 'text/plain' }), 'mysql-smoke.txt')
+  const uploadRes = await fetch(`${base}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+    body: form,
+  })
+  const uploaded = await uploadRes.json()
+  assert(uploadRes.status === 200, `upload status=${uploadRes.status}`)
+  assert(uploaded.name === 'mysql-smoke.txt', `upload name=${uploaded.name}`)
+  const dbFile = await prisma.fileObject.findUnique({ where: { id: uploaded.fileId } })
+  assert(dbFile?.mimeType === 'text/plain', `file mime=${dbFile?.mimeType}`)
+  assert(dbFile?.uploadedBy === 'admin', `file uploader=${dbFile?.uploadedBy}`)
+  assert(
+    dbFile !== null && Buffer.from(dbFile.content).equals(fileBytes),
+    'file content from MySQL',
+  )
+  const download = await fetch(`${base}/api/v1/files/${uploaded.fileId}`)
+  assert(download.status === 200, `download status=${download.status}`)
+  assert(Buffer.from(await download.arrayBuffer()).equals(fileBytes), 'download bytes match')
+  console.log('PASS file metadata + content persisted (files)')
 
   const pageSchema = {
     schemaVersion: '1.0.0',

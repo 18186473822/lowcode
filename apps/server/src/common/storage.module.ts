@@ -2,9 +2,10 @@
  * 存储模块（@Global）：数据根目录 + 仓储实现 + 就绪检查。
  *
  * Phase 4 数据库起，按 `LC_STORAGE` 二选一：
- * - `json`（默认）：FilePage/FileModel/FileRecord/FileRbac/FileFlow/FileOps + 内存 UserStore；
- * - `mysql`：Prisma + MySQL 实现（User/Page/Model/Record/Rbac/Flow/Ops/AppConfig）。
- *   flows / flow-instances / ops / apps.json 在第二批迁入。
+ * - `json`（默认）：FilePage/FileModel/FileRecord/FileRbac/FileFlow/FileOps/FileAppConfig
+ *   + DiskFile + 内存 UserStore；
+ * - `mysql`：Prisma + MySQL 实现（User/Page/Model/Record/Rbac/Flow/Ops/AppConfig/File）。
+ *   文件元数据与内容同表（`files`），第三批迁入。
  *
  * 上层服务只注入仓储 token，不感知具体实现。把仓储集中在此处而不是各 feature module，
  * 是为了保证「同一进程内只有一个实现实例」，并避免 Model ⇄ Flow 的模块环。
@@ -30,6 +31,8 @@ import { FileOpsRepository } from '../ops/file-ops.repository.js'
 import { OPS_REPOSITORY } from '../ops/ops.types.js'
 import { FileAppConfigRepository } from '../page/file-app-config.repository.js'
 import { APP_CONFIG_REPOSITORY } from '../page/app-config.types.js'
+import { DiskFileRepository } from '../file/disk-file.repository.js'
+import { FILE_REPOSITORY } from '../file/file.types.js'
 import {
   JsonStorageHealth,
   MysqlStorageHealth,
@@ -45,6 +48,7 @@ import { MysqlRbacRepository } from '../persistence/mysql/rbac.repository.js'
 import { MysqlFlowRepository } from '../persistence/mysql/flow.repository.js'
 import { MysqlOpsRepository } from '../persistence/mysql/ops.repository.js'
 import { MysqlAppConfigRepository } from '../persistence/mysql/app-config.repository.js'
+import { MysqlFileRepository } from '../persistence/mysql/file.repository.js'
 
 /**
  * 返回 PrismaService 或 null。null 让 JSON 模式完全不触碰数据库驱动/连接；
@@ -112,6 +116,12 @@ function createPrisma(): PrismaService | null {
       inject: [PRISMA_SERVICE, DATA_DIR],
     },
     {
+      provide: FILE_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlFileRepository(prisma) : new DiskFileRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
       provide: STORAGE_HEALTH,
       useFactory: (prisma: PrismaService | null, dataDir: string) =>
         prisma ? new MysqlStorageHealth(prisma, dataDir) : new JsonStorageHealth(dataDir),
@@ -129,6 +139,7 @@ function createPrisma(): PrismaService | null {
     FLOW_REPOSITORY,
     OPS_REPOSITORY,
     APP_CONFIG_REPOSITORY,
+    FILE_REPOSITORY,
     STORAGE_HEALTH,
   ],
 })

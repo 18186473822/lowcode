@@ -1,19 +1,17 @@
 /**
- * 文件服务：上传落盘 + 读取（方案 8.2 `file/` 模块裁剪、8.3 `POST /files/upload`）。
+ * 文件服务：上传 + 读取（方案 8.2 `file/` 模块裁剪、8.3 `POST /files/upload`）。
  *
- * 存储（Phase 1 本地盘，Phase 2 换 OSS/COS/MinIO 只换本服务）：
- * ```
- * <DATA_DIR>/files/<fileId>            原始字节
- * <DATA_DIR>/files-meta/<fileId>.json  元信息（原名 / mime / 大小 / 上传者）
- * ```
- * `fileId = uuid + 白名单扩展名`；读取侧 `FILE_ID_RE` 拦截路径穿越（`/` `\` 不可能进入）。
+ * 具体落点由 `FILE_REPOSITORY` 决定（Phase 4 存储双轨）：
+ * - `LC_STORAGE=json`：磁盘 `files/` + `files-meta/`（见 `DiskFileRepository`）；
+ * - `LC_STORAGE=mysql`：`files` 表，元数据与内容同行（见 `MysqlFileRepository`）。
+ *
+ * `fileId = uuid + 白名单扩展名`；读取侧 `FILE_ID_RE` 拦截路径穿越。
  */
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { DATA_DIR } from '../common/tokens.js'
 import type { AuthUser } from '../common/jwt.service.js'
+import { FILE_REPOSITORY, type FileMeta, type FileRepository, type StoredFile } from './file.types.js'
 
 /** 单文件大小上限：10MB（multer limits.fileSize，超限 → 413） */
 export const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -32,13 +30,7 @@ export interface UploadedFileLike {
   buffer?: Buffer
 }
 
-export interface FileMeta {
-  originalName: string
-  mimeType: string
-  size: number
-  uploadedAt: string
-  uploadedBy: string
-}
+export type { FileMeta, StoredFile }
 
 export interface UploadResponse {
   fileId: string
@@ -51,13 +43,7 @@ export interface UploadResponse {
 
 @Injectable()
 export class FileService {
-  private readonly filesDir: string
-  private readonly metaDir: string
-
-  constructor(@Inject(DATA_DIR) dataDir: string) {
-    this.filesDir = path.join(dataDir, 'files')
-    this.metaDir = path.join(dataDir, 'files-meta')
-  }
+  constructor(@Inject(FILE_REPOSITORY) private readonly repo: FileRepository) {}
 
   /** 保存上传文件（控制器保证 file 非空；空 buffer → 400） */
   async save(file: UploadedFileLike | undefined, user: AuthUser): Promise<UploadResponse> {
@@ -82,44 +68,21 @@ export class FileService {
       uploadedBy: user.username,
     }
 
-    await mkdir(this.filesDir, { recursive: true })
-    await mkdir(this.metaDir, { recursive: true })
-    await writeFile(path.join(this.filesDir, fileId), buffer)
-    await writeFile(path.join(this.metaDir, `${fileId}.json`), JSON.stringify(meta, null, 2), 'utf8')
+    await this.repo.save({ id: fileId, meta, data: buffer })
 
     return { fileId, url: `/api/v1/files/${fileId}`, name, size: buffer.length, mimeType }
   }
 
-  /** 读取文件字节与元信息；id 不合法或不存在 → 404（元信息缺失时 mime 降级 octet-stream） */
-  async read(fileId: string): Promise<{ meta: FileMeta; data: Buffer }> {
+  /** 读取文件字节与元信息；id 不合法或不存在 → 404（JSON 模式元信息缺失时降级） */
+  async read(fileId: string): Promise<StoredFile> {
     if (!FILE_ID_RE.test(fileId)) {
       throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: `文件 ${fileId} 不存在` })
     }
 
-    let data: Buffer
-    try {
-      data = await readFile(path.join(this.filesDir, fileId))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: `文件 ${fileId} 不存在` })
-      }
-      throw error
+    const file = await this.repo.find(fileId)
+    if (!file) {
+      throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: `文件 ${fileId} 不存在` })
     }
-
-    let meta: FileMeta
-    try {
-      meta = JSON.parse(await readFile(path.join(this.metaDir, `${fileId}.json`), 'utf8')) as FileMeta
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      // 字节在、元信息缺（写入间隙中断）：降级可读，不静默丢数据
-      meta = {
-        originalName: fileId,
-        mimeType: 'application/octet-stream',
-        size: data.length,
-        uploadedAt: '',
-        uploadedBy: '',
-      }
-    }
-    return { meta, data }
+    return file
   }
 }

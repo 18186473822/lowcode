@@ -3,7 +3,7 @@
 - 状态：已接受
 - 日期：2026-10-21（Phase 4 数据库第一批）
 - 关联：ADR-004；方案 8.1 / 8.4 / 8.5；Phase 4 生产化
-- 后续：ADR-009（2026-10-21，第二批 flows / flow-instances / ops / apps 已迁入 MySQL）
+- 后续：ADR-009（2026-10-21，第二批 flows / flow-instances / ops / apps 已迁入 MySQL）；ADR-010（2026-10-22，第三批文件元数据/内容已迁入 MySQL）
 
 ## 背景
 
