@@ -172,6 +172,34 @@
             />
           </span>
         </label>
+
+        <label class="setter">
+          <span class="setter__label">允许编辑</span>
+          <span class="setter__ctl">
+            <input
+              type="checkbox"
+              data-testid="detail-editable"
+              :checked="store.schema.detail?.editable === true"
+              @change="setDetailBool('editable', $event)"
+            />
+          </span>
+          <span class="setter__help">
+            详情页显示「编辑」：保存走 PUT + If-Match，409 冲突不覆盖他人修改
+          </span>
+        </label>
+
+        <label class="setter">
+          <span class="setter__label">允许删除</span>
+          <span class="setter__ctl">
+            <input
+              type="checkbox"
+              data-testid="detail-deletable"
+              :checked="store.schema.detail?.deletable === true"
+              @change="setDetailBool('deletable', $event)"
+            />
+          </span>
+          <span class="setter__help">详情页显示「删除」：二次确认后走 DELETE + If-Match（服务端软删）</span>
+        </label>
       </div>
 
       <!-- portal：门户配置（批 4） -->
@@ -555,6 +583,12 @@ function setListStr(key: 'detailPageId', e: Event): void {
 function setDetailStr(key: 'backPageId', e: Event): void {
   const v = (e.target as HTMLInputElement).value
   store.setDetailConfig({ [key]: v || undefined })
+}
+
+/** 详情页写操作开关：未勾选写 undefined（保持「缺省 = 只读」的协议语义） */
+function setDetailBool(key: 'editable' | 'deletable', e: Event): void {
+  const checked = (e.target as HTMLInputElement).checked
+  store.setDetailConfig({ [key]: checked || undefined })
 }
 
 /* ---------------- Phase 3 批 4：门户配置 ---------------- */

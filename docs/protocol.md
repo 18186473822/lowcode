@@ -1,6 +1,6 @@
 # 低代码平台协议规范（protocol.md）
 
-> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 10 章修订：2026-10-22**（Phase 4 乐观锁与审批幂等：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**纯服务端契约，协议结构未变，不升 `schemaVersion`**，ADR-011）
+> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 2/10 章修订：2026-10-22**（Phase 4 乐观锁与记录编辑：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；`DetailPageConfig` 新增可选 `editable`/`deletable`；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**可选字段新增，向后兼容，不升 `schemaVersion`**，ADR-011）
 >
 > **事实源（唯一权威）**：`lowcode/packages/schema/src/types/*.ts`（结构）+ `lowcode/packages/schema/src/validate/index.ts`（校验规则）+ `lowcode/packages/expression/src/`（表达式语义）+ `lowcode/apps/server/src/`（第 10 章接口）。
 > 本文件是面向**协议使用者（设计器 / 运行时 / 服务端 / 第三方集成方）**的规范说明，字段结构以 TS 类型为准，语义与约束以本文件为准。
@@ -234,7 +234,7 @@
 
 ### 2.7 详情页（`DetailPageConfig`，`type=detail` 必填）
 
-`{ modelId ✅, fields?, backPageId? }`
+`{ modelId ✅, fields?, backPageId?, editable?, deletable? }`
 —— 由路由参数 `rid`（列表点行携带的记录主键）定位单条：`GET /models/:modelId/records?filter={"id":rid}&size=1`（服务端等值过滤，记录主键即 `id`）。
 
 | 字段 | 说明 |
@@ -242,8 +242,12 @@
 | `modelId` | ✅ 必填数据模型（缺失报 `E_REQUIRED` `detail.modelId`，与 2.6 对称） |
 | `fields` | 展示字段（模型字段 key；数组顺序即展示顺序）；缺省 = 模型全部字段 |
 | `backPageId` | 返回按钮的目标页 id；缺省 = 历史栈返回（壳层 `navigateBack`，栈底兜底回菜单不卡死） |
+| `editable` | 是否在详情页显示「编辑」；缺省 `false`（存量详情页保持只读）。编辑只覆盖展示字段中非 `readonly` / 非 `auto` 的项，保存走 `PUT` 部分合并 + `If-Match` |
+| `deletable` | 是否在详情页显示「删除」；缺省 `false`。二次确认后走 `DELETE` + `If-Match`，服务端软删 |
 
-> **实现状态（Phase 2 批 2 新增，2026-10-14，D-P2-2）**：`lc-detail-page` 已全量兑现三字段；展示名取模型定义，模型定义加载失败**降级用记录键**（错误不静默）；记录不存在红字可见。`root` 树同 list 页运行时忽略。**标准页跳转约定**：list/detail 页间跳转由组件 emit `navigate`/`back` 事件、壳层接 `uni` 导航 —— 协议**不新增 RuntimeHost 方法**（沿纯逻辑层分层，renderer 零 uni 依赖）。
+> **实现状态（Phase 2 批 2 新增，2026-10-14，D-P2-2）**：`lc-detail-page` 已全量兑现 `modelId / fields / backPageId`；展示名取模型定义，模型定义加载失败**降级用记录键**（错误不静默）；记录不存在红字可见。`root` 树同 list 页运行时忽略。**标准页跳转约定**：list/detail 页间跳转由组件 emit `navigate`/`back` 事件、壳层接 `uni` 导航 —— 协议**不新增 RuntimeHost 方法**（沿纯逻辑层分层，renderer 零 uni 依赖）。
+>
+> **记录编辑/删除（Phase 4，2026-10-22）**：`editable/deletable` 为显式开关（缺省只读）。详情页内联编辑器按字段类型使用 `switch / picker / textarea / input`；保存与删除均从记录响应体的 `revision` 构造 `If-Match`（uni 宿主不暴露响应头）。409 `VERSION_CONFLICT` **不自动覆盖、不自动重试**：保留草稿并提示「本次未生效」，用户点「重新加载」后才拉取最新版本；400 `RECORD_INVALID` 的 `errors[].path/message` 映射到字段级错误。保存/删除成功后 emit `saved`/`deleted`，runtime 列表页在 `onShow` 返回时重挂载刷新，避免列表残留旧行。设计器属性面板提供「允许编辑 / 允许删除」复选框。
 
 ### 2.8 完整最小示例
 
@@ -723,7 +727,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 **④ 边界与现状**
 
 - JSON 仓储锁是**单进程**的；多副本部署必须用 `LC_STORAGE=mysql`（行级 CAS）。文件仓储也不适合多实例共享目录并发写。
-- 设计器已携带 `If-Match` 保存/发布/回滚；业务记录的更新/删除目前没有前端编辑入口，服务端 API 已支持，接入时需回传 ETag 并处理 409。
+- 设计器已携带 `If-Match` 保存/发布/回滚；**业务记录已有前端编辑/删除入口**（详情页 `detail.editable/deletable` 显式开启，PUT/DELETE 均从记录 `revision` 构造 `If-Match`，409 保留草稿并要求重新加载；删除为服务端软删）。列表页在从详情返回的 `onShow` 重挂载刷新。
 - 本批未实现自动重试中间件；`Idempotency-Key` 的重放由调用方（待办审批物料）在同一次用户动作内复用。
 
 ## 11. 生命周期受信 API（`app.*`）

@@ -68,6 +68,13 @@ export interface DetailPageConfig {
   fields?: string[]
   /** 点击行进入详情后，返回按钮的目标列表页（缺省 = 历史栈返回） */
   backPageId?: string
+  /**
+   * 允许在详情页内编辑记录（缺省 false，存量详情页保持只读）。
+   * 编辑只覆盖展示字段中非 readonly / auto 的项；保存走 PUT + If-Match。
+   */
+  editable?: boolean
+  /** 允许在详情页内删除记录（缺省 false）。删除为服务端软删，走 DELETE + If-Match。 */
+  deletable?: boolean
 }
 
 /** 门户页导航卡片（Phase 3 批 4）。 */

@@ -17,6 +17,7 @@
     "./uni/lc-node.vue": "./src/uni/lc-node.vue",
     "./uni/lc-list-page.vue": "./src/uni/lc-list-page.vue",
     "./uni/lc-detail-page.vue": "./src/uni/lc-detail-page.vue",
+    "./uni/lc-record-editor.vue": "./src/uni/lc-record-editor.vue",
     "./uni/lc-portal-page.vue": "./src/uni/lc-portal-page.vue",
     "./uni/lc-state-view.vue": "./src/uni/lc-state-view.vue",
     "./uni/design": "./src/uni/design.ts",
@@ -24,7 +25,8 @@
   },
   "files": [
     "dist",
-    "src/uni"
+    "src/uni",
+    "src/core"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

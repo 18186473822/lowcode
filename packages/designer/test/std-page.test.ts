@@ -320,7 +320,7 @@ describe('PropsPanel：页面类型 + 标准页配置区块', () => {
     w.unmount()
   })
 
-  it('detail 区块：选模型 → fields 勾选 + 返回页输入；与 list 区块互斥', async () => {
+  it('detail 区块：选模型 → fields 勾选 + 返回页输入 + 编辑/删除开关；与 list 区块互斥', async () => {
     const store = useDesignerStore()
     store.setApi(mockApi())
     store.setPageType('detail')
@@ -338,6 +338,15 @@ describe('PropsPanel：页面类型 + 标准页配置区块', () => {
 
     await w.get('[data-testid="detail-back-page"]').setValue('p_list')
     expect(store.schema.detail?.backPageId).toBe('p_list')
+
+    // Phase 4：写操作默认关闭；勾选写 true，取消勾选回 undefined（协议「缺省 = 只读」）
+    expect((w.get('[data-testid="detail-editable"]').element as HTMLInputElement).checked).toBe(false)
+    await w.get('[data-testid="detail-editable"]').setValue(true)
+    expect(store.schema.detail?.editable).toBe(true)
+    await w.get('[data-testid="detail-deletable"]').setValue(true)
+    expect(store.schema.detail?.deletable).toBe(true)
+    await w.get('[data-testid="detail-deletable"]').setValue(false)
+    expect(store.schema.detail?.deletable).toBeUndefined()
     w.unmount()
   })
 

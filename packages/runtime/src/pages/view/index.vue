@@ -18,6 +18,7 @@
          Phase 3 批 4：portal 为卡片导航 + 拖拽区混合页） -->
     <lc-list-page
       v-else-if="schema && schema.type === 'list'"
+      :key="listReloadKey"
       :schema="schema"
       :options="options"
       @navigate="onNavigate"
@@ -49,7 +50,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import type { PageSchema } from '@lc/schema'
 import type { ControllerStats, PageControllerOptions, StateKind } from '@lc/renderer'
 import { classifyError, countNodes, formatPerf } from '@lc/renderer'
@@ -63,6 +64,9 @@ import { createUniOpsReporter, type OpsReporter, type OpsReporterMeta } from '@/
 const pageId = ref('')
 /** 详情页路由参数：列表点行携带的记录主键 */
 const rid = ref('')
+/** 列表页从详情返回时强制重挂载（记录可能已编辑/删除；避免列表残留旧行） */
+const listReloadKey = ref(0)
+let listFirstShow = true
 const schema = ref<PageSchema | null>(null)
 const loading = ref(true)
 const error = ref('')
@@ -151,6 +155,15 @@ onLoad((opt) => {
   opsMeta.pageVersion = undefined
   reporter = createUniOpsReporter(opsMeta)
   void load(id)
+})
+
+// 从详情页返回列表时重挂载标准列表页（记录可能已被编辑/删除）；首屏 onShow 不重复加载
+onShow(() => {
+  if (listFirstShow) {
+    listFirstShow = false
+    return
+  }
+  if (schema.value?.type === 'list') listReloadKey.value += 1
 })
 
 // 批 5：离开页面时把队列里剩余事件发出去（H5 刷新/切后台容易丢，尽力而为）

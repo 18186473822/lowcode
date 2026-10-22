@@ -23,7 +23,8 @@ export interface NavigateTarget {
 }
 
 export interface HttpRequest {
-  method: 'GET' | 'POST'
+  /** 标准页编辑/删除记录需要 PUT/DELETE；宿主实现可直接透传给 uni.request。 */
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   url: string
   headers?: Record<string, string>
   data?: unknown

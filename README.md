@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）与**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）完成，其余生产化与开放能力未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）与**业务记录前端编辑/删除入口**完成，其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -38,7 +38,7 @@ pnpm -F @lc/runtime dev:h5
 
 > 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
 >
-> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。页面、记录、流程实例写接口已启用 `revision` 乐观锁；审批支持 `Idempotency-Key`，流程结束回写记录走 `pendingPatch` 补偿（ADR-011）。
+> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。页面、记录、流程实例写接口已启用 `revision` 乐观锁；审批支持 `Idempotency-Key`，流程结束回写记录走 `pendingPatch` 补偿（ADR-011）；标准详情页已提供记录编辑/删除入口（`detail.editable/deletable` 显式开启，PUT/DELETE 回传 `If-Match`，409 不覆盖他人修改）。
 
 ### 数据库（Phase 4 三批：MySQL 8 + Prisma）
 
@@ -191,6 +191,6 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
 - **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。
-- **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器已携带 `If-Match`，**业务记录更新/删除暂无前端编辑入口**（后端 API 已支持，接入时需处理 `409 VERSION_CONFLICT`）。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
+- **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器与标准详情页均携带 `If-Match`。业务记录编辑/删除需在详情页配置 `editable/deletable`（缺省只读）；保存/删除的 `409 VERSION_CONFLICT` 不自动覆盖，保留草稿并要求重新加载。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
 - **流程回写为至少一次**：审批结束后实例先落终态并写 `pendingPatch`，再回写记录；进程中断时由后续读/审批补偿，短暂窗口内可能出现「流程已通过、记录字段尚未更新」，`setField` 重复补偿无副作用。JSON 模式多副本无法保证并发安全，多实例部署必须用 MySQL。
 - **图表为纯 SVG 渲染**，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。

@@ -14,7 +14,8 @@ describe('包入口导出完整性', () => {
     // 2026-10-16：29 → 36（新增 ./core/state-kind.js 的 7 个导出）
     // 2026-10-19：36 → 40（批 3：新增 ./core/theme-vars.js 的 4 个纯函数）
     // 2026-10-20：40 → 44（批 5：新增 ./core/ops.js 的 createOpsQueue + ./core/perf.js 的 3 个纯函数）
-    expect(entries.length).toBe(44)
+    // 2026-10-22：44 → 47（Phase 4：新增 ./core/record-edit.js 的 RECORD_SYSTEM_FIELDS + recordEtag + parseRecordFieldValue）
+    expect(entries.length).toBe(47)
     for (const [name, value] of entries) {
       expect(value, `导出 "${name}" 为 undefined（re-export 断链）`).not.toBeUndefined()
     }
