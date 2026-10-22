@@ -21,9 +21,11 @@ import { MysqlFlowRepository } from '../src/persistence/mysql/flow.repository.js
 import { MysqlOpsRepository } from '../src/persistence/mysql/ops.repository.js'
 import { MysqlAppConfigRepository } from '../src/persistence/mysql/app-config.repository.js'
 import { MysqlFileRepository } from '../src/persistence/mysql/file.repository.js'
+import { MysqlWebhookRepository } from '../src/persistence/mysql/webhook.repository.js'
 import type { FlowSchema } from '@lc/schema'
 import type { FlowInstance } from '../src/flow/flow.types.js'
 import type { OpsEvent } from '../src/ops/ops.types.js'
+import type { WebhookDelivery, WebhookSubscription } from '../src/webhook/webhook.types.js'
 
 const url = process.env.LC_TEST_DATABASE_URL
 const describeMysql = url ? describe : describe.skip
@@ -59,6 +61,7 @@ describeMysql('MySQL 仓储', () => {
   let ops: MysqlOpsRepository
   let appConfig: MysqlAppConfigRepository
   let files: MysqlFileRepository
+  let webhookRepo: MysqlWebhookRepository
 
   beforeAll(async () => {
     prisma = new PrismaClient({ datasources: { db: { url } } })
@@ -71,6 +74,7 @@ describeMysql('MySQL 仓储', () => {
     ops = new MysqlOpsRepository(prisma)
     appConfig = new MysqlAppConfigRepository(prisma)
     files = new MysqlFileRepository(prisma)
+    webhookRepo = new MysqlWebhookRepository(prisma)
 
     await prisma.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS=0')
     for (const table of [
@@ -87,6 +91,8 @@ describeMysql('MySQL 仓储', () => {
       'ops_events',
       'app_config',
       'files',
+      'webhook_deliveries',
+      'webhook_subscriptions',
     ]) {
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE \`${table}\``)
     }
@@ -505,5 +511,100 @@ describeMysql('MySQL 仓储', () => {
     expect(updated?.meta.originalName).toBe('覆盖.txt')
     expect(updated?.meta.size).toBe(next.length)
     expect(updated?.data.toString('utf8')).toBe('updated-content')
+  })
+
+  it('Webhook 订阅 CAS、投递日志与删除保留', async () => {
+    const t = now()
+    const sub: WebhookSubscription = {
+      id: 'wh_mysql_test',
+      name: 'MySQL Webhook',
+      description: '测试',
+      url: 'https://example.com/hook',
+      events: ['record.created'],
+      secret: 's'.repeat(32),
+      active: true,
+      maxAttempts: 5,
+      timeoutMs: 10000,
+      revision: 0,
+      createdBy: 'tester',
+      updatedBy: 'tester',
+      createdAt: t,
+      updatedAt: t,
+    }
+    await webhookRepo.create(sub)
+    expect(await webhookRepo.find(sub.id)).toMatchObject({
+      id: sub.id,
+      events: ['record.created'],
+      description: '测试',
+      revision: 0,
+    })
+
+    const updatedSub: WebhookSubscription = {
+      ...sub,
+      name: 'MySQL Webhook 更新',
+      revision: 1,
+      updatedAt: now(),
+    }
+    expect(await webhookRepo.update(updatedSub, 0)).toBe(true)
+    expect(await webhookRepo.update(updatedSub, 0)).toBe(false)
+    expect((await webhookRepo.find(sub.id))?.name).toBe('MySQL Webhook 更新')
+
+    const delivery: WebhookDelivery = {
+      id: 'del_mysql_test',
+      subscriptionId: sub.id,
+      eventId: 'evt_mysql_test',
+      eventType: 'record.created',
+      payload: {
+        id: 'evt_mysql_test',
+        type: 'record.created',
+        occurredAt: t,
+        actor: 'tester',
+        data: { modelId: 'm1' },
+      },
+      source: 'event',
+      status: 'pending',
+      attempts: [],
+      attemptCount: 0,
+      nextAttemptAt: t,
+      revision: 0,
+      createdAt: t,
+      updatedAt: t,
+    }
+    await webhookRepo.createDeliveries([delivery])
+    expect(await webhookRepo.findDelivery(delivery.id)).toMatchObject({
+      eventType: 'record.created',
+      status: 'pending',
+    })
+
+    const firstPage = await webhookRepo.listDeliveries(sub.id, { status: 'pending', page: 1, size: 10 })
+    expect(firstPage.total).toBe(1)
+    expect(firstPage.items[0].payload.data).toEqual({ modelId: 'm1' })
+
+    const due = await webhookRepo.dueDeliveries(new Date(Date.now() + 60_000).toISOString(), 10)
+    expect(due.map((item) => item.id)).toContain(delivery.id)
+
+    const completed: WebhookDelivery = {
+      ...delivery,
+      status: 'success',
+      attemptCount: 1,
+      attempts: [{ attempt: 1, at: t, ok: true, status: 200, durationMs: 5, responseBody: 'ok' }],
+      lastAttemptAt: t,
+      responseStatus: 200,
+      responseBody: 'ok',
+      revision: 1,
+      updatedAt: now(),
+    }
+    await webhookRepo.saveDelivery(completed)
+    expect(await webhookRepo.findDelivery(delivery.id)).toMatchObject({
+      status: 'success',
+      attemptCount: 1,
+      responseStatus: 200,
+    })
+
+    // 删除订阅必须保留投递日志
+    expect(await webhookRepo.remove(sub.id, 0)).toBe(false)
+    expect(await webhookRepo.remove(sub.id, 1)).toBe(true)
+    expect(await webhookRepo.find(sub.id)).toBeNull()
+    expect(await webhookRepo.findDelivery(delivery.id)).not.toBeNull()
   })
 })

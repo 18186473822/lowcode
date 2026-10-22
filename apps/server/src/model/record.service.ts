@@ -27,6 +27,7 @@ import { randomUUID } from 'node:crypto'
 import type { AuthUser } from '../common/jwt.service.js'
 import { RbacService, rowVisible } from '../rbac/rbac.service.js'
 import { FlowService } from '../flow/flow.service.js'
+import { WebhookService } from '../webhook/webhook.service.js'
 import { parseIfMatch } from '../common/etag.js'
 import { assertModelId, isPlainObject } from './model.service.js'
 import {
@@ -297,6 +298,7 @@ export class RecordService {
     @Inject(RECORD_REPOSITORY) private readonly records: RecordRepository,
     @Inject(RbacService) private readonly rbac: RbacService,
     @Inject(FlowService) private readonly flows: FlowService,
+    @Inject(WebhookService) private readonly webhooks: WebhookService,
   ) {}
 
   /** 新增记录（POST /models/:modelId/records）—— 批 6：③ 模型 CRUD 权限 create */
@@ -321,6 +323,12 @@ export class RecordService {
       updatedAt: now,
     }
     await this.records.save(modelId, entity)
+    // 开放集成：记录创建事件入队（WebhookService.emit 内部吞错，不影响提交）。
+    await this.webhooks.emit('record.created', user.username, {
+      modelId,
+      recordId: entity.id,
+      record: toItem(entity),
+    })
     // Phase 3 批 1：记录提交联动 —— 匹配 modelId 的流程定义自动启动实例。
     // 弱保证（onRecordCreated 内部全量 try-catch）：流程启动失败只记日志，记录提交不回滚。
     await this.flows.onRecordCreated(modelId, entity.id, payload, user)
@@ -403,6 +411,11 @@ export class RecordService {
         latest?.revision ?? currentRevision + 1,
       )
     }
+    await this.webhooks.emit('record.updated', user.username, {
+      modelId,
+      recordId: entity.id,
+      record: toItem(entity),
+    })
     return toItem(entity)
   }
 
@@ -441,6 +454,12 @@ export class RecordService {
         latest?.revision ?? currentRevision + 1,
       )
     }
+    await this.webhooks.emit('record.deleted', user.username, {
+      modelId,
+      recordId: entity.id,
+      deletedAt: now,
+      revision: entity.revision,
+    })
     return { id: entity.id, deleted: true, deletedAt: now, revision: entity.revision }
   }
 

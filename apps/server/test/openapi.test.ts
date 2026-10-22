@@ -29,6 +29,7 @@ import { FlowController } from '../src/flow/flow.controller.js'
 import { RbacController } from '../src/rbac/rbac.controller.js'
 import { OpsController } from '../src/ops/ops.controller.js'
 import { OpenController } from '../src/open/open.controller.js'
+import { WebhookController } from '../src/webhook/webhook.controller.js'
 import { buildOpenApi } from '../src/open/openapi.js'
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +48,7 @@ const CONTROLLERS: Type<unknown>[] = [
   RbacController,
   OpsController,
   OpenController,
+  WebhookController,
 ]
 
 /** 把 `:id` 统一成 OpenAPI 的 `{id}`，并归一化多余斜杠。 */
@@ -145,10 +147,10 @@ describe('OpenAPI 文档结构', () => {
     })
   })
 
-  it('路径/方法与 Nest controller 实际路由逐条一致（39 条，防止文档漂移）', () => {
+  it('路径/方法与 Nest controller 实际路由逐条一致（48 条，防止文档漂移）', () => {
     const actualRoutes = collectActualRoutes()
     expect([...actualRoutes].sort()).toEqual([...documentedRoutes].sort())
-    expect(documentedRoutes.size).toBe(39)
+    expect(documentedRoutes.size).toBe(48)
   })
 
   it('operationId 全局唯一、summary/tags/responses 齐全', () => {
@@ -247,6 +249,10 @@ describe('OpenAPI 文档结构', () => {
     const decide = (spec.paths['/flows/instances/{instanceId}/tasks/{taskId}'] as any).post
     expect(decide.parameters.some((p: any) => p.name === 'Idempotency-Key' && p.in === 'header')).toBe(true)
     expect(decide.responses['409']).toBeTruthy()
+
+    const webhookPut = (spec.paths['/webhooks/{id}'] as any).put
+    expect(webhookPut.parameters.some((p: any) => p.name === 'If-Match' && p.in === 'header')).toBe(true)
+    expect(webhookPut.responses['409']).toBeTruthy()
 
     const upload = (spec.paths['/files/upload'] as any).post
     expect(upload.requestBody.content['multipart/form-data']).toBeTruthy()

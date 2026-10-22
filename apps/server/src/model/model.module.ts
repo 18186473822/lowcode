@@ -11,13 +11,14 @@ import { Module } from '@nestjs/common'
 import { IdentityModule } from '../identity/identity.module.js'
 import { RbacModule } from '../rbac/rbac.module.js'
 import { FlowModule } from '../flow/flow.module.js'
+import { WebhookModule } from '../webhook/webhook.module.js'
 import { ModelController } from './model.controller.js'
 import { RecordController } from './record.controller.js'
 import { ModelService } from './model.service.js'
 import { RecordService } from './record.service.js'
 
 @Module({
-  imports: [IdentityModule, RbacModule, FlowModule],
+  imports: [IdentityModule, RbacModule, FlowModule, WebhookModule],
   controllers: [ModelController, RecordController],
   providers: [ModelService, RecordService],
 })

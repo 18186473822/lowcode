@@ -32,6 +32,7 @@ import { checkExpr, evalExpr } from '@lc/expression'
 import type { AuthUser } from '../common/jwt.service.js'
 import { KeyedLock } from '../common/keyed-lock.js'
 import { RbacService } from '../rbac/rbac.service.js'
+import { WebhookService } from '../webhook/webhook.service.js'
 import { RECORD_REPOSITORY } from '../model/model.types.js'
 import type { RecordRepository } from '../model/model.types.js'
 import { FLOW_REPOSITORY } from './flow.types.js'
@@ -63,6 +64,7 @@ export class FlowService {
     @Inject(RECORD_REPOSITORY) private readonly records: RecordRepository,
     // 显式 @Inject：vitest/esbuild 不 emit decorator metadata，裸类型注入在测试容器中为 undefined
     @Inject(RbacService) private readonly rbac: RbacService,
+    @Inject(WebhookService) private readonly webhooks: WebhookService,
   ) {}
 
   /* ---------------------------------------------------------------- */
@@ -131,6 +133,24 @@ export class FlowService {
         // start → 首个 approve（或直达 end 的极端定义）
         this.advanceFrom(instance, flow, payload, 0, user.username, 'start')
         await this.repo.saveInstance(instance)
+        await this.webhooks.emit('flow.started', user.username, {
+          instanceId: instance.id,
+          flowId: instance.flowId,
+          modelId: instance.modelId,
+          recordId: instance.recordId,
+          status: instance.status,
+          revision: instance.revision ?? 0,
+        })
+        if (instance.status === 'approved') {
+          await this.webhooks.emit('flow.completed', user.username, {
+            instanceId: instance.id,
+            flowId: instance.flowId,
+            modelId: instance.modelId,
+            recordId: instance.recordId,
+            status: instance.status,
+            revision: instance.revision ?? 0,
+          })
+        }
       }
     } catch (error) {
       // 弱保证：记录已是业务真相，流程启动失败只记日志（首期口径，注释见文件头）
@@ -317,7 +337,41 @@ export class FlowService {
     }
 
     // ② 再回写记录；失败由 pendingPatch 在后续读取时补偿。
-    return this.applyPendingPatch(inst)
+    const result = await this.applyPendingPatch(inst)
+    const eventType = action === 'approve' ? 'flow.task.approved' : 'flow.task.rejected'
+    await this.webhooks.emit(eventType, user.username, {
+      instanceId: result.id,
+      flowId: result.flowId,
+      modelId: result.modelId,
+      recordId: result.recordId,
+      taskId: task.id,
+      nodeId: node.id,
+      nodeName: node.name,
+      action,
+      ...(comment === undefined ? {} : { comment }),
+      status: result.status,
+      revision: result.revision ?? 0,
+    })
+    if (result.status === 'approved') {
+      await this.webhooks.emit('flow.completed', user.username, {
+        instanceId: result.id,
+        flowId: result.flowId,
+        modelId: result.modelId,
+        recordId: result.recordId,
+        status: result.status,
+        revision: result.revision ?? 0,
+      })
+    } else if (result.status === 'rejected') {
+      await this.webhooks.emit('flow.rejected', user.username, {
+        instanceId: result.id,
+        flowId: result.flowId,
+        modelId: result.modelId,
+        recordId: result.recordId,
+        status: result.status,
+        revision: result.revision ?? 0,
+      })
+    }
+    return result
   }
 
   /* ---------------------------------------------------------------- */

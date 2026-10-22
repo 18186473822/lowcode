@@ -19,9 +19,10 @@ import { RbacModule } from './rbac/rbac.module.js'
 import { FlowModule } from './flow/flow.module.js'
 import { OpsModule } from './ops/ops.module.js'
 import { OpenModule } from './open/open.module.js'
+import { WebhookModule } from './webhook/webhook.module.js'
 
 @Module({
-  imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule, OpenModule],
+  imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule, OpenModule, WebhookModule],
   controllers: [HealthController],
 })
 export class AppModule implements NestModule {

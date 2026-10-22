@@ -204,3 +204,55 @@ model FileObject {
   @@index([uploadedAt])
   @@map("files")
 }
+
+// Webhook 订阅（Phase 4 开放集成第二批）：
+// - secret 为 HMAC-SHA256 密钥，管理接口默认脱敏；
+// - revision 用于 If-Match 乐观锁；
+// - events 保存 `'*'` 或事件名数组，升级事件列表不需要改表结构。
+model WebhookSubscription {
+  id          String   @id @db.VarChar(64)
+  name        String   @db.VarChar(128)
+  description String?  @db.VarChar(500)
+  url         String   @db.VarChar(2048)
+  events      Json
+  secret      String   @db.VarChar(128)
+  active      Boolean  @default(true)
+  maxAttempts Int      @default(5)
+  timeoutMs   Int      @default(10000)
+  revision    Int      @default(0)
+  createdBy   String   @db.VarChar(64)
+  updatedBy   String   @db.VarChar(64)
+  createdAt   DateTime @db.DateTime(3)
+  updatedAt   DateTime @db.DateTime(3)
+
+  @@index([active])
+  @@map("webhook_subscriptions")
+}
+
+// Webhook 投递日志：
+// - 每个「事件 × 订阅」一行；payloadJson 固定事件信封，重试不重新序列化；
+// - attemptsJson 保存每次尝试，管理端可回放排障；
+// - 删除订阅不级联删除本表（审计必须保留），故不建外键。
+model WebhookDelivery {
+  id             String    @id @db.VarChar(64)
+  subscriptionId String    @db.VarChar(64)
+  eventId        String    @db.VarChar(64)
+  eventType      String    @db.VarChar(64)
+  source         String    @db.VarChar(16)
+  status         String    @db.VarChar(16)
+  payloadJson    Json
+  attemptsJson   Json
+  attemptCount   Int       @default(0)
+  nextAttemptAt  DateTime  @db.DateTime(3)
+  lastAttemptAt  DateTime? @db.DateTime(3)
+  responseStatus Int?
+  responseBody   String?   @db.Text
+  error          String?   @db.Text
+  revision       Int       @default(0)
+  createdAt      DateTime  @db.DateTime(3)
+  updatedAt      DateTime  @db.DateTime(3)
+
+  @@index([subscriptionId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}

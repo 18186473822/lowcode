@@ -631,19 +631,23 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 400 | `FLOW_TASK_STALE` | 任务非当前 pending（已处理或已被驳回重入的新任务替代） |
 | 400 | `APP_CONFIG_INVALID` | **应用配置写入（批 3）**：`PUT /apps/config` theme 校验未通过（附 issues 拼接 message：非法 hex / 非 px 串 / 非布尔 / 未知配置项 / theme 非对象） |
 | 400 | `OPS_INVALID` | **运维事件（批 5）**：`POST /ops/events` 批量结构非法（条数 1~50、`type`/`name`/`pageId`/`pageVersion`/`source`/`detail` 形状、`perf` 缺 `durationMs`、`error` 缺 `message`）或 `GET /ops/events` 的 `type`/`since`/`limit` 非法；message 带 `events[i]` 定位（**数据超长不触发本码，走截断**） |
+| 400 | `WEBHOOK_INVALID` | **Webhook 配置（批 39）**：`POST/PUT /webhooks` 入参校验失败（未知字段、name/url/events/secret/active/maxAttempts/timeoutMs 非法、`events` 为空或 `'*'` 与其他事件混用、URL 非 http(s)/含账号口令/生产指向内网）；`errors[]` 汇总全部问题 |
 | 401 | `UNAUTHORIZED` | 无/坏/过期令牌、Authorization 头格式错 |
 | 401 | `INVALID_CREDENTIALS` | 用户不存在或口令错（**同一错误码防枚举**） |
 | 403 | `PAGE_FORBIDDEN` | **页面可见性守卫（批 6）**：`GET /pages/:id/schema` 用户角色不在该页授权（`pages` 有条目且未命中、也无 `'*'`）；无条目 = 全员可见不触发 |
 | 403 | `PERMISSION_DENIED` | **模型 CRUD 守卫（批 6）**：`ModelSchema.permissions[action]` 已声明且用户角色不在交集（无 `'*'`）；records 四接口按 create/read/update/delete 分别强制；**应用配置写入（批 3）**：`PUT /apps/config` 用户 perms 不含 `'*'`；**运维事件读取（批 5）**：`GET /ops/events` / `GET /ops/summary` 用户 perms 不含 `'*'` |
+| 403 | `ADMIN_REQUIRED` | **Webhook 管理（批 39）**：9 个 `/webhooks*` 接口均要求用户 perms 含 `'*'`；普通登录用户（如 designer）访问管理面时返回本码，不返回配置或密钥 |
 | 403 | `TASK_FORBIDDEN` | **流程审批动作（批 1）**：当前用户非任务 assignee（role 未命中且无 `'*'`、非发起人、dept 降级不可命中） |
 | 404 | `PAGE_NOT_FOUND` / `DRAFT_NOT_FOUND` / `VERSION_NOT_FOUND` | 页面/草稿/版本不存在 |
 | 404 | `MODEL_NOT_FOUND` / `RECORD_NOT_FOUND` / `FILE_NOT_FOUND` | 模型未建档 / 记录不存在或已软删 / 文件不存在 |
 | 404 | `FLOW_NOT_FOUND` / `FLOW_INSTANCE_NOT_FOUND` / `FLOW_TASK_NOT_FOUND` | 流程定义 / 实例 / 任务不存在（批 1） |
+| 404 | `WEBHOOK_NOT_FOUND` / `WEBHOOK_DELIVERY_NOT_FOUND` | Webhook 订阅 / 投递记录不存在（批 39）；删除订阅后仍可按 id 查其历史投递 |
 | 409 | `NOT_PUBLISHED` | 取 `published` 但从未发布 |
 | 409 | `NO_DRAFT` | 发布时没有草稿 |
 | 409 | `VERSION_CONFLICT` | **乐观锁冲突**：页面保存/发布/回滚或记录更新/删除时，`If-Match` 或服务端读到的 `revision` 已过期；响应含 `expectedRevision` / `currentRevision`（记录另含 `modelId`） |
 | 409 | `FLOW_CONFLICT` | **流程实例并发冲突**：审批推进时实例 `revision` CAS 失败（另一请求已先推进），客户端应重新 GET 实例后再决定 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | **审批幂等键复用**：同一 `Idempotency-Key` 已用于同实例的其他任务，或同一任务但动作/意见/审批人不同；相同内容的重放返回 `200` 当前实例，不报此错 |
+| 409 | `DELIVERY_PENDING` | **Webhook 手动重投（批 39）**：投递仍为 `pending` 且 `nextAttemptAt` 在当前时间之后，说明自动重试尚未到期；响应带 `nextAttemptAt`，客户端应稍后再试 |
 | 413 | （multer `LIMIT_FILE_SIZE`） | 文件超 10MB；Nest 包装为 413，**无业务 `code`** |
 
 **记录/模型校验的 `errors[]` Issue 码**（由服务端产生，与页面校验共用同一 `Issue` 形状；页面侧全集见第 7 章）：
@@ -696,8 +700,8 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 
 | `LC_STORAGE` | 数据位置 | 适用 |
 |---|---|---|
-| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
-| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files`（13 表） | 本地联调、生产；需 `DATABASE_URL` |
+| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries`（15 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
 - **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md) / [ADR-009](adr/009-mysql-prisma-second-batch.md) / [ADR-010](adr/010-mysql-files.md) / [ADR-011](adr/011-optimistic-locking.md)。
@@ -747,13 +751,123 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 端点 | `GET /api/v1/openapi.json`（公开只读，无需 JWT；仍计入普通限流） |
 | 版本 | OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀 |
 | 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId}） |
-| 覆盖 | 当前 **39 条**实际路由；含页面/记录/流程 `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
+| 覆盖 | 当前 **48 条**实际路由；含页面/记录/流程/Webhook `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
 | 缓存 | `Cache-Control: public, max-age=300` |
 | 实现 | `apps/server/src/open/openapi.ts`（构建器）+ `open.controller.ts` / `open.module.ts` |
 | 防漂移 | `apps/server/test/openapi.test.ts` 反射 Nest 路由元数据，路径/方法少一条或多一条即失败；并校验 `operationId` 唯一、路径参数完整、`$ref` 可解析、公共接口鉴权 |
 | 使用 | 可导入 Swagger UI / Apifox / Postman / OpenAPI Generator；详细说明见 [`openapi.md`](openapi.md) |
 
-> 本批只交付机器可读文档，不内置 Swagger UI 页面；Webhook 订阅/签名投递与远程物料属开放集成后续批次。
+> 本批只交付机器可读文档，不内置 Swagger UI 页面；远程物料/物料市场属开放集成后续批次。Webhook 9 条管理接口已在第二批纳入文档。
+
+### 10.8 Webhook 订阅、签名投递与重试（Phase 4 开放集成第二批）
+
+Webhook 用于把业务写操作与流程状态变化推送给外部系统。设计取舍：**订阅与投递日志分表**、**事件先落盘再由 worker 发送**、**HMAC 签名 + 至少一次投递**；Webhook 故障不得影响记录/流程主链路。
+
+**① 管理接口（9 条，全部 Bearer + `'*'`）**
+
+| 方法 | 路径 | 请求 | 成功响应 |
+|---|---|---|---|
+| GET | `/webhooks` | — | `200 { items: WebhookSubscriptionView[] }`（`updatedAt` 倒序；secret 脱敏为 `secretPreview`） |
+| POST | `/webhooks` | `{ name, description?, url, events, secret?, active?, maxAttempts?, timeoutMs? }` | `200` 新建订阅 + **完整 `secret`（仅此一次）**，响应带 `ETag: "webhook:<id>:<revision>"` |
+| GET | `/webhooks/:id` | — | `200 WebhookSubscriptionView`，响应带 `ETag`；不存在 `404 WEBHOOK_NOT_FOUND` |
+| PUT | `/webhooks/:id` | 上述字段的子集（**patch 语义**，`description: null` 清除；不接受 `secret`），可选 `If-Match` | `200` 更新后的订阅 + 新 `ETag`；非法 `400 WEBHOOK_INVALID`，冲突 `409 VERSION_CONFLICT` |
+| DELETE | `/webhooks/:id` | 可选 `If-Match` | `200 { id, deleted: true }`；**投递日志保留**；不存在 / 冲突同上 |
+| POST | `/webhooks/:id/rotate-secret` | 可选 `If-Match` | `200` 订阅视图 + **新完整 `secret`**；旧密钥立即失效，rev +1 |
+| POST | `/webhooks/:id/test` | — | `200 WebhookDelivery`（同步发送一次；事件类型固定 `webhook.test`，`source: 'test'`，可绕过 `active=false`） |
+| GET | `/webhooks/:id/deliveries?status=&eventType=&page=&size=` | `status` ∈ `pending\|success\|failed`；`eventType` 为已知投递事件；`page` 默认 1；`size` 默认 20、上限 100 | `200 { items, total, page, size }`（`createdAt` 倒序，同刻按 id 倒序） |
+| POST | `/webhooks/deliveries/:deliveryId/retry` | 可选 `If-Match`（投递 ETag） | `200 WebhookDelivery`（**同步重投一次**）；未到自动重试时间 `409 DELIVERY_PENDING`；不存在 `404 WEBHOOK_DELIVERY_NOT_FOUND` |
+
+- **管理员边界**：非 `'*'` 用户 403 `ADMIN_REQUIRED`（不是 `PERMISSION_DENIED`）；管理接口不向普通用户暴露 URL/密钥/投递体。
+- **乐观锁**：订阅 ETag `"webhook:<id>:<revision>"`，投递 ETag `"webhook-delivery:<id>:<revision>"`。写接口不带 `If-Match` 仍兼容，但服务端用读到的 revision 做 CAS；携带且不匹配立即 `409 VERSION_CONFLICT`，**不自动覆盖、不自动重试**。
+- **密钥**：创建时可自带 16~128 字符 `secret`，否则服务端生成 32 字节随机十六进制（64 字符）；列表/详情只返回 `secretPreview`（前 4 + `…` + 后 4）。轮换只走专用接口，避免普通更新把密钥带入日志/表单。
+- **字段约束**：`name` 1~64；`description` ≤500；`url` ≤2048；`events` 非空、最多 20 项、去重；`active` 默认 `true`；`maxAttempts` 1~10 默认 5；`timeoutMs` 1000~30000 默认 10000。未知字段直接拒绝（`WEBHOOK_INVALID`）。
+
+**② 订阅模型与事件**
+
+```ts
+WebhookSubscriptionView = {
+  id: string, name: string, description?: string,
+  url: string, events: string[], active: boolean,
+  maxAttempts: number, timeoutMs: number,
+  revision: number, createdBy: string, updatedBy: string,
+  createdAt: string, updatedAt: string,
+  secretPreview: string
+}
+```
+
+| 事件 `type` | 触发点 | `data` 主要字段 |
+|---|---|---|
+| `record.created` | 记录创建成功后 | `modelId, recordId, record`（`record` 为含 id/revision/审计字段的扁平记录） |
+| `record.updated` | 记录更新 CAS 成功后 | `modelId, recordId, record` |
+| `record.deleted` | 记录软删成功后 | `modelId, recordId, deletedAt, revision` |
+| `flow.started` | 流程实例启动并完成 start 自动推进后 | `instanceId, flowId, modelId, recordId, status, revision` |
+| `flow.task.approved` | 审批动作成功、记录回写补偿后 | `instanceId, flowId, modelId, recordId, taskId, nodeId, nodeName, action, comment?, status, revision` |
+| `flow.task.rejected` | 驳回动作成功、记录回写补偿后 | 同上（`action: 'reject'`） |
+| `flow.completed` | 实例进入 `approved` 终态 | `instanceId, flowId, modelId, recordId, status, revision` |
+| `flow.rejected` | 实例进入 `rejected` 终态 | 同上 |
+| `webhook.test` | **仅** `POST /webhooks/:id/test` | `message, subscriptionId`；不可被订阅 |
+
+- `events` 支持 `'*'` 订阅全部业务事件；`'*'` 必须单独使用，不能与具体事件混用。
+- 事件信封固定为：
+
+```json
+{
+  "id": "e0d1c2b3-...",
+  "type": "record.created",
+  "occurredAt": "2026-10-22T12:00:00.000Z",
+  "actor": "admin",
+  "data": { "modelId": "m_order", "recordId": "r_001", "record": { "id": "r_001" } }
+}
+```
+
+- 同一事件投递给多个订阅时，`event.id` 相同、每条投递的 `X-LC-Delivery` 不同；接收方应按事件 id 或投递 id 做**幂等**。
+- 删除/停用订阅不会取消已入队的历史投递：worker 发现订阅不存在或已停用，会把该投递标为 `failed`（测试投递不受停用影响）。
+
+**③ 投递请求与签名**
+
+每次投递为 `POST <subscription.url>`，`Content-Type: application/json; charset=utf-8`，body 是事件信封的**原始 JSON 字节**。请求头：
+
+| 头 | 值 |
+|---|---|
+| `X-LC-Signature` | `t=<unix 秒>,v1=<hex hmac>` |
+| `X-LC-Event` | 事件类型（含 `webhook.test`） |
+| `X-LC-Delivery` | 投递记录 id（每次尝试不变） |
+| `X-LC-Subscription` | 订阅 id |
+| `X-LC-Timestamp` | 同 `t`，便于直接读取 |
+| `User-Agent` | `lowcode-webhook/1.0` |
+
+签名算法：`v1 = HEX(HMAC-SHA256(secret, "<t>.<原始 JSON body>"))`。Node 校验示例：
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
+const [tPart, vPart] = signature.split(',')
+const timestamp = tPart.slice(2)
+const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest()
+const received = Buffer.from(vPart.slice(3), 'hex')
+if (received.length !== expected.length || !timingSafeEqual(received, expected)) reject()
+// 生产接收方还应校验 timestamp 与当前时间差（建议 ≤5 分钟）并持久化 event.id 去重
+```
+
+- 签名覆盖**原始 body**，接收方必须在 JSON 解析前保留原始字符串；重新序列化会改变签名。
+- 服务端不校验接收方返回体，只读取最多 2KB 作为日志摘要；2xx 视为成功，`3xx` 不跟随（`redirect: 'manual'`）且按失败处理。
+
+**④ 重试、状态与 worker**
+
+- 成功：HTTP `2xx` → `status: 'success'`。
+- 可重试：网络错误、超时、`408`、`425`、`429`、`5xx`，且 `attemptCount < maxAttempts` → `pending`，按 `5s / 30s / 2min / 10min` 退避（之后保持 10min）。
+- 不可重试：其余 `4xx`（如 400/401/403/404）或达到 `maxAttempts` → `failed`，不自动再试。
+- 每次尝试都追加到 `attempts`：`{ attempt, at, ok, status?, durationMs, responseBody?, error? }`；顶层同时保留最后一次的 `responseStatus/responseBody/error`。
+- 手动重投：要求投递已 `success/failed` 或已到重试时间；重置 `attemptCount = 0`、清空最后一次错误字段，但**保留历史 `attempts`**，同步发送一次。重投前后各 +1 revision，因此响应 revision 可能比原值大 2。
+- 后台 worker 默认每 5s 扫描到期 `pending`（单批最多 20 条）；`LC_WEBHOOK_WORKER=off` 关闭，`LC_WEBHOOK_WORKER_INTERVAL_MS` 调整间隔（最小 1000ms）。`NODE_ENV=test` 不启动定时器，测试直接调用 `dispatchDue()` / `dispatchDelivery()`。
+- 当前 worker 是**单进程**：无 Redis/分布式锁，多副本会重复投递；投递语义为**至少一次**，接收方幂等是硬要求。后台日志暂不做自动清理。
+
+**⑤ SSRF 与存储**
+
+- URL 只允许 `http/https`，拒绝内嵌账号口令；`NODE_ENV=production` 默认拒绝 `localhost`、`.local/.internal`、回环/私网/链路本地/保留字面量地址。内网集成需显式 `LC_WEBHOOK_ALLOW_PRIVATE=1`；该判断**只覆盖字面量 IP/主机名，不做 DNS 解析后的二次校验**，生产出口仍应配合网络策略。
+- JSON 模式：`<LC_DATA_DIR>/webhooks.json`（订阅）与 `<LC_DATA_DIR>/webhook-deliveries.json`（投递），均临时文件 + rename 原子写，单进程 `KeyedLock` 串行化。
+- MySQL 模式：`webhook_subscriptions` / `webhook_deliveries` 两表（迁移 `20261022200000_webhooks`）；订阅写操作走 `revision` CAS，投递日志按 `nextAttemptAt + createdAt` 扫描。
+- 删除订阅不级联删除投递日志；日志按订阅 id 查询，保留完整尝试历史。密钥、投递体、响应摘要均属敏感数据，当前无日志自动脱敏/清理策略。
 
 ## 11. 生命周期受信 API（`app.*`）
 

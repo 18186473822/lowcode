@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库三批**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，共 13 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**与**OpenAPI 3.1 文档**完成，Webhook/远程物料等其余生产化与开放能力未启动。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递，共 15 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档**与 **Webhook 订阅/签名投递/重试/投递日志**完成，远程物料等其余生产化与开放能力未启动。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -38,7 +38,7 @@ pnpm -F @lc/runtime dev:h5
 
 > 仓库**不包含**运行时数据 `apps/server/data/`（已在 `.gitignore` 中忽略）。新克隆环境首次启动是空库，现有演示页/记录不会跟随仓库；需通过设计器重新搭建，或导入 `apps/server/scripts/seed-pgc-demo.json`。
 >
-> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）。页面、记录、流程实例写接口已启用 `revision` 乐观锁；审批支持 `Idempotency-Key`，流程结束回写记录走 `pendingPatch` 补偿（ADR-011）；标准详情页已提供记录编辑/删除入口（`detail.editable/deletable` 显式开启，PUT/DELETE 回传 `If-Match`，409 不覆盖他人修改）；标准列表页已提供行内编辑与批量删除（`list.editable/deletable` 显式开启，逐行 `If-Match`，冲突行保留选择，删空当前页自动回第一页）。
+> **当前阶段决策（2026-10-22）**：核心业务数据已支持 **MySQL 8 + Prisma**；`LC_STORAGE=json`（默认）保留给单测/无数据库 CI，`mysql` 用于本地与生产。流程定义/实例、运维事件、应用配置已在第二批迁入 MySQL；文件元数据与内容已在第三批迁入 `files` 表（ADR-008 / ADR-009 / ADR-010）；Webhook 订阅与投递日志在开放集成第二批迁入 `webhook_subscriptions` / `webhook_deliveries`。页面、记录、流程实例写接口已启用 `revision` 乐观锁；审批支持 `Idempotency-Key`，流程结束回写记录走 `pendingPatch` 补偿（ADR-011）；标准详情页已提供记录编辑/删除入口（`detail.editable/deletable` 显式开启，PUT/DELETE 回传 `If-Match`，409 不覆盖他人修改）；标准列表页已提供行内编辑与批量删除（`list.editable/deletable` 显式开启，逐行 `If-Match`，冲突行保留选择，删空当前页自动回第一页）。
 
 ### 数据库（Phase 4 三批：MySQL 8 + Prisma）
 
@@ -72,7 +72,7 @@ pnpm -F @lc/server import:json-to-mysql
 | `LC_DATA_DIR` | `<cwd>/data` | JSON 模式下列表数据与上传文件根目录；MySQL 模式仅保留历史兼容目录，文件已入 `files` 表 |
 
 > 服务端本身**不自动加载 `.env`**：`start:mysql` 用 Node `--env-file=.env`，生产请由 systemd/容器注入环境变量。Prisma CLI 会自动读取 `apps/server/.env`。
-> MySQL 三批表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files`。流程定义删除不级联删除实例；文件元数据与 `LONGBLOB` 内容同行，上传/下载在同一事务边界内完成。
+> MySQL 表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries`（15 表）。流程定义删除不级联删除实例；文件元数据与 `LONGBLOB` 内容同行，上传/下载在同一事务边界内完成；删除 Webhook 订阅不级联删除投递日志。
 
 ### 安全配置（Phase 4）
 
@@ -115,10 +115,31 @@ export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行�
 curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 ```
 
-- 标准 **OpenAPI 3.1.0**，`servers[0].url = /api/v1`，覆盖当前 **39 条**实际路由。
+- 标准 **OpenAPI 3.1.0**，`servers[0].url = /api/v1`，覆盖当前 **48 条**实际路由。
 - 可直接导入 Swagger UI / Apifox / Postman / OpenAPI Generator；文档内已标注 Bearer 鉴权、`If-Match` 乐观锁、审批 `Idempotency-Key`、错误体与 409/413/429/503。
 - 路径/方法由 `apps/server/test/openapi.test.ts` 反射 Nest 路由逐条比对，新增/删除接口未同步会直接测试失败。
 - 获取、导入、维护说明与未包含项见 [`docs/openapi.md`](docs/openapi.md)，接口约定见 [`docs/protocol.md`](docs/protocol.md) §10.7。
+
+### Webhook（Phase 4 开放集成第二批）
+
+```bash
+# 管理员登录后创建订阅；响应中的 secret 只返回一次
+curl -s -X POST http://localhost:3000/api/v1/webhooks \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"ERP","url":"https://erp.example.com/lc","events":["record.created","flow.completed"]}'
+```
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `LC_WEBHOOK_WORKER` | 开启 | 设为 `off` 关闭后台投递 worker；`NODE_ENV=test` 下始终不启动 |
+| `LC_WEBHOOK_WORKER_INTERVAL_MS` | `5000` | worker 扫描间隔，最小 1000ms |
+| `LC_WEBHOOK_ALLOW_PRIVATE` | 未设置 | production 默认拒绝本机/内网 URL；内网集成显式设 `1` |
+
+- 支持事件：`record.created/updated/deleted`、`flow.started`、`flow.task.approved/rejected`、`flow.completed/rejected`；`'*'` 可订阅全部。
+- 投递头：`X-LC-Signature: t=<unix>,v1=<hex hmac>`，签名内容为 `<t>.<原始 JSON body>`；另带 `X-LC-Event/Delivery/Subscription/Timestamp`。
+- 默认最多 5 次，退避 `5s / 30s / 2min / 10min`；网络错误、超时、408/425/429/5xx 可重试，其余 4xx 直接失败。语义为**至少一次**，接收方必须按事件 id 或投递 id 幂等。
+- 管理面 9 条接口仅 `'*'` 管理员可用；订阅/投递均支持 ETag + `If-Match`，409 不覆盖、不自动重试。删除订阅保留投递日志。
+- 当前为**单进程 worker**，无 Redis/分布式队列；多副本会重复投递，日志也暂无自动清理。SSRF 防护只覆盖 URL 字面量地址，生产仍需出口网络策略。详见 [`docs/protocol.md`](docs/protocol.md) §10.8。
 
 开发账号（JSON 模式为内存种子；MySQL 模式由 `seed:mysql` 写入 `users / roles / user_roles`，**仅限本地**）：
 
@@ -150,7 +171,7 @@ packages/
   tokens/       设计令牌唯一持有者（tokens.css / tokens.ts / rpx 产物）
   runtime/      uni-app 运行时壳（登录 / 菜单 / 待办 / 表单 / 列表 / 详情 / 门户）
 apps/
-  server/       NestJS 服务端（登录、页面、模型、记录、流程、RBAC、文件、运维事件、OpenAPI）
+  server/       NestJS 服务端（登录、页面、模型、记录、流程、RBAC、文件、运维事件、Webhook、OpenAPI）
   designer-web/ 设计器 PC 宿主（Vite + Element Plus + rpx→px 插件 + /api 代理）
 docs/           协议规范、设计系统、分阶段方案、ADR、进度台账
 scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图标表）
@@ -166,8 +187,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 4 道：令牌漂移 / 硬编码色值 / rpx 同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（76 文件 / 1130 通过 + 9 条件跳过；设 LC_TEST_DATABASE_URL 时 1139 全通过）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 95.66/85.89/95.69/95.66）
+pnpm -r test         # 单元测试（78 文件 / 1168 用例；注入 LC_TEST_DATABASE_URL 时全通过）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 95.95/86.63/96.09/95.95）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：
@@ -188,7 +209,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | 文档 | 内容 |
 |---|---|
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
-| [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、39 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
+| [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、48 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
 | [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范） |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
 | [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
@@ -199,12 +220,13 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
 - **CI 未在真实环境跑过**：代码已推送 Gitee `origin/master`，但 Gitee 托管 CI 无法运行 Node 22；GitHub Actions workflow 已存在，GitHub 镜像/远端 Actions 尚未创建与实跑。
-- **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 39 条路由，但未内置 Swagger UI 页面，也未生成客户端 SDK；Webhook 订阅/签名投递与远程物料同样未实现（后续开放集成批次）。
-- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
+- **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 48 条路由（含 9 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；远程物料/物料市场仍属后续开放集成批次。
+- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递日志（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
-- **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。
+- **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。Webhook 迁移为 `20261022200000_webhooks`（两张表）。
+- **Webhook 仍是单进程投递**：没有 Redis/分布式队列或租约，多副本会重复投递；接收方必须按事件 id/投递 id 幂等。投递日志无自动 TTL/清理，长期运行需外部归档；SSRF 防护只判断 URL 字面量地址，不覆盖 DNS 解析后的内网地址，生产应叠加出口网络策略。JSON→MySQL 导入脚本目前不包含 `webhooks.json` / `webhook-deliveries.json`，切换前需重新创建订阅或补导入脚本。
 - **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器、标准详情页与标准列表页均携带 `If-Match`。业务记录编辑/删除需显式开启 `detail.editable/deletable` 或 `list.editable/deletable`（缺省只读）；列表行内编辑先拉最新单条再保存，批量删除逐条串行且每行一个 `If-Match`，`409 VERSION_CONFLICT` 不自动覆盖，保留草稿/选择并要求重新加载。批量删除不是原子事务，部分失败会保留未删行与选择，刷新后可用最新 revision 重试；行编辑/删除目前无独立权限点，仍由模型 RBAC + 服务端 403 兜底。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
 - **流程回写为至少一次**：审批结束后实例先落终态并写 `pendingPatch`，再回写记录；进程中断时由后续读/审批补偿，短暂窗口内可能出现「流程已通过、记录字段尚未更新」，`setField` 重复补偿无副作用。JSON 模式多副本无法保证并发安全，多实例部署必须用 MySQL。
 - **图表为纯 SVG 渲染**，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。

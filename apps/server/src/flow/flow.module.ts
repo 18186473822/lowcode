@@ -9,11 +9,12 @@
 import { Module } from '@nestjs/common'
 import { AuthModule } from '../common/auth.module.js'
 import { RbacModule } from '../rbac/rbac.module.js'
+import { WebhookModule } from '../webhook/webhook.module.js'
 import { FlowController } from './flow.controller.js'
 import { FlowService } from './flow.service.js'
 
 @Module({
-  imports: [AuthModule, RbacModule],
+  imports: [AuthModule, RbacModule, WebhookModule],
   controllers: [FlowController],
   // FLOW_REPOSITORY 由全局 StorageModule 按 LC_STORAGE 提供（JSON / MySQL）。
   providers: [FlowService],

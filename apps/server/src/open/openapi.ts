@@ -821,6 +821,183 @@ const opsSummarySchema: Json = {
   },
 }
 
+/* ------------------------------------------------------------------ */
+/* Webhook 订阅 / 投递                                                 */
+/* ------------------------------------------------------------------ */
+
+const webhookEventTypeSchema: Json = {
+  type: 'string',
+  enum: [
+    'record.created',
+    'record.updated',
+    'record.deleted',
+    'flow.started',
+    'flow.task.approved',
+    'flow.task.rejected',
+    'flow.completed',
+    'flow.rejected',
+  ],
+}
+
+const webhookSubscriptionSchema: Json = {
+  type: 'object',
+  required: [
+    'id', 'name', 'url', 'events', 'active', 'maxAttempts', 'timeoutMs', 'revision',
+    'secretPreview', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt',
+  ],
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string', maxLength: 64 },
+    description: { type: 'string', maxLength: 500 },
+    url: { type: 'string', maxLength: 2048 },
+    events: {
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', enum: ['*', ...webhookEventTypeSchema.enum as string[]] },
+    },
+    active: { type: 'boolean' },
+    maxAttempts: { type: 'integer', minimum: 1, maximum: 10 },
+    timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000 },
+    revision: { type: 'integer', minimum: 0 },
+    secretPreview: { type: 'string', examples: ['abcd…wxyz'] },
+    createdBy: { type: 'string' },
+    updatedBy: { type: 'string' },
+    createdAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+  },
+}
+
+const webhookSubscriptionSecretSchema: Json = {
+  allOf: [
+    webhookSubscriptionSchema,
+    {
+      type: 'object',
+      required: ['secret'],
+      properties: {
+        secret: { type: 'string', description: '完整 HMAC secret；只在创建/轮换响应中返回一次' },
+      },
+    },
+  ],
+}
+
+const webhookCreateRequestSchema: Json = {
+  type: 'object',
+  required: ['name', 'url', 'events'],
+  properties: {
+    name: { type: 'string', minLength: 1, maxLength: 64 },
+    description: { type: 'string', maxLength: 500 },
+    url: { type: 'string', maxLength: 2048, examples: ['https://example.com/hooks/lowcode'] },
+    events: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      items: { type: 'string', enum: ['*', ...webhookEventTypeSchema.enum as string[]] },
+      description: '`"*"` 只能单独使用',
+    },
+    secret: { type: 'string', minLength: 16, maxLength: 128, description: '不传则服务端生成 64 位 hex' },
+    active: { type: 'boolean', default: true },
+    maxAttempts: { type: 'integer', minimum: 1, maximum: 10, default: 5 },
+    timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000, default: 10000 },
+  },
+  additionalProperties: false,
+}
+
+const webhookPatchRequestSchema: Json = {
+  type: 'object',
+  minProperties: 1,
+  properties: {
+    name: { type: 'string', minLength: 1, maxLength: 64 },
+    description: { type: ['string', 'null'], maxLength: 500 },
+    url: { type: 'string', maxLength: 2048 },
+    events: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      items: { type: 'string', enum: ['*', ...webhookEventTypeSchema.enum as string[]] },
+    },
+    active: { type: 'boolean' },
+    maxAttempts: { type: 'integer', minimum: 1, maximum: 10 },
+    timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000 },
+  },
+  additionalProperties: false,
+}
+
+const webhookSubscriptionListSchema: Json = {
+  type: 'object',
+  required: ['items'],
+  properties: { items: { type: 'array', items: ref('WebhookSubscription') } },
+}
+
+const webhookDeleteResponseSchema: Json = {
+  type: 'object',
+  required: ['id', 'deleted'],
+  properties: { id: { type: 'string' }, deleted: { const: true } },
+}
+
+const webhookDeliveryAttemptSchema: Json = {
+  type: 'object',
+  required: ['attempt', 'at', 'ok', 'durationMs'],
+  properties: {
+    attempt: { type: 'integer', minimum: 1 },
+    at: { type: 'string', format: 'date-time' },
+    ok: { type: 'boolean' },
+    status: { type: 'integer', minimum: 100, maximum: 599 },
+    durationMs: { type: 'integer', minimum: 0 },
+    responseBody: { type: 'string', description: '响应体摘要，最多约 2KB' },
+    error: { type: 'string' },
+  },
+}
+
+const webhookEventEnvelopeSchema: Json = {
+  type: 'object',
+  required: ['id', 'type', 'occurredAt', 'actor', 'data'],
+  properties: {
+    id: { type: 'string', description: '事件 id；接收方用于幂等' },
+    type: { type: 'string' },
+    occurredAt: { type: 'string', format: 'date-time' },
+    actor: { type: 'string' },
+    data: { type: 'object', additionalProperties: true },
+  },
+}
+
+const webhookDeliverySchema: Json = {
+  type: 'object',
+  required: [
+    'id', 'subscriptionId', 'eventId', 'eventType', 'payload', 'source', 'status',
+    'attempts', 'attemptCount', 'nextAttemptAt', 'revision', 'createdAt', 'updatedAt',
+  ],
+  properties: {
+    id: { type: 'string' },
+    subscriptionId: { type: 'string' },
+    eventId: { type: 'string' },
+    eventType: { type: 'string' },
+    payload: ref('WebhookEventEnvelope'),
+    source: { type: 'string', enum: ['event', 'test'] },
+    status: { type: 'string', enum: ['pending', 'success', 'failed'] },
+    attempts: { type: 'array', items: ref('WebhookDeliveryAttempt') },
+    attemptCount: { type: 'integer', minimum: 0 },
+    nextAttemptAt: { type: 'string', format: 'date-time' },
+    lastAttemptAt: { type: 'string', format: 'date-time' },
+    responseStatus: { type: 'integer', minimum: 100, maximum: 599 },
+    responseBody: { type: 'string' },
+    error: { type: 'string' },
+    revision: { type: 'integer', minimum: 0 },
+    createdAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+  },
+}
+
+const webhookDeliveryListSchema: Json = {
+  type: 'object',
+  required: ['items', 'total', 'page', 'size'],
+  properties: {
+    items: { type: 'array', items: ref('WebhookDelivery') },
+    total: { type: 'integer', minimum: 0 },
+    page: { type: 'integer', minimum: 1 },
+    size: { type: 'integer', minimum: 1, maximum: 100 },
+  },
+}
+
 const healthSchema: Json = {
   type: 'object',
   required: ['status', 'storage', 'version', 'uptimeSeconds', 'timestamp'],
@@ -908,7 +1085,7 @@ const componentsResponses: Json = {
 
 const componentsHeaders: Json = {
   ETag: {
-    description: '资源版本（页面 `"page:<id>:<rev>"`、记录 `"record:<modelId>/<rid>:<rev>"`、流程 `"flow:<id>:<rev>"`）',
+    description: '资源版本（页面 `"page:<id>:<rev>"`、记录 `"record:<modelId>/<rid>:<rev>"`、流程 `"flow:<id>:<rev>"`、Webhook 订阅 `"webhook:<id>:<rev>"`、投递 `"webhook-delivery:<id>:<rev>"`）',
     schema: { type: 'string' },
   },
   XRequestId: {
@@ -1374,6 +1551,124 @@ export function buildOpenApi(): OpenApiDocument {
       }),
     },
 
+    /* ------------------------------ Webhook ------------------------------ */
+    '/webhooks': {
+      get: op('Webhooks', 'listWebhooks', 'Webhook 订阅列表（仅管理员）', {
+        200: ok('订阅列表，`updatedAt` 倒序；密钥脱敏', ref('WebhookSubscriptionList')),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }),
+      post: op('Webhooks', 'createWebhook', '创建 Webhook 订阅（仅管理员）', {
+        200: okWithEtag('创建成功；响应含完整 secret（仅此一次）', ref('WebhookSubscriptionSecret')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }, {
+        description: '`secret` 不传则服务端生成；`events` 支持 `"*"`（必须单独使用）。生产默认拒绝本机/内网 URL，内部集成可设 `LC_WEBHOOK_ALLOW_PRIVATE=1`。',
+        requestBody: body(ref('WebhookCreateRequest')),
+      }),
+    },
+    '/webhooks/{id}': {
+      get: op('Webhooks', 'getWebhook', '读取 Webhook 订阅（仅管理员）', {
+        200: ok('订阅详情；响应带 ETag；secret 脱敏', ref('WebhookSubscription'), { ETag: headerRef('ETag') }),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+      }, {
+        parameters: [pathParam('id', 'Webhook 订阅 id', 'wh_1')],
+      }),
+      put: op('Webhooks', 'updateWebhook', '更新 Webhook 订阅（仅管理员）', {
+        200: okWithEtag('更新成功；返回脱敏订阅', ref('WebhookSubscription')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: 'patch 语义；`secret` 不在本接口更新。携带 `If-Match` 且版本不一致返回 409 `VERSION_CONFLICT`，不自动覆盖。',
+        parameters: [
+          pathParam('id', 'Webhook 订阅 id', 'wh_1'),
+          headerParam('If-Match', '订阅 ETag，如 `"webhook:wh_1:2"`', { type: 'string' }, '"webhook:wh_1:2"'),
+        ],
+        requestBody: body(ref('WebhookPatchRequest')),
+      }),
+      delete: op('Webhooks', 'deleteWebhook', '删除 Webhook 订阅（仅管理员）', {
+        200: ok('删除成功；投递日志保留审计', ref('WebhookDeleteResponse')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '携带 `If-Match` 且版本不一致返回 409 `VERSION_CONFLICT`。',
+        parameters: [
+          pathParam('id', 'Webhook 订阅 id', 'wh_1'),
+          headerParam('If-Match', '订阅 ETag', { type: 'string' }, '"webhook:wh_1:2"'),
+        ],
+      }),
+    },
+    '/webhooks/{id}/rotate-secret': {
+      post: op('Webhooks', 'rotateWebhookSecret', '轮换 Webhook 签名密钥（仅管理员）', {
+        200: okWithEtag('轮换成功；响应含新 secret（仅此一次）', ref('WebhookSubscriptionSecret')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '轮换后旧 secret 立即失效；接收方需同步更新。',
+        parameters: [
+          pathParam('id', 'Webhook 订阅 id', 'wh_1'),
+          headerParam('If-Match', '订阅 ETag', { type: 'string' }, '"webhook:wh_1:2"'),
+        ],
+      }),
+    },
+    '/webhooks/{id}/test': {
+      post: op('Webhooks', 'testWebhook', '发送测试投递（仅管理员）', {
+        200: okWithEtag('同步发送一次后的投递记录（成功/失败/待重试）', ref('WebhookDelivery')),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+      }, {
+        description: '事件类型固定为 `webhook.test`，会真实发起 HTTP 请求；最长等待订阅的 `timeoutMs`。',
+        parameters: [pathParam('id', 'Webhook 订阅 id', 'wh_1')],
+      }),
+    },
+    '/webhooks/{id}/deliveries': {
+      get: op('Webhooks', 'listWebhookDeliveries', '查询 Webhook 投递日志（仅管理员）', {
+        200: ok('投递日志，`createdAt` 倒序', ref('WebhookDeliveryList')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+      }, {
+        description: '包含每次尝试的 HTTP 状态、耗时、响应摘要与错误，可用于排障和手动重投。',
+        parameters: [
+          pathParam('id', 'Webhook 订阅 id', 'wh_1'),
+          queryParam('status', '投递状态过滤', { type: 'string', enum: ['pending', 'success', 'failed'] }, 'failed'),
+          queryParam('eventType', '事件类型过滤', { type: 'string' }, 'record.created'),
+          queryParam('page', '页码，从 1 开始', { type: 'integer', minimum: 1, default: 1 }, 1),
+          queryParam('size', '每页条数，1~100', { type: 'integer', minimum: 1, maximum: 100, default: 20 }, 20),
+        ],
+      }),
+    },
+    '/webhooks/deliveries/{deliveryId}/retry': {
+      post: op('Webhooks', 'retryWebhookDelivery', '手动重投 Webhook 投递（仅管理员）', {
+        200: okWithEtag('重投后的投递记录', ref('WebhookDelivery')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '重置尝试计数后同步发送一次，保留历史 `attempts`。若仍在自动重试等待期返回 409 `DELIVERY_PENDING`；`If-Match` 不匹配返回 409 `VERSION_CONFLICT`。',
+        parameters: [
+          pathParam('deliveryId', '投递 id', 'del_1'),
+          headerParam('If-Match', '投递 ETag，如 `"webhook-delivery:del_1:1"`', { type: 'string' }, '"webhook-delivery:del_1:1"'),
+        ],
+      }),
+    },
+
     /* ------------------------------ 运维事件 ------------------------------ */
     '/ops/events': {
       post: op('Ops', 'ingestOpsEvents', '上报运维事件（登录即可）', {
@@ -1436,7 +1731,7 @@ export function buildOpenApi(): OpenApiDocument {
         '**错误体**：`{ code, message, errors?, warnings?, expectedRevision?, currentRevision? }`，错误码见 `docs/protocol.md` §10.3。',
         '**限流**：普通接口默认 600 次/分钟/IP，登录 20 次/分钟/IP；超限 `429 RATE_LIMITED` 并带 `Retry-After`。',
         '',
-        '本文件只包含接口文档，不包含 Webhook 订阅/投递（后续开放集成批次）。',
+        'Webhook 管理接口位于 `/webhooks`，仅 `*` 管理员可用；投递签名与重试规则见 `docs/protocol.md` §10.8。',
       ].join('\n'),
       license: { name: 'UNLICENSED' },
     },
@@ -1454,6 +1749,7 @@ export function buildOpenApi(): OpenApiDocument {
       { name: 'Flows', description: '流程定义、待办与审批' },
       { name: 'RBAC', description: '角色与页面授权' },
       { name: 'Ops', description: '埋点/错误/性能事件' },
+      { name: 'Webhooks', description: 'Webhook 订阅、投递日志与重投' },
     ],
     security: [{ bearerAuth: [] }],
     paths,
@@ -1515,6 +1811,16 @@ export function buildOpenApi(): OpenApiDocument {
         OpsIngestResponse: opsIngestResponseSchema,
         OpsList: opsListResponseSchema,
         OpsSummary: opsSummarySchema,
+        WebhookSubscription: webhookSubscriptionSchema,
+        WebhookSubscriptionSecret: webhookSubscriptionSecretSchema,
+        WebhookSubscriptionList: webhookSubscriptionListSchema,
+        WebhookCreateRequest: webhookCreateRequestSchema,
+        WebhookPatchRequest: webhookPatchRequestSchema,
+        WebhookDeleteResponse: webhookDeleteResponseSchema,
+        WebhookEventEnvelope: webhookEventEnvelopeSchema,
+        WebhookDeliveryAttempt: webhookDeliveryAttemptSchema,
+        WebhookDelivery: webhookDeliverySchema,
+        WebhookDeliveryList: webhookDeliveryListSchema,
         Health: healthSchema,
         Ready: readySchema,
         OpenApiDocument: openApiDocumentSchema,

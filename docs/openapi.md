@@ -1,4 +1,4 @@
-# OpenAPI 接口文档（Phase 4 · 开放集成第一批）
+# OpenAPI 接口文档（Phase 4 · 开放集成第一 ~ 二批）
 
 服务端在运行时直接输出 **OpenAPI 3.1.0** 文档，供外部系统、Swagger UI、Apifox、Postman、OpenAPI Generator 等工具导入。文档由代码中的显式声明生成，并通过路由反射测试与实际 Nest controller 逐条比对，避免“文档写了、接口没有”或“接口加了、文档没写”。
 
@@ -26,7 +26,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 
 > 本批只提供机器可读文档，不内置 Swagger UI 页面；生产环境建议用独立网关或文档站托管，避免把 UI 依赖塞进 API 服务。
 
-## 3. 覆盖范围（39 条路由）
+## 3. 覆盖范围（48 条路由）
 
 | 分组 | 方法 | 路径 | 鉴权 |
 |---|---|---|---|
@@ -69,8 +69,17 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Ops | POST | `/ops/events` | Bearer |
 | Ops | GET | `/ops/events` | Bearer + `*` |
 | Ops | GET | `/ops/summary` | Bearer + `*` |
+| Webhooks | GET | `/webhooks` | Bearer + `*` |
+| Webhooks | POST | `/webhooks` | Bearer + `*` |
+| Webhooks | GET | `/webhooks/{id}` | Bearer + `*` |
+| Webhooks | PUT | `/webhooks/{id}` | Bearer + `*` |
+| Webhooks | DELETE | `/webhooks/{id}` | Bearer + `*` |
+| Webhooks | POST | `/webhooks/{id}/rotate-secret` | Bearer + `*` |
+| Webhooks | POST | `/webhooks/{id}/test` | Bearer + `*` |
+| Webhooks | GET | `/webhooks/{id}/deliveries` | Bearer + `*` |
+| Webhooks | POST | `/webhooks/deliveries/{deliveryId}/retry` | Bearer + `*` |
 
-> “Bearer + `*`”表示接口内部还校验用户权限点包含 `'*'` 通配（超级角色）；“模型 create/read/update/delete”表示按 `ModelSchema.permissions[action]` 校验；“页面可见性”走 `RbacService.canSeePage`。
+> “Bearer + `*`”表示接口内部还校验用户权限点包含 `'*'` 通配（超级角色）；“模型 create/read/update/delete”表示按 `ModelSchema.permissions[action]` 校验；“页面可见性”走 `RbacService.canSeePage`。Webhook 管理接口对非管理员返回 `403 ADMIN_REQUIRED`，不返回订阅 URL、密钥或投递体。
 
 ## 4. 文档约定
 
@@ -87,6 +96,8 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | 页面 | `"page:<pageId>:<revision>"` | `PUT /pages/{id}/schema`、`POST /pages/{id}/publish`、`POST /pages/{id}/rollback` |
 | 记录 | `"record:<modelId>/<rid>:<revision>"` | `PUT/DELETE /models/{modelId}/records/{rid}`（创建响应也给 ETag） |
 | 流程实例 | `"flow:<instanceId>:<revision>"` | 审批不使用 `If-Match`，走 `Idempotency-Key`；GET/审批响应给 ETag |
+| Webhook 订阅 | `"webhook:<id>:<revision>"` | `PUT/DELETE /webhooks/{id}`、`POST /webhooks/{id}/rotate-secret` |
+| Webhook 投递 | `"webhook-delivery:<id>:<revision>"` | `POST /webhooks/deliveries/{deliveryId}/retry`；测试投递响应也给 ETag |
 
 版本不一致返回：
 
@@ -134,11 +145,19 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
   1. 反射全部 controller 的 `PATH_METADATA` / `METHOD_METADATA`，与文档路径/方法精确比对；
   2. 校验 `operationId` 唯一、路径参数声明完整、`$ref` 可解析、公共接口 `security: []`；
   3. 真实启动 Nest，请求 `GET /api/v1/openapi.json` 验证无需令牌可读。
-- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 39 条）。
+- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 48 条）。
 
-## 6. 本批未包含
+## 6. Webhook 管理接口
 
-- Webhook 订阅、签名投递、重试与投递日志（开放集成后续批次）。
+第二批新增 9 条 `/webhooks*` 管理接口，完整签名算法、事件信封、重试退避与投递状态见 [`protocol.md`](protocol.md) §10.8。OpenAPI 文档中仅暴露管理面：
+
+- 订阅 CRUD + 密钥轮换 + 测试投递 + 投递日志分页 + 手动重投；
+- 订阅/投递写接口的 ETag 与 `If-Match`、`409 VERSION_CONFLICT`/`409 DELIVERY_PENDING`；
+- 创建/轮换响应包含完整 `secret`，其余响应只含 `secretPreview`；
+- 事件推送本身是服务端出站 HTTP，不是 OpenAPI 描述的本服务入站路由。
+
+## 7. 本批未包含
+
 - 远程物料加载 / 物料市场。
 - Swagger UI 内置页面。
 - 第三方数据源连接器。
