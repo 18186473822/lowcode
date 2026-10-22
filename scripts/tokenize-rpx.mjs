@@ -20,7 +20,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve, relative, join } from 'node:path'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const DRY = process.argv.includes('--dry')
+const CHECK = process.argv.includes('--check')
+const DRY = !CHECK && process.argv.includes('--dry')
 
 const SCAN_DIRS = ['packages/materials/src', 'packages/renderer/src', 'packages/runtime/src']
 const SKIP_DIR = new Set(['node_modules', 'dist'])
@@ -114,7 +115,7 @@ for (const rel of SCAN_DIRS) {
       .join('\n')
 
     if (next !== original) {
-      if (!DRY) writeFileSync(file, next, 'utf8')
+      if (!DRY && !CHECK) writeFileSync(file, next, 'utf8')
       changedFiles.push({ file: relPath, hits })
       total += hits
     }
@@ -122,6 +123,17 @@ for (const rel of SCAN_DIRS) {
 }
 
 /* ---------------- 报告 ---------------- */
+
+if (CHECK) {
+  if (total) {
+    console.error(`FAIL：仍有 ${total} 处「落在刻度上」的 rpx 字面量未令牌化：`)
+    for (const c of changedFiles.slice(0, 10)) console.error(`  ${String(c.hits).padStart(3)}  ${c.file}`)
+    console.error('  跑 node scripts/tokenize-rpx.mjs 修正。')
+    process.exit(1)
+  }
+  console.log('rpx 检查通过 ✔（刻度上的值均已令牌化）')
+  process.exit(0)
+}
 
 console.log(`rpx 字面量令牌化${DRY ? '（dry-run，未写盘）' : ''}`)
 console.log('─'.repeat(64))

@@ -55,3 +55,26 @@ export function useBreakpoint(): Ref<Breakpoint> {
 export function isDrawerLayout(bp: Breakpoint): boolean {
   return bp === 'mobile' || bp === 'tablet'
 }
+
+/**
+ * 是否达到指定最小宽度（默认 1180px）。
+ *
+ * 单列一个 hook 而不复用 4 档断点：顶栏「更多」的阈值（§3.2 规定 1180）**不在** 4 档
+ * （1024 / 1440）上 —— 硬套 `desktop` 会在 1024–1179 这段该收的时候不收。
+ */
+export function useMinWidth(px = 1180): Ref<boolean> {
+  const query = `(min-width: ${px}px)`
+  const ok = ref(true)
+
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    const mql = window.matchMedia(query)
+    ok.value = mql.matches
+    const onChange = (e: MediaQueryListEvent): void => {
+      ok.value = e.matches
+    }
+    mql.addEventListener('change', onChange)
+    onUnmounted(() => mql.removeEventListener('change', onChange))
+  }
+
+  return ok
+}

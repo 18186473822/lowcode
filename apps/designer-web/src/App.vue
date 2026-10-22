@@ -90,13 +90,6 @@
         <span class="top-sep" aria-hidden="true" />
         <button class="top-btn top-btn--primary" type="button" @click="onSave">保存</button>
         <button class="top-btn" type="button" @click="onPublish">发布</button>
-        <!-- Phase 2 批 5：版本历史弹层入口 -->
-        <button
-          class="top-btn"
-          type="button"
-          data-testid="open-history"
-          @click="store.openHistory()"
-        >历史</button>
         <!-- Phase 2 批 4：撤销/重做 + 复制/剪切/粘贴（phase2-plan §8） -->
         <span class="top-sep" aria-hidden="true" />
         <button
@@ -115,54 +108,63 @@
           title="重做（Ctrl+Shift+Z）"
           @click="store.redo()"
         >重做</button>
-        <button
-          class="top-btn"
-          type="button"
-          data-testid="copy"
-          :disabled="!store.selectedId || store.isRootSelected"
-          title="复制（Ctrl+C）"
-          @click="store.copyById(store.selectedId)"
-        >复制</button>
-        <button
-          class="top-btn"
-          type="button"
-          data-testid="cut"
-          :disabled="!store.selectedId || store.isRootSelected"
-          title="剪切（Ctrl+X）"
-          @click="store.cutById(store.selectedId)"
-        >剪切</button>
-        <button
-          class="top-btn"
-          type="button"
-          data-testid="paste"
-          :disabled="!store.clipboard"
-          title="粘贴（Ctrl+V；粘贴位置按选中规则）"
-          @click="store.paste()"
-        >粘贴</button>
+        <!-- §3.2：<1180px 把次级操作收进「更多」；宽屏原地平铺（同一份内容，不抄两遍） -->
         <span class="top-sep" aria-hidden="true" />
-        <button
-          class="top-btn"
-          :class="{ 'top-btn--primary': store.view === 'model' }"
-          type="button"
-          data-testid="toggle-models"
-          @click="onToggleModels"
-        >数据模型</button>
-        <!-- Phase 2 批 6 / D-P2-12：权限管理视图切换 -->
-        <button
-          class="top-btn"
-          :class="{ 'top-btn--primary': store.view === 'rbac' }"
-          type="button"
-          data-testid="toggle-rbac"
-          @click="onToggleRbac"
-        >权限管理</button>
-        <!-- Phase 3 批 3 / D-P3-8：应用主题配置视图切换 -->
-        <button
-          class="top-btn"
-          :class="{ 'top-btn--primary': store.view === 'theme' }"
-          type="button"
-          data-testid="toggle-theme-panel"
-          @click="onToggleThemePanel"
-        >主题配置</button>
+        <top-more-menu :inline="wideEnough">
+          <button
+            class="top-btn"
+            type="button"
+            data-testid="open-history"
+            @click="store.openHistory()"
+          >历史</button>
+          <span class="top-sep" aria-hidden="true" />
+          <button
+            class="top-btn"
+            type="button"
+            data-testid="copy"
+            :disabled="!store.selectedId || store.isRootSelected"
+            title="复制（Ctrl+C）"
+            @click="store.copyById(store.selectedId)"
+          >复制</button>
+          <button
+            class="top-btn"
+            type="button"
+            data-testid="cut"
+            :disabled="!store.selectedId || store.isRootSelected"
+            title="剪切（Ctrl+X）"
+            @click="store.cutById(store.selectedId)"
+          >剪切</button>
+          <button
+            class="top-btn"
+            type="button"
+            data-testid="paste"
+            :disabled="!store.clipboard"
+            title="粘贴（Ctrl+V；粘贴位置按选中规则）"
+            @click="store.paste()"
+          >粘贴</button>
+          <span class="top-sep" aria-hidden="true" />
+          <button
+            class="top-btn"
+            :class="{ 'top-btn--primary': store.view === 'model' }"
+            type="button"
+            data-testid="toggle-models"
+            @click="onToggleModels"
+          >数据模型</button>
+          <button
+            class="top-btn"
+            :class="{ 'top-btn--primary': store.view === 'rbac' }"
+            type="button"
+            data-testid="toggle-rbac"
+            @click="onToggleRbac"
+          >权限管理</button>
+          <button
+            class="top-btn"
+            :class="{ 'top-btn--primary': store.view === 'theme' }"
+            type="button"
+            data-testid="toggle-theme-panel"
+            @click="onToggleThemePanel"
+          >主题配置</button>
+        </top-more-menu>
         <!-- 主题切换：只改令牌取值，不改组件用法（design-system.md §2.2 / §10.4） -->
         <span class="top-sep" aria-hidden="true" />
         <button
@@ -367,7 +369,8 @@ import type { AppTheme } from '@lc/schema'
 import { mockHost } from './host'
 import { designerApi, themeApi } from './api'
 import { resolveTheme, setTheme, applyBrandVars, type ThemeMode } from './theme'
-import { useBreakpoint, isDrawerLayout } from './use-breakpoint'
+import { useBreakpoint, isDrawerLayout, useMinWidth } from './use-breakpoint'
+import TopMoreMenu from './TopMoreMenu.vue'
 
 const store = useDesignerStore()
 const canvasOptions: PageControllerOptions = { host: mockHost }
@@ -388,6 +391,14 @@ function onToggleTheme(): void {
  * < 640 ：设计器不提供完整编辑态，给窄屏提示（可手动「仍然打开」仅浏览）。
  * ≥1440 ：左右栏加宽 —— 在 style.css 里就地覆盖组件层令牌，不新建断点分支逻辑。 */
 const bp = useBreakpoint()
+/**
+ * §3.2 的「更多」溢出菜单阈值。
+ *
+ * ⚠️ 规范原写 1180，实测不够：顶栏内容（品牌 + 页面控件 + 15 个按钮）自然宽度约
+ * **1550px**，1180–1550 这段仍会溢出。故按实测取 1600 留余量。
+ * 顶栏增删按钮后需要重测这个值。
+ */
+const wideEnough = useMinWidth(1600)
 const drawerMode = computed(() => isDrawerLayout(bp.value))
 const drawer = ref<'none' | 'left' | 'right'>('none')
 const gateDismissed = ref(false)

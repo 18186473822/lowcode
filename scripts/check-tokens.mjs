@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * check-tokens.mjs —— 设计令牌漂移校验（design-system.md §9 P2）
+ * check-tokens.mjs —— 设计令牌漂移校验（design-system-ops.md §9 P2）
  *
  * 目的：设计稿里的令牌变量集是**设计侧唯一真相源**，`packages/designer/src/styles/tokens.css`
  * 是**实现侧唯一真相源**。两者靠手抄同步 → 迟早漂移。本脚本把漂移变成 CI 可见的失败。
@@ -10,7 +10,7 @@
  *   pnpm tokens:check --verbose  # 额外打印全部逐项结果
  *
  * 基准：docs/tokens.w3c.json —— 由设计稿导出（Ardot `export_variables`，W3C DTCG 格式）。
- *       导出命令见 docs/design-system.md §9「重新导出」。
+ *       导出命令见 docs/design-system-ops.md §9「重新导出」。
  *
  * 判定：
  *   exact      完全一致

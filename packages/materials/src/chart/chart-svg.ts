@@ -14,27 +14,46 @@ export type ChartType = 'bar' | 'line' | 'pie'
 /** 聚合方式。 */
 export type MetricKind = 'count' | 'sum' | 'avg' | 'max' | 'min'
 
-/** 一个数据点（分类 → 数值）。 */
-// design-token-exempt: 本文件产出的 SVG 会转成 `data:image/svg+xml;base64` 再渲染，
-// CSS 变量在 base64 图片里**无法解析**，只能写字面量。
-// ⚠️ 代价：图表不跟随亮/暗主题（暗色下网格线偏亮、轴标签偏灰）—— 见台账 §10.2，修法是让组件按当前主题传色。
-const C_GRID = '#e5e7eb'
-// design-token-exempt: 同上（SVG 字面量限制）
-const C_AXIS = '#6b7280'
-
 export interface SeriesPoint {
   label: string
   value: number
 }
 
 /**
- * 默认调色板（固定序列，长度 6 循环）。
+ * 图表配色组（按主题各一套）。
  *
- * 为什么固定而不走令牌：图表**系列色是数据不是样式** —— 同一序列在亮/暗主题下必须同色，
- * 否则读者跟踪数据时会失步；且 mp-weixin 端无法读 CSS 变量，SVG 串里只能写具体色值。
+ * 为什么必须按主题给两套：本文件产出的 SVG 会转成 `data:image/svg+xml;base64` 再渲染，
+ * **CSS 变量在 base64 图片里无法解析** —— 颜色只能在生成时定死。若只用一套，
+ * 暗色下网格线会亮成 13.81:1（亮色仅 1.24，等于刺眼 11 倍）、轴标签跌到 3.54:1。
+ *
+ * 取值口径：网格线≈1.3:1（要「有但不抢」）· 轴标签 ≥4.5:1 · 系列色 ≥3:1（WCAG 1.4.11 图形对象）。
+ * 系列色两种模式**不是同一组值**：亮色下琥珀 2.03 / 青 2.77 都不到 3:1，必须压深；
+ * 暗色下品牌蓝 3.63 偏暗，提亮到 brand-400。同一序列在两模式下色相保持一致，读者不会失步。
  */
-// design-token-exempt: 同上（数据型色值，非样式）；⚠️ 若品牌主色调整，首色 #2b6de8 需手工同步
-export const CHART_PALETTE = ['#2b6de8', '#1fa971', '#e8442e', '#f2a73b', '#8b5cf6', '#0ea5e9'] as const
+export interface ChartTheme {
+  /** 网格线 / 基线 */
+  grid: string
+  /** 轴标签文字 */
+  axis: string
+  /** 系列色（长度 6，循环使用） */
+  palette: readonly string[]
+}
+
+/* 说明（豁免理由）：下面两行是**图表配置数据**，不是样式 —— SVG 转 base64 后 CSS 变量无法解析，
+ * 颜色只能在生成时定死。每行自带 design-token-exempt，是因为本仓的色值扫描只认「本行或上一行」。 */
+export const CHART_THEMES = {
+  light: {
+    grid: '#e5e7eb', axis: '#6b7280', // design-token-exempt: 图表配置数据（见上）
+    palette: ['#2b6de8', '#1fa971', '#e8442e', '#c2820b', '#8b5cf6', '#0b86c4'], // design-token-exempt: 同上
+  },
+  dark: {
+    grid: '#2a313c', axis: '#9aa5b1', // design-token-exempt: 同上
+    palette: ['#6096fa', '#1fa971', '#e8442e', '#f2a73b', '#8b5cf6', '#0ea5e9'], // design-token-exempt: 同上
+  },
+} as const satisfies Record<'light' | 'dark', ChartTheme>
+
+/** 兼容旧引用：等同亮色系列色。新代码请用 `CHART_THEMES[theme].palette`。 */
+export const CHART_PALETTE = CHART_THEMES.light.palette
 
 /**
  * 取数样本量上限 = 服务端 records 接口的 `size` 上限（apps/server `record.service.ts` MAX_SIZE）。
@@ -138,8 +157,10 @@ export interface BuildChartOptions {
   width: number
   /** 画布高（px） */
   height: number
-  /** 调色板（缺省 CHART_PALETTE） */
+  /** 调色板（缺省取 theme.palette） */
   colors?: readonly string[]
+  /** 配色主题（缺省 light）。组件按当前亮暗主题传入 —— 见 ChartTheme 注释。 */
+  theme?: ChartTheme
 }
 
 const PAD = { top: 12, right: 12, bottom: 26, left: 12 } as const
@@ -148,9 +169,12 @@ const PAD = { top: 12, right: 12, bottom: 26, left: 12 } as const
 export function buildChartSvg(opts: BuildChartOptions): string {
   const { type, series, width, height } = opts
   if (!series.length || width <= 0 || height <= 0) return ''
-  const colors = opts.colors ?? CHART_PALETTE
+  const theme = opts.theme ?? CHART_THEMES.light
+  const colors = opts.colors ?? theme.palette
   const body =
-    type === 'pie' ? buildPie(series, width, height, colors) : buildAxis(type, series, width, height, colors)
+    type === 'pie'
+      ? buildPie(series, width, height, colors, theme)
+      : buildAxis(type, series, width, height, colors, theme)
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
     `viewBox="0 0 ${width} ${height}" font-family="sans-serif">` +
@@ -165,6 +189,7 @@ function buildAxis(
   W: number,
   H: number,
   colors: readonly string[],
+  theme: ChartTheme,
 ): string {
   const max = Math.max(...series.map((p) => p.value), 0)
   const scaleMax = max <= 0 ? 1 : max
@@ -176,7 +201,7 @@ function buildAxis(
   let out = ''
 
   // 基线
-  out += `<line x1="${PAD.left}" y1="${baseline}" x2="${W - PAD.right}" y2="${baseline}" stroke="${C_GRID}" stroke-width="1"/>`
+  out += `<line x1="${PAD.left}" y1="${baseline}" x2="${W - PAD.right}" y2="${baseline}" stroke="${theme.grid}" stroke-width="1"/>`
 
   if (type === 'bar') {
     const barW = Math.max(slot * 0.6, 2)
@@ -185,7 +210,7 @@ function buildAxis(
       const x = PAD.left + i * slot + (slot - barW) / 2
       const y = baseline - h
       out += `<rect x="${round(x)}" y="${round(y)}" width="${round(barW)}" height="${round(h)}" fill="${colors[i % colors.length]}" rx="2"/>`
-      out += labelText(p.label, PAD.left + i * slot + slot / 2, H - 8)
+      out += labelText(p.label, PAD.left + i * slot + slot / 2, H - 8, theme.axis)
     })
     return out
   }
@@ -199,19 +224,25 @@ function buildAxis(
     `points="${pts.map((q) => `${round(q.x)},${round(q.y)}`).join(' ')}"/>`
   pts.forEach((q, i) => {
     out += `<circle cx="${round(q.x)}" cy="${round(q.y)}" r="3" fill="${colors[0]}"/>`
-    out += labelText(series[i]!.label, q.x, H - 8)
+    out += labelText(series[i]!.label, q.x, H - 8, theme.axis)
   })
   return out
 }
 
-function buildPie(series: SeriesPoint[], W: number, H: number, colors: readonly string[]): string {
+function buildPie(
+  series: SeriesPoint[],
+  W: number,
+  H: number,
+  colors: readonly string[],
+  theme: ChartTheme,
+): string {
   const total = series.reduce((s, p) => s + Math.max(p.value, 0), 0)
   const cx = W / 2
   const cy = H / 2
   const r = Math.max(Math.min(W, H) / 2 - 8, 4)
   if (total <= 0) {
     // 全 0：画一个灰环，避免空图
-    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${C_GRID}"/>`
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${theme.grid}"/>`
   }
   let angle = -Math.PI / 2 // 从 12 点方向起
   let out = ''
@@ -234,9 +265,9 @@ function buildPie(series: SeriesPoint[], W: number, H: number, colors: readonly 
 }
 
 /** 单行分类标签（超长截断，居中）。 */
-function labelText(label: string, x: number, y: number): string {
+function labelText(label: string, x: number, y: number, axisColor: string): string {
   const short = label.length > 6 ? `${label.slice(0, 5)}…` : label
-  return `<text x="${round(x)}" y="${round(y)}" font-size="10" fill="${C_AXIS}" ` +
+  return `<text x="${round(x)}" y="${round(y)}" font-size="10" fill="${axisColor}" ` +
     `text-anchor="middle">${escapeXml(short)}</text>`
 }
 

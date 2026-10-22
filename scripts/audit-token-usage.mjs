@@ -135,7 +135,7 @@ for (const [dir, s] of perDir) {
 }
 const spacingTotal = [...perDir.values()].reduce((n, s) => n + s.spacingLiterals, 0)
 if (spacingTotal) {
-  console.log(`\n间距类 px 字面量合计 ${spacingTotal} 处 —— 门禁见 \`pnpm spacing:check\`（只拦「落在刻度上」的值）。`)
+  console.log(`\n间距类 px 字面量合计 ${spacingTotal} 处 —— 门禁见 \`pnpm dimensions:check\`（只拦「落在刻度上」的值）。`)
   console.log('  剩余多为刻度外的光学微调（3 / 5 / 7 / 14 / 18px），按设计保留，不硬归并。')
 }
 

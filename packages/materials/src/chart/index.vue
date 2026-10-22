@@ -28,12 +28,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import { LC_FLOW_HOST_KEY } from '@lc/materials'
 import {
   aggregateSeries,
   buildChartSvg,
-  CHART_PALETTE,
+  CHART_THEMES,
   formatNumber,
   parseSeries,
   RECORDS_SIZE_MAX,
@@ -77,18 +77,51 @@ const needsFetch = computed(() => !parseSeries(props.data).length && !!props.mod
 
 const series = computed<SeriesPoint[]>(() => (needsFetch.value ? agg.value : parseSeries(props.data)))
 
+/* ---------------- 主题：图表必须按当前亮暗取色 ----------------
+ * SVG 会转成 base64 data URI，里面**解析不了 CSS 变量**，所以只能在生成时把颜色定死。
+ * 主题来源分两步：H5 / 设计器读 `html[data-theme]`（两端的 theme.ts 都写这里）；
+ * 小程序没有 document，退回 uni 的系统主题（部分平台支持，取不到就按亮色）。 */
+function detectTheme(): 'light' | 'dark' {
+  if (typeof document !== 'undefined') {
+    const t = document.documentElement?.getAttribute('data-theme')
+    if (t === 'dark') return 'dark'
+    if (t === 'light') return 'light'
+  }
+  try {
+    return uni.getSystemInfoSync().theme === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
+const theme = ref<'light' | 'dark'>(detectTheme())
+const chartTheme = computed(() => CHART_THEMES[theme.value])
+
+let themeObserver: MutationObserver | undefined
+onMounted(() => {
+  // 只在 H5 / 设计器里有 document；观察到 data-theme 变化就重算，实现「切主题即刷新」
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return
+  themeObserver = new MutationObserver(() => {
+    const next = detectTheme()
+    if (next !== theme.value) theme.value = next
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+onUnmounted(() => themeObserver?.disconnect())
+
 const svg = computed(() =>
   buildChartSvg({
     type: props.chartType,
     series: series.value,
     width: Math.max(props.width, 40),
     height: Math.max(props.height, 40),
+    theme: chartTheme.value,
   }),
 )
 const dataUri = computed(() => toDataUri(svg.value))
 
 /** 饼图无坐标轴：补静态图例，让扇区能对应到分类（柱/折靠 x 轴标签，不重复渲染） */
-const palette = CHART_PALETTE
+const palette = computed(() => chartTheme.value.palette)
 const showLegend = computed(() => props.chartType === 'pie' && series.value.length > 0)
 
 const emptyHint = computed(() => {
@@ -188,14 +221,14 @@ watch(
   text-align: center;
   color: var(--lc-text-secondary);
   font-size: var(--lc-font-body-sm);
-  padding: 40rpx 0;
+  padding: var(--lc-space-5) 0;
 }
 .lc-chart__hint--muted {
   color: var(--lc-text-tertiary);
 }
 .lc-chart__err {
   display: block;
-  margin-top: 8rpx;
+  margin-top: var(--lc-space-1);
   color: var(--lc-status-danger);
   font-size: var(--lc-font-caption);
   text-align: center;

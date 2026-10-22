@@ -18,14 +18,23 @@
   >
     <div class="lc-canvas__stage" :style="zoomStyle">
       <div class="lc-canvas__device" :style="deviceStyle">
-        <lc-renderer
-          :schema="schema"
-          :options="options"
-          mode="design"
-          :selected-id="selectedId"
-          @select="onSelect"
-        />
-        <!-- 参考线（§7.1）：画布内容区中线，纯视觉辅助，不拦截指针 -->
+        <!-- 页面层：布局宽恒 375，靠 zoom 放大到设备档位。
+             选 zoom 而不是 transform：zoom **参与布局**，外壳高度会自己跟着涨，
+             不需要（也不可能可靠地）手工量高度补偿 —— 那条路已实测失败过，见台账 §10.2 #15。 -->
+        <div class="lc-canvas__page" :style="pageStyle">
+          <lc-renderer
+            :schema="schema"
+            :options="options"
+            mode="design"
+            :selected-id="selectedId"
+            @select="onSelect"
+          />
+        </div>
+        <!-- 参考线（§7.1）：画布内容区中线，纯视觉辅助，不拦截指针。
+             注意：**不做设计工具式的动态对齐线** —— 本画布是流式布局的重排
+             （hit.position = before/after/into，落点由文档顺序决定），不是自由定位；
+             那种「与兄弟节点对齐」的虚线会误导用户以为可以按像素摆放。
+             拖拽的正确反馈是下面的插入指示线。 -->
         <div v-if="guides" class="lc-canvas__guides" data-testid="canvas-guides" aria-hidden="true">
           <i class="lc-canvas__guide lc-canvas__guide--v" />
           <i class="lc-canvas__guide lc-canvas__guide--h" />
@@ -85,10 +94,50 @@ let disposeEnhancer: (() => void) | null = null
  * 注意：rpx→px 的换算基准固定在 375（vite 插件按 375/750 → ×0.5），
  * 因此 750 档是「宽屏占位预览」—— 内容绝对尺寸不随之放大，用来评估横向余量。
  */
+/** 画布可用宽度（只有 H5 档需要：它的 zoom 由可用宽度决定） */
+const stageW = ref(0)
+let ro: ResizeObserver | undefined
+
+/**
+ * 页面层缩放倍率 = 目标 rpx 基准 / 375。
+ *   375 → ×1（与改造前完全一致）
+ *   750 → ×2（1rpx = 1px 的设计宽）
+ *   h5  → 可用宽度 / 375（rpx 对 H5 是「视口宽 / 750」，必然随宽度变化）
+ *
+ * 这里量的是**父级（stage）的宽度**去设**子级（page）的 zoom**，不是自指：
+ * stage 宽度由布局决定，不依赖 page 的 zoom。
+ */
+const pageZoom = computed(() => {
+  if (props.device === '750') return 2
+  if (props.device === 'h5') {
+    const avail = stageW.value > 0 ? Math.min(stageW.value, 720) : 375
+    return Math.max(avail / 375, 0.5)
+  }
+  return 1
+})
+
 const deviceStyle = computed<Record<string, string>>(() => {
   if (props.device === 'h5') return { width: '100%', maxWidth: '720px' }
   return { width: props.device === '750' ? '750px' : 'var(--lc-device-w)' }
 })
+
+/** 页面层：布局宽恒 375，靠 zoom 放大（zoom 参与布局，故无需量高度） */
+const pageStyle = computed<Record<string, string>>(() => ({
+  width: '375px',
+  zoom: String(pageZoom.value),
+}))
+
+/** 缩放用 transform：不改布局盒，画布滚动区仍按原尺寸算 —— 符合「预览」语义 */
+onMounted(() => {
+  const el = rootRef.value
+  if (!el || typeof ResizeObserver === 'undefined') return
+  ro = new ResizeObserver((entries) => {
+    const w = entries[0]?.contentRect.width ?? 0
+    if (w > 0) stageW.value = w
+  })
+  ro.observe(el)
+})
+onUnmounted(() => ro?.disconnect())
 
 /** 缩放用 transform：不改布局盒，画布滚动区仍按原尺寸算 —— 符合「预览」语义 */
 const zoomStyle = computed<Record<string, string> | undefined>(() => {
@@ -315,6 +364,9 @@ onUnmounted(() => {
   justify-content: center;
   align-items: flex-start;
   width: 100%;
+}
+.lc-canvas__page {
+  /* 布局宽恒 375；放大靠 inline zoom（参与布局，外壳高度自动跟随） */
 }
 .lc-canvas__device {
   position: relative;
