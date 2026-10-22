@@ -201,7 +201,7 @@ node scripts/tokenize-dimensions.mjs [--dry] # px 间距 + 行高比率 → 令�
 | 坑 | 现象 | 结论 |
 |---|---|---|
 | 用 `transform: translateY()` 让位 | **每个节点变成层叠上下文**，父节点的遮罩被抬到子节点之上 —— 点哪里都命中根容器，整块画布选不中节点 | 让位必须用 **`margin-top`**（参与布局、不建层叠上下文）。附带好处：`getBoundingClientRect` 已含位移，不必再写补偿逻辑 |
-| 含输入框的节点命中测试不稳定 | 拖拽/点选在「文本」节点正常，在「单行输入」节点失效 | **未定位**。怀疑 uni 输入框在遮罩之上抢走了 hit-test，但抬 `z-index`、去 `position`、给内容 `pointer-events:none` 均未解决。**需要用 devtools 看 `elementFromPoint` 与合成层**，别再靠截图反推 |
+| 含输入框的节点「点输入框内部」选不中 | 点节点的**标签/留白区**能选中；点**输入框内部**不能 | **已排除命中测试**：注入探针实测 `elementFromPoint` 返回的就是该节点的遮罩（`.lc-node__mask [n-input]`），遮罩在最上层。抬 z-index / 去 position / 给 `input` 加 `pointer-events:none` 都无效 → 说明 mousedown 命中了遮罩，但**后续 click 没落到遮罩的 `@click`**。根因仍未定位，需在真 devtools 里断点看 click 是否被 `onClickCapture` 吞掉 |
 
 **为什么回退**：上表第二条没解决前，挤动会让拖拽本身变得不可靠；宁可先保持已验证的「幽灵 + 落点线」，也不交付一个会误伤选择/拖拽的版本。
 
