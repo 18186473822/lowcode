@@ -245,17 +245,27 @@ const emit = defineEmits<{ change: []; select: [nodeId: string] }>()
   position: absolute;
   inset: 0;
   z-index: 1;
-  border: 1rpx solid transparent;
+  /* 1px 而非 1rpx(0.5px)：描边是这里唯一的信息载体，太虚会看不清 */
+  border: var(--lc-border-width) solid transparent;
   box-sizing: border-box;
   pointer-events: auto;
+  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
 }
+
+/* ⚠️ 悬停 / 选中都**只描边、绝不填色**。
+   遮罩是 inset:0 盖在组件内容之上的（z-index 1），一旦给 background，
+   整块组件就被底色糊住 —— 曾用 action-primary-subtle（近白），
+   表现就是「指针移到物料上那块变白」。 */
 .lc-node__mask:hover {
   border-color: var(--lc-brand-400);
-  background: var(--lc-action-primary-subtle);
 }
-.lc-node__mask--selected {
-  border: var(--lc-border-width) solid var(--lc-action-primary);
-  background: var(--lc-action-primary-subtle);
+
+/* 选中：主色 2px 描边，比悬停重一档。
+   特异度与 :hover 相同（都是两个类），故必须排在后面，并显式覆盖 --selected:hover，
+   否则悬停已选中的节点会被降级成浅色细边。 */
+.lc-node__mask.lc-node__mask--selected,
+.lc-node__mask.lc-node__mask--selected:hover {
+  border: 2px solid var(--lc-action-primary);
 }
 .lc-node__group {
   padding: var(--lc-space-1) 0 0;
