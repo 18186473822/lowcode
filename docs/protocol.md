@@ -641,7 +641,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 404 | `PAGE_NOT_FOUND` / `DRAFT_NOT_FOUND` / `VERSION_NOT_FOUND` | 页面/草稿/版本不存在 |
 | 404 | `MODEL_NOT_FOUND` / `RECORD_NOT_FOUND` / `FILE_NOT_FOUND` | 模型未建档 / 记录不存在或已软删 / 文件不存在 |
 | 404 | `FLOW_NOT_FOUND` / `FLOW_INSTANCE_NOT_FOUND` / `FLOW_TASK_NOT_FOUND` | 流程定义 / 实例 / 任务不存在（批 1） |
-| 404 | `WEBHOOK_NOT_FOUND` / `WEBHOOK_DELIVERY_NOT_FOUND` | Webhook 订阅 / 投递记录不存在（批 39）；删除订阅后仍可按 id 查其历史投递 |
+| 404 | `WEBHOOK_NOT_FOUND` / `WEBHOOK_DELIVERY_NOT_FOUND` | Webhook 订阅 / 投递记录不存在（批 39）；删除订阅后投递日志仍保留在存储中，但当前投递日志接口仍要求订阅存在，需运维直接查库或后续补管理入口 |
 | 409 | `NOT_PUBLISHED` | 取 `published` 但从未发布 |
 | 409 | `NO_DRAFT` | 发布时没有草稿 |
 | 409 | `VERSION_CONFLICT` | **乐观锁冲突**：页面保存/发布/回滚或记录更新/删除时，`If-Match` 或服务端读到的 `revision` 已过期；响应含 `expectedRevision` / `currentRevision`（记录另含 `modelId`） |
@@ -867,7 +867,7 @@ if (received.length !== expected.length || !timingSafeEqual(received, expected))
 - URL 只允许 `http/https`，拒绝内嵌账号口令；`NODE_ENV=production` 默认拒绝 `localhost`、`.local/.internal`、回环/私网/链路本地/保留字面量地址。内网集成需显式 `LC_WEBHOOK_ALLOW_PRIVATE=1`；该判断**只覆盖字面量 IP/主机名，不做 DNS 解析后的二次校验**，生产出口仍应配合网络策略。
 - JSON 模式：`<LC_DATA_DIR>/webhooks.json`（订阅）与 `<LC_DATA_DIR>/webhook-deliveries.json`（投递），均临时文件 + rename 原子写，单进程 `KeyedLock` 串行化。
 - MySQL 模式：`webhook_subscriptions` / `webhook_deliveries` 两表（迁移 `20261022200000_webhooks`）；订阅写操作走 `revision` CAS，投递日志按 `nextAttemptAt + createdAt` 扫描。
-- 删除订阅不级联删除投递日志；日志按订阅 id 查询，保留完整尝试历史。密钥、投递体、响应摘要均属敏感数据，当前无日志自动脱敏/清理策略。
+- 删除订阅不级联删除投递日志；日志按订阅 id 查询（当前管理接口要求订阅仍存在；删除后日志仅保留在存储中，供运维直接查库或后续补管理入口），保留完整尝试历史。密钥、投递体、响应摘要均属敏感数据，当前无日志自动脱敏/清理策略。
 
 ## 11. 生命周期受信 API（`app.*`）
 
