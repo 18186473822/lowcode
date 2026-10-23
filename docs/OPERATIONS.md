@@ -1,0 +1,635 @@
+# 平台操作手册（OPERATIONS）
+
+> 面向：本地开发、演示、部署与日常运维。
+> 环境基线：Node.js ≥ 20（CI 用 22 与 20）、pnpm 12、MySQL 8（可选）。
+> 相关文档：[`README.md`](../README.md)（快速启动）、[`STATUS.md`](STATUS.md)（能力与剩余工作）、
+> [`protocol.md`](protocol.md)（对外契约）、[`openapi.md`](openapi.md)（接口清单）、
+> [`observability-deployment-2026-10-21.md`](observability-deployment-2026-10-21.md)（部署细节）。
+
+---
+
+## 0. 三条常用路径
+
+| 我要做什么 | 看哪一节 |
+|---|---|
+| 第一次跑起来、看演示 | §1 → §2 → §4.1 |
+| 用设计器建页面并发布 | §3（重点 §3.6） |
+| 切 MySQL、备份、部署上线 | §5 → §6 |
+| 出问题了 | §7 故障排查 → §8 命令速查 |
+
+默认端口：
+
+| 进程 | 地址 | 说明 |
+|---|---|---|
+| 服务端 NestJS | `http://127.0.0.1:3000` | API 前缀 `/api/v1` |
+| 设计器 | `http://127.0.0.1:5174` | `/api` 已代理到 3000 |
+| 运行时 H5 | `http://127.0.0.1:5173` | uni-app dev server |
+
+---
+
+## 1. 环境准备
+
+### 1.1 依赖
+
+```bash
+node -v      # 必须 ≥ 20
+pnpm -v      # 12.x
+```
+
+MySQL 仅在选择 `LC_STORAGE=mysql` 时需要（MySQL 8，`utf8mb4`）。
+
+### 1.2 安装依赖
+
+```bash
+cd D:\mimo\lowcode          # Linux/macOS: cd /path/to/lowcode
+pnpm install --frozen-lockfile
+```
+
+`postinstall` 会自动执行 `prisma generate`，不需要数据库连接。
+
+### 1.3 选择存储模式
+
+| 模式 | 启用方式 | 适用 | 数据位置 |
+|---|---|---|---|
+| JSON（默认） | 不设置 `LC_STORAGE` | 单测、演示、单机 | `apps/server/data/` |
+| MySQL | `LC_STORAGE=mysql` + `DATABASE_URL` | 生产、多实例 | MySQL 16 张表 |
+
+> 仓库**不提交** `apps/server/data/`。新克隆首次启动是空库，没有演示页面，需要在设计器里新建。
+
+---
+
+## 2. 首次启动（JSON 模式，约 5 分钟）
+
+开 **三个终端**，顺序不要乱。
+
+### 2.1 终端 A：服务端
+
+```bash
+pnpm -F @lc/server build
+pnpm -F @lc/server start
+```
+
+预期日志：`Nest application successfully started`，监听 `3000`。
+
+> 服务端**没有 watch 模式**。改了 `apps/server/src` 必须重新 `build` 再重启，否则跑的还是旧代码。
+
+### 2.2 终端 B：设计器
+
+```bash
+pnpm -F @lc/designer-web dev
+```
+
+浏览器打开 `http://127.0.0.1:5174`。设计器会用 `admin / admin123` 自动登录（仅开发种子）。
+
+### 2.3 终端 C：H5 运行时
+
+```bash
+pnpm -F @lc/runtime dev:h5
+```
+
+浏览器打开 `http://127.0.0.1:5173`，会跳到登录页。
+
+### 2.4 验收
+
+```bash
+curl -s http://127.0.0.1:3000/api/v1/health
+```
+
+预期返回含 `"status":"ok"`、`"storage":"json"`。再确认：
+
+```bash
+curl -s -X POST http://127.0.0.1:3000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+预期返回 `accessToken`。
+
+### 2.5 开发账号
+
+| 账号 | 密码 | 角色 | 说明 |
+|---|---|---|---|
+| `admin` | `admin123` | `admin` | `'*'` 通配，全部权限 |
+| `designer` | `designer123` | `designer` | 受 RBAC 约束，用来看权限差异 |
+
+> JSON 模式账号是**内存种子**；MySQL 模式必须执行 `pnpm -F @lc/server seed:mysql` 才有账号。
+> 生产环境不要使用这两个账号。
+
+---
+
+## 3. 设计器操作
+
+设计器是三栏布局：左栏「物料 / 大纲」、中间手机画布、右栏属性；顶栏是页面与全局操作。
+
+### 3.1 打开、新建、删除页面
+
+| 操作 | 入口 | 说明 |
+|---|---|---|
+| 打开已有页 | 顶栏页面下拉框 | 选中即打开，列出 `name（pageId）` |
+| 按 ID 打开 | 顶栏 `pageId` 输入框 → **打开** | 适合已知 pageId |
+| 新建 | 顶栏 **新建** | 以当前 pageId 创建草稿；`name` 默认等于 pageId |
+| 删除 | 顶栏 **删除** → **确认删除** | 两步确认，10 秒内不点自动复位；会连带删除全部历史版本。服务端仅管理员（`'*'`）可删，非管理员会返回 403 |
+
+> 未保存过的页面不能删除（按钮置灰）。
+
+### 3.2 拖拽与结构编辑
+
+- 左栏切到 **物料**：按分类浏览，拖到画布目标容器。
+- 左栏切到 **大纲**：查看树结构、点选节点、删除节点。
+- 画布内选中节点后可拖动换位；拖到容器边缘可放入容器。
+- 顶栏 **撤销 / 重做**，快捷键：`Ctrl+Z` / `Ctrl+Shift+Z`。
+- 顶栏 **复制 / 剪切 / 粘贴**，快捷键：`Ctrl+C` / `Ctrl+X` / `Ctrl+V`；选中节点按 `Delete` 或 `Backspace` 删除。
+
+### 3.3 属性、字段绑定与动作
+
+选中节点后，右栏属性面板按物料 META 自动生成：
+
+| 区域 | 作用 |
+|---|---|
+| 页面类型 | 表单 / 列表 / 详情 / 门户 / 自定义 |
+| 基础属性 | 标签、占位、必填、默认值等（`input/number/switch/select/textarea/color/optionList/expression` 为真控件） |
+| 绑定字段 | 表单类物料可绑定当前模型的字段，提交时写入该字段 |
+| 事件 · `xxx` | 绑定无参动作（如 `submit`、`reset`、`toast`） |
+
+> `slider / ruleEditor / fieldPicker / dataSourcePicker / eventBinder` 目前是**只读占位**，会显示但不能编辑。
+
+表达式写法与函数白名单见 [`protocol.md`](protocol.md)；引擎禁止赋值、禁止 `eval`。
+
+### 3.4 数据模型
+
+顶栏 **数据模型**：
+
+1. 输入模型 id（如 `m_leave`）→ **新建**。
+2. 填模型名称、编码；在字段区增删字段，设置 `name / key / type / required / enum options`。
+3. 需要数据权限时，在字段/模型区配置 CRUD 权限与 `dataScope`、角色可见性。
+4. 点 **保存模型**。校验错误会显示在面板内，不会静默失败。
+
+> 模型是列表页/详情页/表单提交的数据来源；先建模型，再建页面。
+
+### 3.5 页型与标准页
+
+在右栏 **页面类型** 切换：
+
+| 类型 | 运行时行为 | 设计器画布 |
+|---|---|---|
+| 表单 | 渲染 `root` 节点树，提交到「提交模型」 | 正常拖拽 |
+| 列表 | 按右侧配置查询并分页渲染 | 根容器仅占位 |
+| 详情 | 按配置加载单条记录 | 根容器仅占位 |
+| 门户 | 顶部卡片导航 + 下方拖拽区 | 拖拽区正常 |
+| 自定义 | 纯 `root` 渲染 | 正常拖拽 |
+
+列表页配置：数据模型、详情页、每页条数、行内编辑、批量删除。
+详情页配置：数据模型、返回页、编辑、删除。
+门户页配置：标题、列数、卡片（标题/描述/图标/目标 pageId 或 URL/badge）。
+
+> 行内编辑、批量删除、详情编辑/删除都默认关闭，需显式开启；写操作会带 `If-Match`，冲突返回 409，**不会自动覆盖**。
+
+### 3.6 保存、发布、版本（最容易踩坑）
+
+| 按钮 | 作用 |
+|---|---|
+| **保存** | 保存草稿；校验不通过不会发请求 |
+| **发布** | 生成已发布版本，运行时读取的是这个版本 |
+| **历史** | 版本列表、`vN` 对比当前草稿、回滚到旧版 |
+
+关键规则：
+
+1. **运行时优先读已发布版本**；只有从未发布过时才回退草稿。
+   → 改完页面只看「保存」不点「发布」，H5 里看到的仍是旧内容。
+2. 保存冲突返回 `409 VERSION_CONFLICT` 时，设计器**不会自动覆盖**，也不会自动重试。
+   处理方式：点 **打开** 重新加载最新版本，再重做本次修改。
+3. 发布前先看底栏校验错误；有错误时不要强行发布。
+4. 页面删除不可恢复（除非有数据库/文件备份）。
+
+### 3.7 权限管理
+
+顶栏 **权限管理**：
+
+1. 新建角色 key（如 `employee`），填名称与权限点（逗号分隔，`*` 为通配）。
+2. 在页面授权矩阵里勾选该角色可见的页面。
+3. 节点级权限在画布选中节点后，于右栏设置 `perm`（权限表达式）。
+4. 模型数据权限在 **数据模型** 面板中配置 CRUD 与 `dataScope`。
+
+> 权限改动保存后，运行时需重新登录或刷新 bootstrap 才会拿到新的 `perms`。
+
+### 3.8 主题配置
+
+顶栏 **主题配置**：品牌主色（十六进制）、主圆角（px）、深色模式（跟随系统/强制浅/强制深）。
+
+- 保存成功会立即预览设计器换肤。
+- 运行时 H5 生效；小程序端主题动态化尚未实现。
+- 留空表示回落到设计令牌默认值。
+
+### 3.9 Webhook 集成
+
+顶栏 **Webhook 集成**（仅 `'*'` 管理员可用）：
+
+1. **新建订阅**：名称、目标 URL、事件（如 `record.created`、`flow.completed`，`*` 为全部）、可选限流/自定义头。
+2. 创建成功后密钥**只显示一次**，立即保存到密钥管理系统。
+3. **测试投递** 验证连通性；**日志** 按状态过滤查看投递结果。
+4. **密钥轮换** 可设置宽限期，宽限期内旧密钥仍可用。
+5. **清理归档** 手动触发过期日志归档（默认保留 30 天）。
+
+投递语义是**至少一次**，接收方必须按事件 id 或投递 id 幂等。签名校验：
+
+```text
+X-LC-Signature: t=<unix>,v1=<hex hmac>
+签名内容 = "<t>.<原始 JSON body>"
+```
+
+生产环境默认拒绝私网/本机 URL；内网联调需显式设置 `LC_WEBHOOK_ALLOW_PRIVATE=1`（仅限可信环境）。
+
+### 3.10 物料市场（远程物料）
+
+顶栏 **物料市场**。未配置时面板只展示指引，不发任何网络请求。启用需在设计器构建环境配置：
+
+```bash
+VITE_LC_MATERIAL_MARKET_URL=https://market.example.com/manifest.json
+VITE_LC_MATERIAL_MARKET_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+VITE_LC_MATERIAL_MARKET_ALLOWLIST=https://market.example.com,https://cdn.example.com
+```
+
+写入 `apps/designer-web/.env.local` 后重启 dev server。行为边界：
+
+- 只接受 **ECDSA P-256 签名**的元数据，并校验 origin allowlist。
+- 只允许插入**宿主内置组件白名单**里的物料，复用本地组件。
+- **不下载、不执行远程 JS**。
+- 安装状态与清单缓存在 Web Storage；刷新/卸载在面板内操作。
+
+> 服务端市场（清单托管、发布审核、租户级安装状态）尚未实现。
+
+---
+
+## 4. 运行时与多端
+
+### 4.1 H5 路由
+
+| 场景 | URL |
+|---|---|
+| 登录 | `http://127.0.0.1:5173/#/pages/login/index` |
+| 首页/菜单 | `http://127.0.0.1:5173/#/pages/index/index` |
+| 指定页面 | `http://127.0.0.1:5173/#/pages/view/index?pageId=<pageId>` |
+| 待办中心 | 登录后从首页进入 |
+
+> `pageId` 必须是**已保存**的页面；未发布时会回退草稿，已发布时读发布版本。
+
+### 4.2 登录、表单、审批
+
+1. `admin / admin123` 登录。
+2. 首页展示 bootstrap 下发的可见菜单（受 RBAC 过滤）。
+3. 打开表单页填写；带 `onSubmit` 的动作会提交到配置的模型。
+4. 表单支持本地草稿：用户隔离、7 天过期，重新进入会提示恢复。
+5. 提交后若模型配置了流程，会在 **待办中心** 生成待办；详情页可同意/驳回并查看时间轴。
+6. 审批通过后按 `onApprove.setField` 回写业务记录。
+
+### 4.3 构建小程序与 App
+
+```bash
+pnpm -F @lc/runtime build:h5          # → packages/runtime/dist/build/h5
+pnpm -F @lc/runtime build:mp-weixin   # → packages/runtime/dist/build/mp-weixin
+pnpm -F @lc/runtime build:app         # → packages/runtime/dist/build/app
+```
+
+- 小程序：用微信开发者工具导入 `packages/runtime/dist/build/mp-weixin`。
+- App：产物供 HBuilderX 导入；仓库不生成 APK/IPA。
+- 真机/小程序尚未做真机验证，只做了产物级检查。
+
+### 4.4 真机与局域网调试
+
+`packages/runtime/src/api.ts` 的 `API_ORIGIN` 默认是 `http://127.0.0.1:3000`：
+
+- 真机调试必须改成开发机局域网 IP，如 `http://192.168.1.10:3000`。
+- 小程序还需在微信公众平台配置 request 合法域名；本地可用开发者工具「不校验合法域名」。
+- 改完后重新编译小程序/H5。
+
+### 4.5 改了代码不生效？
+
+| 改了什么 | 必须做什么 |
+|---|---|
+| `apps/server/src` | `pnpm -F @lc/server build` → 重启服务端（无 watch） |
+| `packages/*/src` | `pnpm -F <pkg> build` → 删除 `packages/runtime/node_modules/.vite` → 重启 runtime dev |
+| 设计器源码 | Vite 自动热更新；异常时重启 `dev` |
+| 设计令牌 | `pnpm tokens:rpx` 后重启；提交前跑 `pnpm design:check` |
+
+---
+
+## 5. MySQL 模式
+
+### 5.1 建库与账号
+
+```bash
+mysql -uroot -p -e "CREATE DATABASE lowcode CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+mysql -uroot -p -e "CREATE USER 'lc_app'@'localhost' IDENTIFIED BY '<strong-password>'; GRANT ALL PRIVILEGES ON lowcode.* TO 'lc_app'@'localhost'; FLUSH PRIVILEGES;"
+```
+
+测试库（跑集成测试时用，脚本会拒绝非 `*_test` 库）：
+
+```bash
+mysql -uroot -p -e "CREATE DATABASE lowcode_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"
+```
+
+### 5.2 配置
+
+```bash
+cp apps/server/.env.example apps/server/.env
+```
+
+编辑 `apps/server/.env`：
+
+```bash
+DATABASE_URL="mysql://lc_app:<strong-password>@127.0.0.1:3306/lowcode"
+LC_STORAGE=mysql
+LC_DATA_DIR=./data
+```
+
+> 服务端**不自动加载 `.env`**：本地用 `start:mysql`（Node `--env-file`），生产用 systemd/容器注入。
+> `DATABASE_URL` 带引号时，脚本派生测试库需要先去掉引号再替换库名。
+
+### 5.3 迁移与种子
+
+```bash
+pnpm -F @lc/server prisma:generate
+pnpm -F @lc/server prisma:migrate     # prisma migrate deploy
+pnpm -F @lc/server seed:mysql         # 仅开发：admin/designer 账号与角色
+```
+
+> 生产只用 `prisma migrate deploy`，**不要用 `db push`** 代替迁移。
+
+### 5.4 启动
+
+```bash
+pnpm -F @lc/server build
+pnpm -F @lc/server start:mysql
+```
+
+验收：
+
+```bash
+curl -s http://127.0.0.1:3000/api/v1/ready
+```
+
+预期 `{"status":"ok","storage":"mysql","checks":{"dataDir":"ok","database":"ok"}}`。
+
+### 5.5 从 JSON 导入存量数据
+
+切换前先导入（幂等 upsert，可重复执行）：
+
+```bash
+pnpm -F @lc/server import:json-to-mysql
+```
+
+覆盖：页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据与内容、Webhook 订阅/投递/归档。
+
+> MySQL 模式**不会自动双读**旧 `files/` 目录；不导入会导致旧附件 404。
+
+### 5.6 本地验证 MySQL
+
+```bash
+# PowerShell 示例：先从 .env 取 DATABASE_URL，去引号，替换库名
+$url = (Select-String -Path apps/server/.env -Pattern '^DATABASE_URL=').Line.Split('=',2)[1].Trim('"') -replace '/lowcode(\?|$)','/lowcode_test$1'
+$env:LC_TEST_DATABASE_URL = $url
+$env:LC_SMOKE_DATABASE_URL = $url
+pnpm -F @lc/server test
+pnpm -F @lc/server smoke:mysql
+```
+
+预期：`mysql.persistence.test.ts` 10/10 PASS；真启动冒烟 10 项 PASS。
+
+### 5.7 切换检查清单
+
+- [ ] 已备份 JSON 数据目录
+- [ ] `prisma migrate deploy` 成功，16 张表齐全
+- [ ] `import:json-to-mysql` 已执行，回读计数与源一致
+- [ ] `/ready` 返回 `database: ok`
+- [ ] 设计器可登录（MySQL 模式必须 `seed:mysql` 或已有用户）
+- [ ] 运行时能打开已发布页面
+- [ ] 旧 `files/` 附件可下载
+
+---
+
+## 6. 生产部署与运维
+
+### 6.1 构建
+
+```bash
+pnpm install --frozen-lockfile
+pnpm design:check
+pnpm build            # 必须先于 typecheck：workspace types 指向 dist
+pnpm typecheck
+pnpm test
+pnpm coverage
+```
+
+> CI 顺序同样是 **design:check → build → typecheck → 三端编译 → test → coverage**。
+
+### 6.2 环境变量
+
+```bash
+NODE_ENV=production
+PORT=3000
+LC_STORAGE=mysql
+DATABASE_URL=mysql://lc_app:<password>@127.0.0.1:3306/lowcode
+LC_DATA_DIR=/var/lib/lowcode/data
+LC_JWT_SECRET=<至少 32 字符随机值>
+LC_CORS_ORIGINS=https://lc.example.com
+LC_TRUST_PROXY=true
+LC_ACCESS_LOG=1
+LC_APP_VERSION=2026.10.23
+```
+
+| 变量 | 生产要求 |
+|---|---|
+| `LC_JWT_SECRET` | 必填 ≥32 字符，禁止仓库内置开发值 |
+| `LC_CORS_ORIGINS` | 显式白名单；不设置=不放行跨域 |
+| `LC_TRUST_PROXY` | 仅在可信反代后设为 `true`（只信任一层） |
+| `LC_RATE_LIMIT_MAX` | 普通接口每 IP 每窗口上限（默认 600） |
+| `LC_LOGIN_RATE_LIMIT_MAX` | 登录接口上限（默认 20） |
+| `LC_WEBHOOK_WORKER` | 默认开启；设为 `off` 可关闭投递 worker |
+
+生产未设置 `LC_JWT_SECRET`、密钥过短或等于开发值，服务会在监听端口前 **exit 1**。
+
+### 6.3 systemd
+
+```ini
+[Unit]
+Description=LowCode Server
+After=network.target
+
+[Service]
+Type=simple
+User=lowcode
+Group=lowcode
+WorkingDirectory=/opt/lowcode
+EnvironmentFile=/etc/lowcode/server.env
+ExecStart=/usr/bin/node /opt/lowcode/apps/server/dist/main.js
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/lowcode
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+systemctl daemon-reload
+systemctl enable --now lowcode
+systemctl status lowcode
+journalctl -u lowcode -f
+```
+
+### 6.4 nginx
+
+```nginx
+location /api/ {
+  proxy_pass http://127.0.0.1:3000;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header X-Request-Id $request_id;
+}
+
+location = /healthz { proxy_pass http://127.0.0.1:3000/api/v1/health; }
+location = /readyz  { proxy_pass http://127.0.0.1:3000/api/v1/ready; }
+```
+
+设计器与 H5 为静态产物，按普通静态站点托管即可；需保证前端访问的 API 域名与 `LC_CORS_ORIGINS` 一致。
+
+### 6.5 探针
+
+```bash
+curl -fsS http://127.0.0.1:3000/api/v1/health
+curl -fsS http://127.0.0.1:3000/api/v1/ready
+```
+
+- `/health`：进程存活，不查磁盘。
+- `/ready`：JSON 模式查数据目录可写；MySQL 模式额外 `SELECT 1`。
+- 两者免登录、免限流；所有响应带 `X-Request-Id`。
+- 建议：`initialDelaySeconds=3`、`periodSeconds=10`、`timeoutSeconds=2`、`failureThreshold=3`。
+
+### 6.6 备份与恢复
+
+**MySQL（推荐生产）**
+
+```bash
+mysqldump --single-transaction --routines --triggers \
+  --default-character-set=utf8mb4 -u lc_app -p lowcode > /backup/lowcode-$(date +%F-%H%M).sql
+```
+
+恢复：停服 → `mysql ... lowcode < backup.sql` → `pnpm -F @lc/server prisma:migrate` → `/ready` 返回 `database: ok` → 放流量。
+
+**JSON**
+
+```bash
+systemctl stop lowcode
+rsync -a --delete /var/lib/lowcode/data/ /backup/lowcode/data-$(date +%F-%H%M)/
+systemctl start lowcode
+```
+
+恢复：停服 → 覆盖 `LC_DATA_DIR` → `/ready` 200 → 放流量。
+
+> 跨文件没有事务，运行中直接拷贝可能拿到不同时间点组合；尽量停机或做文件系统快照。
+> 备份含业务数据与附件，按敏感数据管理权限与保留周期；**只备份不演练等于没有备份**。
+
+### 6.7 日志与限流
+
+- 访问日志为单行 JSON，写 stdout，默认 production 开启；字段含 `requestId/method/path/status/durationMs/ip`，不记 query/body/Authorization。
+- 日志轮转交给 journald / Docker / 云日志；若重定向到文件需自行配置 logrotate。
+- 限流为**单进程内存计数**：普通 600/min/IP、登录 20/min/IP，超限 `429 RATE_LIMITED` + `Retry-After`。
+- 多实例部署前必须换 Redis 等共享限流，否则每个副本各算各的额度。
+
+### 6.8 Webhook 多副本
+
+- `LC_STORAGE=mysql` 时用 `FOR UPDATE SKIP LOCKED` 领取任务，按 `leaseOwner` CAS 回写；worker 崩溃 90s 后可重领。
+- JSON 模式只有单机文件锁，**跨主机多副本必须用 MySQL**。
+- 投递日志默认保留 30 天，先归档到 `webhook_delivery_archives` 再删除。
+- 健康指标与告警在设计器「Webhook 集成」面板查看。
+
+---
+
+## 7. 故障排查
+
+| 现象 | 可能原因 | 处理 |
+|---|---|---|
+| 设计器打开空白 / 接口 502 | 服务端没起、没 build、端口不是 3000 | 看终端 A 日志；`curl :3000/api/v1/health`；重新 `build` 再 `start` |
+| 设计器一直登不上 | MySQL 模式没有用户 | 执行 `pnpm -F @lc/server seed:mysql`（仅开发），或检查 `users` 表 |
+| 登录 401 | 密码错 / 用户不存在 / token 过期 | 清 `sessionStorage` 后重登；MySQL 模式查 `users` |
+| 保存返回 409 | 别人先保存了，`If-Match` 不匹配 | 点 **打开** 重新加载最新版本，再重做修改；系统不会自动覆盖 |
+| H5 看不到刚改的内容 | 只「保存」未「发布」 | 设计器点 **发布**；运行时优先读发布版本 |
+| 运行时 404 `PAGE_NOT_FOUND` | pageId 拼错 / 页面未保存 | 设计器确认 pageId 并保存 |
+| 运行时 409 `NOT_PUBLISHED` | 页面从未发布 | 点 **发布**；开发期也会回退草稿，但发布后才稳定 |
+| 小程序白屏 | `API_ORIGIN` 还是 127.0.0.1 / 未配合法域名 | 改局域网 IP，重新编译；开发者工具可临时关闭域名校验 |
+| 改了 `packages/*` 不生效 | 运行时用了旧的 Vite 预构建缓存 | 先 build 该包，删 `packages/runtime/node_modules/.vite`，再重启 |
+| 改了服务端代码不生效 | 服务端无 watch | 重新 `pnpm -F @lc/server build` 并重启 |
+| 请求 429 | 触发限流 | 等待窗口结束；开发期可调 `LC_RATE_LIMIT_MAX` / `LC_LOGIN_RATE_LIMIT_MAX` |
+| 上传 413 | 单文件超过 10MB | 压缩或分片；对象存储/Range 尚未实现 |
+| Webhook 一直不投递 | worker 被关、URL 是私网、目标不可达 | 检查 `LC_WEBHOOK_WORKER`；内网需 `LC_WEBHOOK_ALLOW_PRIVATE=1`；看投递日志错误 |
+| Webhook 验签失败 | 时间戳超窗 / body 被改写 / 用错密钥 | 用原始 body 计算；校验 `t`；轮换宽限期内兼容旧密钥 |
+| `/ready` 503 | 数据目录不可写 / 数据库连不上 | 看 `checks` 字段；修权限或 `DATABASE_URL` |
+| `prisma migrate` 失败 | 库不存在 / 账号权限不足 / 迁移历史不一致 | 建库授权；核对 `_prisma_migrations`；生产不要 `db push` |
+| `design:check` 红灯 | 令牌漂移、硬编码色值、rpx 未生成、对比度不足 | 按报错文件修；`pnpm tokens:rpx` 重新生成；不要改门禁绕过 |
+| 3000/5173/5174 被占用 | 端口冲突 | 停旧进程；服务端可用 `PORT` 改端口，同时改设计器代理与运行时 `API_ORIGIN` |
+
+---
+
+## 8. 命令速查
+
+```bash
+# 安装与本地启动
+pnpm install --frozen-lockfile
+pnpm -F @lc/server build && pnpm -F @lc/server start
+pnpm -F @lc/designer-web dev
+pnpm -F @lc/runtime dev:h5
+
+# 质量门禁（提交前）
+pnpm design:check
+pnpm build
+pnpm typecheck
+pnpm test
+pnpm coverage
+
+# 多端构建
+pnpm -F @lc/runtime build:h5
+pnpm -F @lc/runtime build:mp-weixin
+pnpm -F @lc/runtime build:app
+
+# MySQL
+pnpm -F @lc/server prisma:generate
+pnpm -F @lc/server prisma:migrate
+pnpm -F @lc/server seed:mysql
+pnpm -F @lc/server import:json-to-mysql
+pnpm -F @lc/server start:mysql
+
+# 冒烟（前 5 个需先起服务；安全/可观测性自起临时实例）
+node apps/server/scripts/smoke-p3b5.mjs
+node apps/server/scripts/smoke-p3b4.mjs
+node apps/server/scripts/smoke-p3b3.mjs
+node apps/server/scripts/smoke-p3b2.mjs
+node apps/server/scripts/smoke-flow.mjs
+pnpm smoke:security
+pnpm smoke:observability
+pnpm -F @lc/server smoke:mysql
+
+# 探针
+curl -fsS http://127.0.0.1:3000/api/v1/health
+curl -fsS http://127.0.0.1:3000/api/v1/ready
+curl -fsS http://127.0.0.1:3000/api/v1/openapi.json > openapi.json
+```
+
+---
+
+## 9. 安全红线
+
+1. **不要提交 `.env`**，不要把生产密钥写进仓库、截图或日志。
+2. 生产必须设置 `LC_JWT_SECRET`（≥32 字符）与 `LC_CORS_ORIGINS`；开发默认值不得上线。
+3. `LC_TRUST_PROXY=true` 只在可信反代后开启，且不要把 `X-Forwarded-For` 直接暴露公网。
+4. 写接口统一 `ETag` / `If-Match`；遇到 409 **不自动覆盖、不自动重试**。
+5. Webhook 密钥只在创建/轮换时显示一次；接收方必须做幂等与时间窗校验。
+6. 远程物料只接受受信元数据与内置组件白名单，**永不下载/执行远程 JS**。
+7. 生产迁移只用 `prisma migrate deploy`，禁用 `db push`。
+8. 备份、导出文件与投递日志都可能含个人信息，按敏感数据管理。

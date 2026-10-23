@@ -195,6 +195,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 文档 | 用途 |
 |---|---|
+| [`OPERATIONS.md`](OPERATIONS.md) | **操作手册**：本地启动、设计器建页/发布、多端构建、MySQL 切换、部署备份、故障排查 |
 | [`protocol.md`](protocol.md) | 对外协议规范（Expr/Page/Action/Material/Model/Flow/App/错误码/接口） |
 | [`openapi.md`](openapi.md) | OpenAPI 3.1：获取、50 条路由、鉴权/乐观锁/幂等约定 |
 | [`material-market.md`](material-market.md) | 远程物料清单格式、验签、白名单与配置 |

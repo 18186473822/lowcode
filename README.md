@@ -3,7 +3,7 @@
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
 > **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/STATUS.md`](docs/STATUS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包；仍未开发：服务端市场托管/审核。
-> **当前能力与剩余工作**见 [`docs/STATUS.md`](docs/STATUS.md)；逐批进度与缺陷留档见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；已收口的历史过程文档在 [`docs/archive/`](docs/archive/README.md)。
+> **当前能力与剩余工作**见 [`docs/STATUS.md`](docs/STATUS.md)；上手与运维操作见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md)；逐批进度与缺陷留档见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；已收口的历史过程文档在 [`docs/archive/`](docs/archive/README.md)。
 
 ---
 
@@ -191,7 +191,7 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 提交前应全绿：
 
 ```bash
-pnpm design:check    # 设计一致性 4 道：令牌漂移 / 硬编码色值 / rpx 同步 / WCAG 对比度
+pnpm design:check    # 设计一致性 6 道：令牌漂移 / 硬编码色值 / 间距令牌 / px→rpx 未替换 / rpx 生成同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
 pnpm -r test         # 单元测试（80 文件 / 1174 通过 + 10 跳过；注入 LC_TEST_DATABASE_URL 时 MySQL 仓储也执行）
@@ -216,6 +216,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | 文档 | 内容 |
 |---|---|
 | [`docs/STATUS.md`](docs/STATUS.md) | **当前状态总览**：能力清单、实测指标、剩余工作（按优先级）、环境阻塞、明确不做 |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | **操作手册**：本地启动、设计器建页/发布、多端构建、MySQL 切换、部署备份、故障排查 |
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
 | [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、50 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
 | [`docs/material-market.md`](docs/material-market.md) | 远程物料市场：清单格式、ES256 验签、origin allowlist、受控组件白名单与配置 |

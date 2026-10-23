@@ -225,7 +225,7 @@ mysqldump --single-transaction --routines --triggers \
 
 ## 9. 剩余风险
 
-- **单实例限流**：限流仍是进程内计数；多副本会各算各的额度。扩副本前需换 Redis 等共享限流。MySQL 模式已支持多进程读写，但页面/记录没有乐观锁，并发编辑仍可能后写覆盖先写。
+- **单实例限流**：限流仍是进程内计数；多副本会各算各的额度。扩副本前需换 Redis 等共享限流。MySQL 模式已支持多进程读写，页面/记录/流程实例已启用 `revision` 乐观锁与 `If-Match`（ADR-011），409 不自动覆盖；跨仓储仍无分布式事务，流程回写用 `pendingPatch` 补偿。
 - **运维事件追加写入**：`ops_events` 已由整表 delete + create 改为事务内追加 + 按 `seq` 裁剪；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报收敛。JSON 模式用单进程写队列，跨进程非原子。
 - **文件已入库但仍是数据库大字段**：`files.content` 为 `LONGBLOB`，单文件上限 10MB；SQL 备份会随附件一起变大，恢复时长和数据库容量需按业务附件量评估。当前无对象存储 / CDN / Range 下载，大附件或高并发下载应迁 OSS/COS/MinIO 并保留 `files` 元数据。
 - **存量文件不会自动双读**：MySQL 模式只读 `files` 表；切换前必须执行 `import:json-to-mysql`，否则旧 `files/` 目录中的附件会 404。
