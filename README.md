@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成。仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包、GitHub Actions 实跑、服务端市场托管/审核。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包、服务端市场托管/审核。
 > 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
 
 ---
@@ -227,8 +227,8 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
-- **CI 未在真实环境跑过**：GitHub Actions workflow 已扩展为 Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容，但本批尚未推送/触发；Gitee 托管 CI 不支持 Node 22，只能作镜像。
-- **移动端产物有限制**：H5、微信小程序、App 资源均已本地编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
+- **CI 已实跑通过**：GitHub Actions（[run #3](https://github.com/18186473822/lowcode/actions/runs/39890896238)，commit `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。
+- **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
 - **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 50 条路由（含 11 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；服务端物料市场 API（清单托管、发布审核、租户级安装状态）未实现，设计器侧已有受信元数据闭环与市场面板。
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递/归档（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
