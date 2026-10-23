@@ -701,7 +701,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | `LC_STORAGE` | 数据位置 | 适用 |
 |---|---|---|
 | `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
-| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries`（15 表） | 本地联调、生产；需 `DATABASE_URL` |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives`（16 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
 - **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md) / [ADR-009](adr/009-mysql-prisma-second-batch.md) / [ADR-010](adr/010-mysql-files.md) / [ADR-011](adr/011-optimistic-locking.md)。

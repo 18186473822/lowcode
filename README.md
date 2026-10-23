@@ -2,8 +2,8 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 已启动，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包、服务端市场托管/审核。
-> 进度明细见 [`docs/PROGRESS.md`](docs/PROGRESS.md)（台账，兼变更日志）；本轮修复记录见 [`docs/remediation-plan-2026-10-20.md`](docs/remediation-plan-2026-10-20.md)；仓库初始化与 CI 核对见 [`docs/p1-git-ci-2026-10-20.md`](docs/p1-git-ci-2026-10-20.md)。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/STATUS.md`](docs/STATUS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包；仍未开发：服务端市场托管/审核。
+> **当前能力与剩余工作**见 [`docs/STATUS.md`](docs/STATUS.md)；逐批进度与缺陷留档见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；已收口的历史过程文档在 [`docs/archive/`](docs/archive/README.md)。
 
 ---
 
@@ -215,6 +215,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 
 | 文档 | 内容 |
 |---|---|
+| [`docs/STATUS.md`](docs/STATUS.md) | **当前状态总览**：能力清单、实测指标、剩余工作（按优先级）、环境阻塞、明确不做 |
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
 | [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、50 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
 | [`docs/material-market.md`](docs/material-market.md) | 远程物料市场：清单格式、ES256 验签、origin allowlist、受控组件白名单与配置 |
@@ -222,12 +223,13 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
 | [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
 | [`docs/adr/`](docs/adr/) | 11 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批、ADR-010 文件落库、ADR-011 乐观锁/幂等） |
-| [`docs/phase2-plan.md`](docs/phase2-plan.md) / [`docs/phase3-plan.md`](docs/phase3-plan.md) | 分阶段拆批详设 |
+| [`docs/phase2-plan.md`](docs/phase2-plan.md) / [`docs/phase3-plan.md`](docs/phase3-plan.md) | 分阶段拆批详设（均已收口，保留作设计依据） |
+| [`docs/archive/`](docs/archive/README.md) | 已收口/被取代的历史过程文档（结论不代表现状） |
 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
-- **CI 已实跑通过**：GitHub Actions（[run #3](https://github.com/18186473822/lowcode/actions/runs/39890896238)，commit `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。
+- **CI 已实跑通过**：GitHub Actions（[run #3](https://github.com/18186473822/lowcode/actions/runs/39890896238) `f5fb6f0` / run #4 `cf4fae1`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/STATUS.md`](docs/STATUS.md) §2。
 - **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
 - **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 50 条路由（含 11 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；服务端物料市场 API（清单托管、发布审核、租户级安装状态）未实现，设计器侧已有受信元数据闭环与市场面板。
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递/归档（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
@@ -236,7 +238,6 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
 - **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。Webhook 生产化迁移为 `20261023090000_webhook_hardening`（订阅/投递字段 + `webhook_delivery_archives`），已在本地 `lowcode` 与 `lowcode_test` 实跑。
 - **Webhook 多副本依赖 MySQL 行锁**：JSON 模式只能在单机内用文件锁保证互斥；跨主机多副本必须 `LC_STORAGE=mysql`。投递语义仍是至少一次，接收方必须按事件 id/投递 id 幂等。JSON→MySQL 导入脚本已覆盖订阅、投递、归档，并在真实 MySQL 上重复导入验证幂等。
-- **移动端与远程 CI 状态**：微信小程序仅完成编译，未真机验证；App 仅产出 HBuilderX 可导入的 `dist/build/app`，没有 APK/IPA。GitHub Actions 尚未推送触发，不得视为已通过。
 - **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器、标准详情页与标准列表页均携带 `If-Match`。业务记录编辑/删除需显式开启 `detail.editable/deletable` 或 `list.editable/deletable`（缺省只读）；列表行内编辑先拉最新单条再保存，批量删除逐条串行且每行一个 `If-Match`，`409 VERSION_CONFLICT` 不自动覆盖，保留草稿/选择并要求重新加载。批量删除不是原子事务，部分失败会保留未删行与选择，刷新后可用最新 revision 重试；行编辑/删除目前无独立权限点，仍由模型 RBAC + 服务端 403 兜底。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
 - **流程回写为至少一次**：审批结束后实例先落终态并写 `pendingPatch`，再回写记录；进程中断时由后续读/审批补偿，短暂窗口内可能出现「流程已通过、记录字段尚未更新」，`setField` 重复补偿无副作用。JSON 模式多副本无法保证并发安全，多实例部署必须用 MySQL。
 - **图表为纯 SVG 渲染**，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。

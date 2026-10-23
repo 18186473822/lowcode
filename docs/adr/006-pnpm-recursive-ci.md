@@ -21,5 +21,5 @@
 
 - ✅ 零新工具引入完成「一键全绿」等价物；覆盖率从口头指标变成**强制门禁**。
 - ✅ 分包阈值让「schema/expression 这两个错了全平台错」（方案 9.2）有数字兜底。
-- ⚠️ CI workflow **未推送远端、未在真实 Actions 执行**（本机非 git 仓库，D-13/L-8）——bash/curl 步骤仅人工核对，推送后需跑首次并修 runner 差异。
+- ✅ **2026-10-23 更新**：CI 已在 GitHub Actions 实跑全绿（run #3/#4 的 `verify` + `node20-core`）。原「未推送远端、未在真实 Actions 执行」的挂账已关闭；期间按实测把顺序修正为 **先 build 再 typecheck**（workspace `types` 指向 `dist/*.d.ts`），并修复 rpx 令牌 CRLF 归一化。CI 仍不启动真实 MySQL。
 - ⚠️ 阈值是全局聚合口径，单包跌落靠分包实测记录（台账第 7 节），未做 per-package 阈值（Phase 1 视需要）。
