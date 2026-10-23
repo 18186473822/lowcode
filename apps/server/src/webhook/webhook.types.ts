@@ -55,6 +55,17 @@ export interface WebhookSubscription {
   events: string[]
   /** HMAC-SHA256 签名密钥（管理接口默认脱敏，仅创建/轮换时返回明文） */
   secret: string
+  /**
+   * 轮换宽限期内的旧密钥。投递会同时带 `X-LC-Signature-Previous`，
+   * 接收方可先验新密钥、失败再验旧密钥，避免轮换瞬间丢事件。
+   */
+  previousSecret?: string
+  /** 旧密钥失效时间（ISO 8601）；到期后服务端不再附带旧签名 */
+  previousSecretExpiresAt?: string
+  /** 自定义请求头（系统头 `X-LC-*` / Host / Content-Length 等禁止覆盖） */
+  headers: Record<string, string>
+  /** 每个订阅每分钟最多尝试次数；0 = 不限制 */
+  rateLimitPerMinute: number
   active: boolean
   /** 最大投递次数（含首次），1~10 */
   maxAttempts: number
@@ -69,9 +80,11 @@ export interface WebhookSubscription {
 }
 
 /** 对外展示的订阅（密钥脱敏）。 */
-export type WebhookSubscriptionView = Omit<WebhookSubscription, 'secret'> & {
+export type WebhookSubscriptionView = Omit<WebhookSubscription, 'secret' | 'previousSecret'> & {
   /** 形如 `abcd…wxyz`；完整密钥只在创建/轮换响应中出现 */
   secretPreview: string
+  /** 宽限期旧密钥的脱敏预览；无旧密钥或已过期时省略 */
+  previousSecretPreview?: string
 }
 
 export interface WebhookDeliveryAttempt {
@@ -111,10 +124,27 @@ export interface WebhookDelivery {
   responseStatus?: number
   responseBody?: string
   error?: string
+  /** 多副本 worker 租约持有者；为空表示未被领取 */
+  leaseOwner?: string
+  /** 租约到期时间；到期后其它副本可重新领取（崩溃恢复） */
+  leaseExpiresAt?: string
   /** 投递记录版本；每次状态变化 +1，用于管理端 ETag */
   revision: number
   createdAt: string
   updatedAt: string
+}
+
+export interface WebhookDeliveryStats {
+  total: number
+  pending: number
+  success: number
+  failed: number
+  /** 最老的 pending 记录应投递时间（用于积压告警） */
+  oldestPendingAt?: string
+  /** 最近 24 小时创建的投递数 */
+  last24hTotal: number
+  last24hSuccess: number
+  last24hFailed: number
 }
 
 export interface WebhookDeliveryPage {
@@ -136,7 +166,10 @@ export interface WebhookDeliveryQuery {
  *
  * - 订阅写操作均带 `expectedRevision`，CAS 失败返回 false（服务层转 409）；
  * - 删除订阅不级联删除投递日志；
- * - `dueDeliveries` 只返回 `pending` 且 `nextAttemptAt <= now` 的记录。
+ * - `dueDeliveries` 只返回 `pending` 且 `nextAttemptAt <= now` 的记录（只读，测试/兼容用）；
+ * - `claimDueDeliveries` / `claimDelivery` 原子领取并写入租约，多副本 worker 必须使用；
+ * - `saveDelivery` 若传入 `expectedLeaseOwner`，租约已易主时返回 false，避免旧 worker 覆盖新结果；
+ * - `archiveDeliveries` 把终态日志移到归档后删除，返回迁移条数。
  */
 export interface WebhookRepository {
   list(): Promise<WebhookSubscription[]>
@@ -148,9 +181,19 @@ export interface WebhookRepository {
   listDeliveries(subscriptionId: string, query: WebhookDeliveryQuery): Promise<WebhookDeliveryPage>
   findDelivery(id: string): Promise<WebhookDelivery | null>
   createDeliveries(deliveries: WebhookDelivery[]): Promise<void>
-  /** 投递状态更新；单进程 worker 由服务层 in-flight 集合串行化 */
-  saveDelivery(delivery: WebhookDelivery): Promise<void>
+  /** 投递状态更新；传 expectedLeaseOwner 时做租约 CAS */
+  saveDelivery(delivery: WebhookDelivery, expectedLeaseOwner?: string): Promise<boolean>
   dueDeliveries(now: string, limit: number): Promise<WebhookDelivery[]>
+  /** 原子领取到期的 pending 投递；跳过未过期租约（崩溃副本的租约到期后可重领） */
+  claimDueDeliveries(now: string, limit: number, owner: string, leaseMs: number): Promise<WebhookDelivery[]>
+  /** 原子领取单条投递；已被其它未过期租约持有时返回 null */
+  claimDelivery(id: string, owner: string, leaseMs: number): Promise<WebhookDelivery | null>
+  /** 最近窗口内已有尝试的投递数（按订阅限流） */
+  countRecentDeliveries(subscriptionId: string, since: string): Promise<number>
+  /** 管理端指标聚合 */
+  stats(now: string): Promise<WebhookDeliveryStats>
+  /** 归档并删除 `createdAt < before` 的终态日志，单次最多 limit 条；返回迁移条数 */
+  archiveDeliveries(before: string, limit: number): Promise<number>
 }
 
 /** DI token：Webhook 订阅/投递仓储 */

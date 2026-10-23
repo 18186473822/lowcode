@@ -751,47 +751,54 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 端点 | `GET /api/v1/openapi.json`（公开只读，无需 JWT；仍计入普通限流） |
 | 版本 | OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀 |
 | 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId}） |
-| 覆盖 | 当前 **48 条**实际路由；含页面/记录/流程/Webhook `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
+| 覆盖 | 当前 **50 条**实际路由；含页面/记录/流程/Webhook `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
 | 缓存 | `Cache-Control: public, max-age=300` |
 | 实现 | `apps/server/src/open/openapi.ts`（构建器）+ `open.controller.ts` / `open.module.ts` |
 | 防漂移 | `apps/server/test/openapi.test.ts` 反射 Nest 路由元数据，路径/方法少一条或多一条即失败；并校验 `operationId` 唯一、路径参数完整、`$ref` 可解析、公共接口鉴权 |
 | 使用 | 可导入 Swagger UI / Apifox / Postman / OpenAPI Generator；详细说明见 [`openapi.md`](openapi.md) |
 
-> 本批只交付机器可读文档，不内置 Swagger UI 页面；远程物料/物料市场属开放集成后续批次。Webhook 9 条管理接口已在第二批纳入文档。
+> 本批只交付机器可读文档，不内置 Swagger UI 页面。Webhook 共 11 条管理接口已纳入文档；远程物料市场为设计器侧受信元数据闭环（见 [`material-market.md`](material-market.md)），服务端市场 API 仍属后续批次。
 
-### 10.8 Webhook 订阅、签名投递与重试（Phase 4 开放集成第二批）
+### 10.8 Webhook 订阅、签名投递与重试（Phase 4 开放集成生产化）
 
-Webhook 用于把业务写操作与流程状态变化推送给外部系统。设计取舍：**订阅与投递日志分表**、**事件先落盘再由 worker 发送**、**HMAC 签名 + 至少一次投递**；Webhook 故障不得影响记录/流程主链路。
+Webhook 用于把业务写操作与流程状态变化推送给外部系统。设计取舍：**订阅与投递日志分表**、**事件先落盘再由 worker 发送**、**HMAC 签名 + 至少一次投递**；Webhook 故障不得影响记录/流程主链路。生产化补齐：**多副本租约**、**订阅级限流**、**投递归档**、**DNS 级 SSRF**、**轮换宽限期**、**验签/重放工具**。
 
-**① 管理接口（9 条，全部 Bearer + `'*'`）**
+**① 管理接口（11 条，全部 Bearer + `'*'`）**
+
+设计器顶栏「Webhook 集成」提供完整管理 UI：订阅 CRUD、自定义头、限流、测试投递、日志分页过滤、指标告警、密钥轮换与清理归档；所有写操作回传 `If-Match`，409 不自动覆盖。
 
 | 方法 | 路径 | 请求 | 成功响应 |
 |---|---|---|---|
 | GET | `/webhooks` | — | `200 { items: WebhookSubscriptionView[] }`（`updatedAt` 倒序；secret 脱敏为 `secretPreview`） |
-| POST | `/webhooks` | `{ name, description?, url, events, secret?, active?, maxAttempts?, timeoutMs? }` | `200` 新建订阅 + **完整 `secret`（仅此一次）**，响应带 `ETag: "webhook:<id>:<revision>"` |
+| POST | `/webhooks` | `{ name, description?, url, events, secret?, headers?, rateLimitPerMinute?, active?, maxAttempts?, timeoutMs? }` | `200` 新建订阅 + **完整 `secret`（仅此一次）**，响应带 `ETag: "webhook:<id>:<revision>"` |
 | GET | `/webhooks/:id` | — | `200 WebhookSubscriptionView`，响应带 `ETag`；不存在 `404 WEBHOOK_NOT_FOUND` |
 | PUT | `/webhooks/:id` | 上述字段的子集（**patch 语义**，`description: null` 清除；不接受 `secret`），可选 `If-Match` | `200` 更新后的订阅 + 新 `ETag`；非法 `400 WEBHOOK_INVALID`，冲突 `409 VERSION_CONFLICT` |
 | DELETE | `/webhooks/:id` | 可选 `If-Match` | `200 { id, deleted: true }`；**投递日志保留**；不存在 / 冲突同上 |
-| POST | `/webhooks/:id/rotate-secret` | 可选 `If-Match` | `200` 订阅视图 + **新完整 `secret`**；旧密钥立即失效，rev +1 |
-| POST | `/webhooks/:id/test` | — | `200 WebhookDelivery`（同步发送一次；事件类型固定 `webhook.test`，`source: 'test'`，可绕过 `active=false`） |
-| GET | `/webhooks/:id/deliveries?status=&eventType=&page=&size=` | `status` ∈ `pending\|success\|failed`；`eventType` 为已知投递事件；`page` 默认 1；`size` 默认 20、上限 100 | `200 { items, total, page, size }`（`createdAt` 倒序，同刻按 id 倒序） |
+| POST | `/webhooks/:id/rotate-secret` | 可选 `If-Match`；`{ graceSeconds?: 0~604800 }`（默认 86400） | `200` 订阅视图 + **新完整 `secret`**；旧密钥在宽限期内额外签 `X-LC-Signature-Previous`，rev +1 |
+| POST | `/webhooks/:id/test` | — | `200 WebhookDelivery`（同步发送一次；事件类型固定 `webhook.test`，`source: 'test'`，可绕过 `active=false` 与订阅限流） |
+| GET | `/webhooks/:id/deliveries?status=&eventType=&page=&size=` | `status` ∈ `pending\|success\|failed`；`eventType` 为已知投递事件；`page` 默认 1；`size` 默认 20、上限 100 | `200 { items, total, page, size }`（`createdAt` 倒序，同刻按 id 倒序）；**订阅删除后仍可查** |
 | POST | `/webhooks/deliveries/:deliveryId/retry` | 可选 `If-Match`（投递 ETag） | `200 WebhookDelivery`（**同步重投一次**）；未到自动重试时间 `409 DELIVERY_PENDING`；不存在 `404 WEBHOOK_DELIVERY_NOT_FOUND` |
+| GET | `/webhooks/metrics` | — | `200 WebhookMetrics`（队列/成功率/24h 失败率/积压年龄 + `alerts[]` + `ok`） |
+| POST | `/webhooks/maintenance/cleanup` | — | `200 { archived }`；先归档再删除过期终态日志 |
 
 - **管理员边界**：非 `'*'` 用户 403 `ADMIN_REQUIRED`（不是 `PERMISSION_DENIED`）；管理接口不向普通用户暴露 URL/密钥/投递体。
 - **乐观锁**：订阅 ETag `"webhook:<id>:<revision>"`，投递 ETag `"webhook-delivery:<id>:<revision>"`。写接口不带 `If-Match` 仍兼容，但服务端用读到的 revision 做 CAS；携带且不匹配立即 `409 VERSION_CONFLICT`，**不自动覆盖、不自动重试**。
-- **密钥**：创建时可自带 16~128 字符 `secret`，否则服务端生成 32 字节随机十六进制（64 字符）；列表/详情只返回 `secretPreview`（前 4 + `…` + 后 4）。轮换只走专用接口，避免普通更新把密钥带入日志/表单。
-- **字段约束**：`name` 1~64；`description` ≤500；`url` ≤2048；`events` 非空、最多 20 项、去重；`active` 默认 `true`；`maxAttempts` 1~10 默认 5；`timeoutMs` 1000~30000 默认 10000。未知字段直接拒绝（`WEBHOOK_INVALID`）。
+- **密钥**：创建时可自带 16~128 字符 `secret`，否则服务端生成 32 字节随机十六进制（64 字符）；列表/详情只返回 `secretPreview`（前 4 + `…` + 后 4）。轮换只走专用接口，避免普通更新把密钥带入日志/表单。宽限期旧密钥预览为 `previousSecretPreview`，到期后不再附带旧签名。
+- **字段约束**：`name` 1~64；`description` ≤500；`url` ≤2048；`events` 非空、最多 20 项、去重；`headers` 最多 20 组、键名小写、值 ≤1024 且禁止换行；`rateLimitPerMinute` 0~6000（0 = 不限）；`active` 默认 `true`；`maxAttempts` 1~10 默认 5；`timeoutMs` 1000~30000 默认 10000。未知字段直接拒绝（`WEBHOOK_INVALID`）。
+- **自定义请求头**：订阅可配置 `Authorization` 等业务头；`Host`、`Content-Length`、`Transfer-Encoding`、`Connection`、`Upgrade`、`TE`、`Trailer`、`Proxy-*` 与所有 `X-LC-*` 为系统保留，禁止覆盖。发送时先铺自定义头，再用系统头覆盖，确保签名/事件头不可伪造。
 
 **② 订阅模型与事件**
 
 ```ts
 WebhookSubscriptionView = {
   id: string, name: string, description?: string,
-  url: string, events: string[], active: boolean,
-  maxAttempts: number, timeoutMs: number,
+  url: string, events: string[],
+  headers: Record<string, string>, rateLimitPerMinute: number,
+  active: boolean, maxAttempts: number, timeoutMs: number,
   revision: number, createdBy: string, updatedBy: string,
   createdAt: string, updatedAt: string,
-  secretPreview: string
+  secretPreview: string,
+  previousSecretExpiresAt?: string, previousSecretPreview?: string
 }
 ```
 
@@ -830,27 +837,33 @@ WebhookSubscriptionView = {
 | 头 | 值 |
 |---|---|
 | `X-LC-Signature` | `t=<unix 秒>,v1=<hex hmac>` |
+| `X-LC-Signature-Previous` | 轮换宽限期内存在；同一 `<t>` 用旧密钥签名 |
 | `X-LC-Event` | 事件类型（含 `webhook.test`） |
 | `X-LC-Delivery` | 投递记录 id（每次尝试不变） |
 | `X-LC-Subscription` | 订阅 id |
 | `X-LC-Timestamp` | 同 `t`，便于直接读取 |
 | `User-Agent` | `lowcode-webhook/1.0` |
 
-签名算法：`v1 = HEX(HMAC-SHA256(secret, "<t>.<原始 JSON body>"))`。Node 校验示例：
+签名算法：`v1 = HEX(HMAC-SHA256(secret, "<t>.<原始 JSON body>"))`。服务端导出 `apps/server/src/webhook/webhook.verify.ts`，包含**时间窗（默认 300s）**、常量时间比较、旧密钥回退与 `WebhookReplayCache`（默认 10 分钟、容量 10000）。Node 校验示例：
 
 ```ts
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { verifyWebhookSignature, WebhookReplayCache } from './webhook.verify.js'
 
-const [tPart, vPart] = signature.split(',')
-const timestamp = tPart.slice(2)
-const expected = createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest()
-const received = Buffer.from(vPart.slice(3), 'hex')
-if (received.length !== expected.length || !timingSafeEqual(received, expected)) reject()
-// 生产接收方还应校验 timestamp 与当前时间差（建议 ≤5 分钟）并持久化 event.id 去重
+const result = verifyWebhookSignature({
+  secret: process.env.WEBHOOK_SECRET!,
+  previousSecret: process.env.WEBHOOK_SECRET_PREVIOUS,
+  rawBody,
+  header: req.headers['x-lc-signature'] as string | undefined,
+  toleranceSeconds: 300,
+})
+if (!result.ok) return res.status(401).end(result.reason)
+const replay = new WebhookReplayCache()
+if (replay.checkAndRemember(req.headers['x-lc-delivery'] as string)) return res.status(409).end('replay')
 ```
 
 - 签名覆盖**原始 body**，接收方必须在 JSON 解析前保留原始字符串；重新序列化会改变签名。
 - 服务端不校验接收方返回体，只读取最多 2KB 作为日志摘要；2xx 视为成功，`3xx` 不跟随（`redirect: 'manual'`）且按失败处理。
+- 多副本接收方应把 `WebhookReplayCache` 替换为 Redis `SET NX EX`，键建议用 `event.id` 或 `X-LC-Delivery`。
 
 **④ 重试、状态与 worker**
 
@@ -860,14 +873,19 @@ if (received.length !== expected.length || !timingSafeEqual(received, expected))
 - 每次尝试都追加到 `attempts`：`{ attempt, at, ok, status?, durationMs, responseBody?, error? }`；顶层同时保留最后一次的 `responseStatus/responseBody/error`。
 - 手动重投：要求投递已 `success/failed` 或已到重试时间；重置 `attemptCount = 0`、清空最后一次错误字段，但**保留历史 `attempts`**，同步发送一次。重投前后各 +1 revision，因此响应 revision 可能比原值大 2。
 - 后台 worker 默认每 5s 扫描到期 `pending`（单批最多 20 条）；`LC_WEBHOOK_WORKER=off` 关闭，`LC_WEBHOOK_WORKER_INTERVAL_MS` 调整间隔（最小 1000ms）。`NODE_ENV=test` 不启动定时器，测试直接调用 `dispatchDue()` / `dispatchDelivery()`。
-- 当前 worker 是**单进程**：无 Redis/分布式锁，多副本会重复投递；投递语义为**至少一次**，接收方幂等是硬要求。后台日志暂不做自动清理。
+- **多副本租约**：claim 时写入 `leaseOwner` + `leaseExpiresAt`（默认 90s，`LC_WEBHOOK_LEASE_MS`）。MySQL 使用 `FOR UPDATE SKIP LOCKED` 原子领取；JSON 模式用文件锁 + 单写者。租约未过期的投递不会被其它副本发送；worker 崩溃后租约到期可被重新领取。保存投递结果时 JSON/MySQL 都以 `leaseOwner` 做 CAS，旧 worker 不能覆盖新 worker 的结果，因此投递语义仍是**至少一次**，接收方必须按 `event.id` / `X-LC-Delivery` 幂等。
+- **订阅级限流**：`rateLimitPerMinute` 非 0 时，worker 统计最近 60s 内该订阅的已尝试投递数；达到上限就把当前投递的 `nextAttemptAt` 延后 5s，不消耗尝试次数、不发请求。手动测试投递与手动重投不受限流影响。
+- **清理归档**：默认保留 30 天（`LC_WEBHOOK_RETENTION_DAYS`），只处理 `success/failed` 终态日志；先写归档再删除。`dispatchDue()` 每轮异步触发维护，但按 `LC_WEBHOOK_CLEANUP_INTERVAL_MS`（默认 1h）节流；也可 `POST /webhooks/maintenance/cleanup` 手动执行。
 
-**⑤ SSRF 与存储**
+**⑤ SSRF、指标与存储**
 
-- URL 只允许 `http/https`，拒绝内嵌账号口令；`NODE_ENV=production` 默认拒绝 `localhost`、`.local/.internal`、回环/私网/链路本地/保留字面量地址。内网集成需显式 `LC_WEBHOOK_ALLOW_PRIVATE=1`；该判断**只覆盖字面量 IP/主机名，不做 DNS 解析后的二次校验**，生产出口仍应配合网络策略。
-- JSON 模式：`<LC_DATA_DIR>/webhooks.json`（订阅）与 `<LC_DATA_DIR>/webhook-deliveries.json`（投递），均临时文件 + rename 原子写，单进程 `KeyedLock` 串行化。
-- MySQL 模式：`webhook_subscriptions` / `webhook_deliveries` 两表（迁移 `20261022200000_webhooks`）；订阅写操作走 `revision` CAS，投递日志按 `nextAttemptAt + createdAt` 扫描。
-- 删除订阅不级联删除投递日志；日志按订阅 id 查询（当前管理接口要求订阅仍存在；删除后日志仅保留在存储中，供运维直接查库或后续补管理入口），保留完整尝试历史。密钥、投递体、响应摘要均属敏感数据，当前无日志自动脱敏/清理策略。
+- URL 只允许 `http/https`，拒绝内嵌账号口令；`NODE_ENV=production` 默认拒绝 `localhost`、`.local/.internal`、回环/私网/链路本地/保留地址。内网集成需显式 `LC_WEBHOOK_ALLOW_PRIVATE=1`。
+- **DNS 级 SSRF**：发送前对主机名做 `dns.lookup(all)`，任一解析结果落入私网/保留网段即拒绝；实际 `fetch` 前再做一次解析，降低 DNS rebinding 窗口。所有解析结果都必须通过检查，不能只取第一条。
+- 不跟随重定向（`redirect: 'manual'`）；响应体最多读取 2KB 作为摘要；默认超时由订阅 `timeoutMs` 控制。
+- **指标告警**：`GET /webhooks/metrics` 返回队列深度、24h 成功/失败、失败率、最老待投递年龄；阈值由 `LC_WEBHOOK_ALERT_FAILURE_RATE`（默认 0.2）、`LC_WEBHOOK_ALERT_QUEUE_DEPTH`（默认 100）、`LC_WEBHOOK_ALERT_PENDING_AGE_MS`（默认 15 分钟）控制。任一超限 `ok=false` 并在 `alerts[]` 给出中文原因。
+- JSON 模式：`<LC_DATA_DIR>/webhooks.json`（订阅）、`webhook-deliveries.json`（投递）、`webhook-delivery-archive.json`（归档），均临时文件 + rename 原子写，`KeyedLock` 串行化；多进程 worker 通过文件锁互斥。
+- MySQL 模式：`webhook_subscriptions` / `webhook_deliveries` / `webhook_delivery_archives`（迁移 `20261023090000_webhook_hardening`）；订阅写操作走 `revision` CAS，投递按 `nextAttemptAt + createdAt` 扫描并用 `FOR UPDATE SKIP LOCKED` 领取。
+- 删除订阅不级联删除投递日志；`GET /webhooks/:id/deliveries` 不再校验订阅是否存在，删除后仍可按订阅 id 查历史日志。密钥、投递体、响应摘要属敏感数据：管理接口只对 `'*'` 开放，日志查询不返回密钥；归档文件/表需按数据保留策略单独授权。
 
 ## 11. 生命周期受信 API（`app.*`）
 

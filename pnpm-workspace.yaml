@@ -2,6 +2,12 @@ packages:
   - "packages/*"
   - "apps/*"
 
+# `@dcloudio/uni-cli-shared` 内置的 @vue/compiler-core 以 CJS `require('estree-walker')`
+# 读取 AST 工具；estree-walker 3.x 是 ESM-only，pnpm 提升后会命中根 `.pnpm/node_modules`
+# 导致小程序/App 构建在加载 Vite 配置时直接失败。统一锁到 2.0.2（CJS/ESM 双入口）。
+overrides:
+  estree-walker: 2.0.2
+
 # pnpm 12 起构建脚本默认被拦截，esbuild 需要执行 postinstall 下载二进制；
 # core-js 的 postinstall 仅打印版本提示，放行以通过安装
 allowBuilds:

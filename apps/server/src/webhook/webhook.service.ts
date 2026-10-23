@@ -12,7 +12,9 @@
  * - **弱依赖**：`emit()` 内部全量 try-catch，任何 Webhook 故障只记日志，不影响记录/流程主链路；
  * - **至少一次**：先落投递记录再发送；worker 崩溃后重启会继续 pending；接收方必须用事件 id 幂等；
  * - **签名**：`X-LC-Signature: t=<unix>,v1=<hex hmac>`，签名内容为 `<t>.<原始 JSON body>`；
- * - **单进程 worker**：当前没有分布式锁/队列，多副本部署会重复投递（接收方幂等可抵消）。
+ * - **多副本**：投递行带 `leaseOwner/leaseExpiresAt`，MySQL 用 `FOR UPDATE SKIP LOCKED`、
+ *   JSON 用文件锁原子领取；副本崩溃后租约到期自动可重领；
+ * - **弱依赖**：清理/指标/限流/SSRF 校验失败都不影响业务主链路。
  */
 import {
   BadRequestException,
@@ -26,6 +28,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common'
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
+import { lookup } from 'node:dns/promises'
 import type { AuthUser } from '../common/jwt.service.js'
 import { parseIfMatch } from '../common/etag.js'
 import { RbacService } from '../rbac/rbac.service.js'
@@ -40,6 +43,7 @@ import {
   type WebhookDelivery,
   type WebhookDeliveryEventType,
   type WebhookDeliveryPage,
+  type WebhookDeliveryStats,
   type WebhookDeliveryStatus,
   type WebhookEventEnvelope,
   type WebhookEventType,
@@ -57,6 +61,12 @@ export const WEBHOOK_MAX_RESPONSE_BODY = 2_048
 export const WEBHOOK_DEFAULT_WORKER_INTERVAL_MS = 5_000
 export const WEBHOOK_DEFAULT_PAGE_SIZE = 20
 export const WEBHOOK_MAX_PAGE_SIZE = 100
+export const WEBHOOK_DEFAULT_LEASE_MS = 90_000
+export const WEBHOOK_DEFAULT_RETENTION_DAYS = 30
+export const WEBHOOK_DEFAULT_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000
+export const WEBHOOK_DEFAULT_SECRET_GRACE_SECONDS = 24 * 60 * 60
+export const WEBHOOK_MAX_SECRET_GRACE_SECONDS = 7 * 24 * 60 * 60
+export const WEBHOOK_RATE_LIMIT_MAX = 6_000
 
 /** 首次失败后依次等待 5s / 30s / 2min / 10min；超过数组长度按 10min。 */
 export const WEBHOOK_RETRY_DELAYS_MS = [0, 5_000, 30_000, 120_000, 600_000] as const
@@ -67,6 +77,10 @@ const WEBHOOK_URL_MAX = 2_048
 const WEBHOOK_EVENTS_MAX = 20
 const WEBHOOK_SECRET_MIN = 16
 const WEBHOOK_SECRET_MAX = 128
+const WEBHOOK_HEADERS_MAX = 20
+const WEBHOOK_HEADER_NAME_MAX = 128
+const WEBHOOK_HEADER_VALUE_MAX = 1_024
+const WEBHOOK_SSRF_LOOKUP_TIMEOUT_MS = 3_000
 
 /** HMAC-SHA256 签名；接收方用同一 secret 重算并做常量时间比较。 */
 export function signWebhook(secret: string, timestamp: string, rawBody: string): string {
@@ -145,6 +159,88 @@ export function normalizeWebhookUrl(value: string, blockPrivate: boolean): strin
   return url.toString()
 }
 
+/** DNS 解析到内网/保留地址时抛出；用于把 SSRF 拦截和普通网络错误区分开。 */
+export class WebhookSsrfError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'WebhookSsrfError'
+  }
+}
+
+async function lookupWithTimeout(hostname: string): Promise<Array<{ address: string }>> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      lookup(hostname, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`DNS 解析超时（>${WEBHOOK_SSRF_LOOKUP_TIMEOUT_MS}ms）`)),
+          WEBHOOK_SSRF_LOOKUP_TIMEOUT_MS,
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * DNS 级 SSRF 校验：字面量地址在同步解析阶段已拦截，这里补域名解析后的全部 A/AAAA。
+ * 发送前会再次校验，降低「创建时 DNS 正常、执行时切到内网」的 DNS rebinding 风险。
+ * 注：Node 原生 fetch 无法固定解析结果；生产仍应在出口网关限制 RFC1918 访问。
+ */
+export async function assertWebhookDestination(url: string, blockPrivate: boolean): Promise<void> {
+  if (!blockPrivate) return
+  const parsed = new URL(url)
+  const host = parsed.hostname.replace(/^\[|\]$/g, '')
+  if (isPrivateHost(host)) throw new WebhookSsrfError('url 指向本机/内网地址，生产环境默认禁止')
+  // 公网字面量地址无需再解析；域名必须解析并逐个校验。
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':')) return
+  const addresses = await lookupWithTimeout(host)
+  if (addresses.length === 0) throw new Error(`DNS 解析为空：${host}`)
+  const blocked = addresses.find((item) => isPrivateHost(item.address))
+  if (blocked) {
+    throw new WebhookSsrfError(`url 域名解析到内网/保留地址（${blocked.address}），生产环境默认禁止`)
+  }
+}
+
+const FORBIDDEN_HEADER_NAMES = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'upgrade',
+  'te',
+  'trailer',
+  'proxy-authorization',
+  'proxy-authenticate',
+])
+
+/** 自定义请求头校验：禁止 CRLF、系统保留头与 X-LC-*，避免伪造签名/事件头。 */
+export function validateWebhookHeaders(value: unknown): Record<string, string> {
+  if (value === undefined || value === null) return {}
+  if (!isPlainObject(value)) throw new Error('headers 必须是 JSON 对象')
+  const entries = Object.entries(value)
+  if (entries.length > WEBHOOK_HEADERS_MAX) throw new Error(`headers 最多 ${WEBHOOK_HEADERS_MAX} 项`)
+  const headers: Record<string, string> = {}
+  for (const [rawName, rawValue] of entries) {
+    const name = rawName.trim().toLowerCase()
+    if (!name || name.length > WEBHOOK_HEADER_NAME_MAX || !/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(name)) {
+      throw new Error(`headers 键名非法：${rawName}`)
+    }
+    if (FORBIDDEN_HEADER_NAMES.has(name) || name.startsWith('x-lc-')) {
+      throw new Error(`headers 不允许覆盖系统保留头：${name}`)
+    }
+    if (typeof rawValue !== 'string') throw new Error(`headers.${name} 必须是字符串`)
+    if (rawValue.length > WEBHOOK_HEADER_VALUE_MAX) {
+      throw new Error(`headers.${name} 不能超过 ${WEBHOOK_HEADER_VALUE_MAX} 个字符`)
+    }
+    if (/[\r\n\0]/.test(rawValue)) throw new Error(`headers.${name} 不允许包含换行或 NUL`)
+    headers[name] = rawValue
+  }
+  return headers
+}
+
 /** 订阅事件校验：`'*'` 必须单独使用；其余必须是已知事件。 */
 export function validateWebhookEvents(value: unknown): string[] {
   if (!Array.isArray(value) || value.length === 0) throw new Error('events 必须是非空数组')
@@ -188,6 +284,8 @@ export interface WebhookCreateInput {
   url: string
   events: string[]
   secret?: string
+  headers: Record<string, string>
+  rateLimitPerMinute: number
   active: boolean
   maxAttempts: number
   timeoutMs: number
@@ -198,6 +296,8 @@ export interface WebhookPatch {
   description?: string | null
   url?: string
   events?: string[]
+  headers?: Record<string, string>
+  rateLimitPerMinute?: number
   active?: boolean
   maxAttempts?: number
   timeoutMs?: number
@@ -209,12 +309,24 @@ const CREATE_KEYS = [
   'url',
   'events',
   'secret',
+  'headers',
+  'rateLimitPerMinute',
   'active',
   'maxAttempts',
   'timeoutMs',
 ] as const
 
-const PATCH_KEYS = ['name', 'description', 'url', 'events', 'active', 'maxAttempts', 'timeoutMs'] as const
+const PATCH_KEYS = [
+  'name',
+  'description',
+  'url',
+  'events',
+  'headers',
+  'rateLimitPerMinute',
+  'active',
+  'maxAttempts',
+  'timeoutMs',
+] as const
 
 function validateName(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error('name 必填')
@@ -263,6 +375,7 @@ export function parseCreateWebhookInput(body: unknown, blockPrivate: boolean): W
   let events: string[] = []
   let description: string | undefined
   let secret: string | undefined
+  let headers: Record<string, string> = {}
 
   try {
     name = validateName(body.name)
@@ -290,10 +403,23 @@ export function parseCreateWebhookInput(body: unknown, blockPrivate: boolean): W
   } catch (error) {
     errors.push((error as Error).message)
   }
+  try {
+    headers = validateWebhookHeaders(body.headers)
+  } catch (error) {
+    errors.push((error as Error).message)
+  }
 
   let active = true
   let maxAttempts = WEBHOOK_DEFAULT_MAX_ATTEMPTS
   let timeoutMs = WEBHOOK_DEFAULT_TIMEOUT_MS
+  let rateLimitPerMinute = 0
+  try {
+    if (hasOwn(body, 'rateLimitPerMinute')) {
+      rateLimitPerMinute = validateInteger(body.rateLimitPerMinute, 'rateLimitPerMinute', 0, WEBHOOK_RATE_LIMIT_MAX)
+    }
+  } catch (error) {
+    errors.push((error as Error).message)
+  }
   try {
     if (hasOwn(body, 'active')) active = validateBoolean(body.active, 'active')
   } catch (error) {
@@ -321,6 +447,8 @@ export function parseCreateWebhookInput(body: unknown, blockPrivate: boolean): W
     url,
     events,
     ...(secret === undefined ? {} : { secret }),
+    headers,
+    rateLimitPerMinute,
     active,
     maxAttempts,
     timeoutMs,
@@ -368,6 +496,25 @@ export function parsePatchWebhookInput(body: unknown, blockPrivate: boolean): We
       errors.push((error as Error).message)
     }
   }
+  if (hasOwn(body, 'headers')) {
+    try {
+      patch.headers = validateWebhookHeaders(body.headers)
+    } catch (error) {
+      errors.push((error as Error).message)
+    }
+  }
+  if (hasOwn(body, 'rateLimitPerMinute')) {
+    try {
+      patch.rateLimitPerMinute = validateInteger(
+        body.rateLimitPerMinute,
+        'rateLimitPerMinute',
+        0,
+        WEBHOOK_RATE_LIMIT_MAX,
+      )
+    } catch (error) {
+      errors.push((error as Error).message)
+    }
+  }
   if (hasOwn(body, 'active')) {
     try {
       patch.active = validateBoolean(body.active, 'active')
@@ -401,8 +548,34 @@ export function maskSecret(secret: string): string {
 }
 
 function toView(subscription: WebhookSubscription): WebhookSubscriptionView {
-  const { secret, ...rest } = subscription
-  return { ...rest, secretPreview: maskSecret(secret) }
+  const { secret, previousSecret, ...rest } = subscription
+  const previousValid =
+    previousSecret !== undefined &&
+    subscription.previousSecretExpiresAt !== undefined &&
+    subscription.previousSecretExpiresAt > new Date().toISOString()
+  return {
+    ...rest,
+    secretPreview: maskSecret(secret),
+    ...(previousValid ? { previousSecretPreview: maskSecret(previousSecret) } : {}),
+  }
+}
+
+/** 轮换密钥请求体：可选宽限期（秒），0 表示立即失效。 */
+export function parseRotateSecretInput(body: unknown): { graceSeconds: number } {
+  const fallback = Number(process.env.LC_WEBHOOK_SECRET_GRACE_SECONDS ?? WEBHOOK_DEFAULT_SECRET_GRACE_SECONDS)
+  const defaultGrace = Number.isInteger(fallback) && fallback >= 0 ? Math.min(fallback, WEBHOOK_MAX_SECRET_GRACE_SECONDS) : WEBHOOK_DEFAULT_SECRET_GRACE_SECONDS
+  if (body === undefined || body === null) return { graceSeconds: defaultGrace }
+  if (!isPlainObject(body)) throw webhookInvalid(['请求体必须是 JSON 对象'])
+  const unknown = Object.keys(body).filter((key) => key !== 'graceSeconds')
+  if (unknown.length > 0) throw webhookInvalid([`未知字段：${unknown.join(', ')}`])
+  if (!hasOwn(body, 'graceSeconds')) return { graceSeconds: defaultGrace }
+  try {
+    return {
+      graceSeconds: validateInteger(body.graceSeconds, 'graceSeconds', 0, WEBHOOK_MAX_SECRET_GRACE_SECONDS),
+    }
+  } catch (error) {
+    throw webhookInvalid([(error as Error).message])
+  }
 }
 
 function parsePositiveInt(raw: unknown, fallback: number, name: string, max?: number): number {
@@ -419,12 +592,32 @@ function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max)}…`
 }
 
+export interface WebhookMetrics extends WebhookDeliveryStats {
+  generatedAt: string
+  /** 最近 24 小时失败率（0~1；无样本时为 0） */
+  failureRate: number
+  /** 告警阈值，便于前端展示/运维核对 */
+  thresholds: {
+    failureRate: number
+    queueDepth: number
+    pendingAgeMs: number
+  }
+  /** 人类可读告警；为空表示健康 */
+  alerts: string[]
+  ok: boolean
+}
+
 @Injectable()
 export class WebhookService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(WebhookService.name)
   private timer?: NodeJS.Timeout
   private dispatching = false
   private readonly inFlight = new Set<string>()
+  /** 本副本的租约标识（多副本部署时每个进程不同）。 */
+  readonly workerId = randomUUID()
+  private lastCleanupAt = 0
+  private lastAlertAt = 0
+  private lastAlertSignature = ''
 
   /** 测试可替换；生产使用 Node 原生 fetch。 */
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
@@ -473,6 +666,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
   async create(user: AuthUser, body: unknown): Promise<WebhookSubscriptionView & { secret: string }> {
     await this.assertAdmin(user)
     const input = parseCreateWebhookInput(body, this.blockPrivate)
+    await this.assertDestination(input.url)
     const now = new Date().toISOString()
     const subscription: WebhookSubscription = {
       id: randomUUID(),
@@ -481,6 +675,8 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       url: input.url,
       events: input.events,
       secret: input.secret ?? randomBytes(32).toString('hex'),
+      headers: input.headers,
+      rateLimitPerMinute: input.rateLimitPerMinute,
       active: input.active,
       maxAttempts: input.maxAttempts,
       timeoutMs: input.timeoutMs,
@@ -504,6 +700,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     const current = await this.mustSubscription(id)
     this.assertIfMatch(ifMatch, id, current.revision)
     const patch = parsePatchWebhookInput(body, this.blockPrivate)
+    if (patch.url !== undefined) await this.assertDestination(patch.url)
     const now = new Date().toISOString()
 
     const next: WebhookSubscription = {
@@ -511,6 +708,8 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       ...(patch.name === undefined ? {} : { name: patch.name }),
       ...(patch.url === undefined ? {} : { url: patch.url }),
       ...(patch.events === undefined ? {} : { events: patch.events }),
+      ...(patch.headers === undefined ? {} : { headers: patch.headers }),
+      ...(patch.rateLimitPerMinute === undefined ? {} : { rateLimitPerMinute: patch.rateLimitPerMinute }),
       ...(patch.active === undefined ? {} : { active: patch.active }),
       ...(patch.maxAttempts === undefined ? {} : { maxAttempts: patch.maxAttempts }),
       ...(patch.timeoutMs === undefined ? {} : { timeoutMs: patch.timeoutMs }),
@@ -520,6 +719,10 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     }
     if (patch.description === null) delete next.description
     else if (patch.description !== undefined) next.description = patch.description
+    if (next.previousSecretExpiresAt !== undefined && next.previousSecretExpiresAt <= now) {
+      delete next.previousSecret
+      delete next.previousSecretExpiresAt
+    }
 
     const saved = await this.repo.update(next, current.revision)
     if (!saved) {
@@ -545,17 +748,29 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     user: AuthUser,
     id: string,
     ifMatch?: string,
+    body?: unknown,
   ): Promise<WebhookSubscriptionView & { secret: string }> {
     await this.assertAdmin(user)
     const current = await this.mustSubscription(id)
     this.assertIfMatch(ifMatch, id, current.revision)
+    const { graceSeconds } = parseRotateSecretInput(body)
     const now = new Date().toISOString()
     const next: WebhookSubscription = {
       ...current,
       secret: randomBytes(32).toString('hex'),
+      ...(graceSeconds > 0
+        ? {
+            previousSecret: current.secret,
+            previousSecretExpiresAt: new Date(Date.now() + graceSeconds * 1000).toISOString(),
+          }
+        : {}),
       revision: current.revision + 1,
       updatedBy: user.username,
       updatedAt: now,
+    }
+    if (graceSeconds === 0) {
+      delete next.previousSecret
+      delete next.previousSecretExpiresAt
     }
     const saved = await this.repo.update(next, current.revision)
     if (!saved) {
@@ -602,7 +817,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     query: { status?: unknown; eventType?: unknown; page?: unknown; size?: unknown },
   ): Promise<WebhookDeliveryPage> {
     await this.assertAdmin(user)
-    await this.mustSubscription(subscriptionId)
+    // 不校验订阅是否存在：删除订阅后投递日志仍保留，管理员需要继续排障/审计。
 
     let status: WebhookDeliveryStatus | undefined
     if (query.status !== undefined) {
@@ -624,6 +839,35 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       page: parsePositiveInt(query.page, 1, 'page'),
       size: parsePositiveInt(query.size, WEBHOOK_DEFAULT_PAGE_SIZE, 'size', WEBHOOK_MAX_PAGE_SIZE),
     })
+  }
+
+  /** 管理端指标 + 告警判定（失败率 / 积压深度 / 最老 pending 年龄）。 */
+  async metrics(user: AuthUser): Promise<WebhookMetrics> {
+    await this.assertAdmin(user)
+    return this.buildMetrics()
+  }
+
+  /** 管理端手动触发清理（后台 worker 也会按间隔自动执行）。 */
+  async cleanupDeliveriesForAdmin(user: AuthUser): Promise<number> {
+    await this.assertAdmin(user)
+    return this.cleanupDeliveries()
+  }
+
+  /** 清理过期投递日志：先归档再删除；返回迁移条数。 */
+  async cleanupDeliveries(): Promise<number> {
+    const rawDays = Number(process.env.LC_WEBHOOK_RETENTION_DAYS ?? WEBHOOK_DEFAULT_RETENTION_DAYS)
+    const days = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : WEBHOOK_DEFAULT_RETENTION_DAYS
+    const before = new Date(Date.now() - days * 24 * 60 * 60 * 1_000).toISOString()
+    let archived = 0
+    // 单轮最多 5000 条，避免定时任务长时间占用数据库；下一轮继续消化。
+    while (archived < 5_000) {
+      const moved = await this.repo.archiveDeliveries(before, 500)
+      archived += moved
+      if (moved < 500) break
+    }
+    if (archived > 0) this.log.log(`Webhook 投递日志已归档 ${archived} 条（保留 ${days} 天）`)
+    this.lastCleanupAt = Date.now()
+    return archived
   }
 
   /** 管理端手动重投：重置尝试计数后同步发送一次（保留历史 attempts 审计）。 */
@@ -705,13 +949,19 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   /* ------------------------------ 投递 worker ------------------------------ */
 
-  /** 扫描到期 pending 投递并发送；返回本轮处理数量。 */
+  /** 扫描到期 pending 投递并发送；返回本轮领取数量。 */
   async dispatchDue(): Promise<number> {
     if (this.dispatching) return 0
     this.dispatching = true
     try {
-      const due = await this.repo.dueDeliveries(new Date().toISOString(), 20)
+      const due = await this.repo.claimDueDeliveries(
+        new Date().toISOString(),
+        20,
+        this.workerId,
+        this.leaseMs,
+      )
       await Promise.all(due.map((delivery) => this.dispatchDelivery(delivery.id)))
+      void this.runMaintenance()
       return due.length
     } catch (error) {
       this.log.error('Webhook worker 扫描失败', error instanceof Error ? error.stack : String(error))
@@ -721,24 +971,54 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** 发送单条投递；并发调用同一 id 时只执行一次。 */
+  /** 发送单条投递；先原子领取租约，并发/多副本调用同一 id 时只有一个执行。 */
   async dispatchDelivery(id: string): Promise<WebhookDelivery | null> {
     if (this.inFlight.has(id)) return null
     this.inFlight.add(id)
     try {
-      const delivery = await this.repo.findDelivery(id)
-      if (!delivery || delivery.status !== 'pending') return delivery
+      const claimed = await this.repo.claimDelivery(id, this.workerId, this.leaseMs)
+      const delivery = claimed ?? (await this.repo.findDelivery(id))
+      if (!delivery) return null
+      if (delivery.status !== 'pending') return delivery
+      // 已被其它副本持有未过期租约：本轮不发送，等对方完成或租约到期。
+      if (!claimed) return delivery
+
+      const owner = delivery.leaseOwner ?? this.workerId
       const subscription = await this.repo.find(delivery.subscriptionId)
-      if (!subscription) return this.failDelivery(delivery, '订阅已删除')
+      if (!subscription) return this.failDelivery(delivery, '订阅已删除', owner)
       if (!subscription.active && delivery.source !== 'test') {
-        return this.failDelivery(delivery, '订阅已停用')
+        return this.failDelivery(delivery, '订阅已停用', owner)
+      }
+
+      // DNS 级 SSRF：发送前重新解析；解析到内网直接失败，不再重试。
+      try {
+        await this.assertDestination(subscription.url)
+      } catch (error) {
+        if (error instanceof WebhookSsrfError) return this.failDelivery(delivery, error.message, owner)
+        throw error
       }
 
       const now = new Date().toISOString()
+      if (delivery.source !== 'test' && subscription.rateLimitPerMinute > 0) {
+        const since = new Date(Date.now() - 60_000).toISOString()
+        const recent = await this.repo.countRecentDeliveries(subscription.id, since)
+        if (recent >= subscription.rateLimitPerMinute) {
+          delivery.nextAttemptAt = new Date(Date.now() + 5_000).toISOString()
+          delivery.updatedAt = now
+          delivery.revision += 1
+          const saved = await this.repo.saveDelivery(delivery, owner)
+          if (!saved) return this.repo.findDelivery(id)
+          this.log.debug(`订阅 ${subscription.id} 触发限流，投递 ${id} 延后 5s`)
+          return delivery
+        }
+      }
+
       const timestamp = String(Math.floor(Date.now() / 1000))
       const rawBody = JSON.stringify(delivery.payload)
       const signature = signWebhook(subscription.secret, timestamp, rawBody)
+      // 自定义头先铺底，系统头随后覆盖，确保 X-LC-* / Content-Type 不可能被订阅配置伪造。
       const headers: Record<string, string> = {
+        ...subscription.headers,
         'content-type': 'application/json; charset=utf-8',
         'user-agent': 'lowcode-webhook/1.0',
         'x-lc-event': delivery.eventType,
@@ -746,6 +1026,14 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         'x-lc-subscription': delivery.subscriptionId,
         'x-lc-timestamp': timestamp,
         'x-lc-signature': `t=${timestamp},v1=${signature}`,
+      }
+      if (
+        subscription.previousSecret &&
+        subscription.previousSecretExpiresAt &&
+        subscription.previousSecretExpiresAt > now
+      ) {
+        headers['x-lc-signature-previous'] =
+          `t=${timestamp},v1=${signWebhook(subscription.previousSecret, timestamp, rawBody)}`
       }
 
       const started = Date.now()
@@ -810,7 +1098,11 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         delivery.status = 'failed'
         delivery.nextAttemptAt = now
       }
-      await this.repo.saveDelivery(delivery)
+      const saved = await this.repo.saveDelivery(delivery, owner)
+      if (!saved) {
+        this.log.warn(`Webhook 投递 ${id} 的租约已被其它副本接管，丢弃本次结果`)
+        return this.repo.findDelivery(id)
+      }
       return delivery
     } catch (error) {
       this.log.error(`Webhook 投递失败（保留 pending 待下次重试）：${id}`, error instanceof Error ? error.stack : String(error))
@@ -858,7 +1150,11 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     })
   }
 
-  private async failDelivery(delivery: WebhookDelivery, message: string): Promise<WebhookDelivery> {
+  private async failDelivery(
+    delivery: WebhookDelivery,
+    message: string,
+    leaseOwner?: string,
+  ): Promise<WebhookDelivery> {
     const now = new Date().toISOString()
     const attempt = {
       attempt: delivery.attemptCount + 1,
@@ -878,11 +1174,86 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       revision: delivery.revision + 1,
       updatedAt: now,
     }
-    await this.repo.saveDelivery(next)
+    const saved = await this.repo.saveDelivery(next, leaseOwner)
+    if (!saved) return (await this.repo.findDelivery(delivery.id)) ?? next
     return next
+  }
+
+  private async assertDestination(url: string): Promise<void> {
+    await assertWebhookDestination(url, this.blockPrivate)
+  }
+
+  /** 生成指标与告警；管理端和后台自检共用。 */
+  private async buildMetrics(): Promise<WebhookMetrics> {
+    const now = new Date().toISOString()
+    const stats = await this.repo.stats(now)
+    const failureRate = stats.last24hTotal > 0 ? stats.last24hFailed / stats.last24hTotal : 0
+    const thresholds = {
+      failureRate: envRatio('LC_WEBHOOK_ALERT_FAILURE_RATE', 0.2),
+      queueDepth: envInteger('LC_WEBHOOK_ALERT_QUEUE_DEPTH', 1_000),
+      pendingAgeMs: envInteger('LC_WEBHOOK_ALERT_PENDING_AGE_MS', 15 * 60 * 1_000),
+    }
+    const alerts: string[] = []
+    if (stats.last24hTotal > 0 && failureRate >= thresholds.failureRate) {
+      alerts.push(`最近 24 小时失败率 ${(failureRate * 100).toFixed(1)}% 超过阈值 ${(thresholds.failureRate * 100).toFixed(1)}%`)
+    }
+    if (stats.pending >= thresholds.queueDepth) {
+      alerts.push(`pending 队列 ${stats.pending} 条达到阈值 ${thresholds.queueDepth}`)
+    }
+    if (stats.oldestPendingAt) {
+      const age = Date.now() - new Date(stats.oldestPendingAt).getTime()
+      if (age >= thresholds.pendingAgeMs) {
+        alerts.push(`最老 pending 已等待 ${Math.round(age / 60_000)} 分钟，超过阈值 ${Math.round(thresholds.pendingAgeMs / 60_000)} 分钟`)
+      }
+    }
+    return {
+      ...stats,
+      generatedAt: now,
+      failureRate,
+      thresholds,
+      alerts,
+      ok: alerts.length === 0,
+    }
+  }
+
+  /** 定时清理 + 告警自检；失败只记日志，不影响 worker。 */
+  private async runMaintenance(): Promise<void> {
+    const interval = envInteger('LC_WEBHOOK_CLEANUP_INTERVAL_MS', WEBHOOK_DEFAULT_CLEANUP_INTERVAL_MS)
+    if (Date.now() - this.lastCleanupAt < Math.max(interval, 60_000)) return
+    try {
+      await this.cleanupDeliveries()
+      await this.evaluateAlerts()
+    } catch (error) {
+      this.log.error('Webhook 维护任务失败', error instanceof Error ? error.stack : String(error))
+    }
+  }
+
+  private async evaluateAlerts(): Promise<void> {
+    if (Date.now() - this.lastAlertAt < 60_000) return
+    this.lastAlertAt = Date.now()
+    const metrics = await this.buildMetrics()
+    const signature = metrics.alerts.join('|')
+    if (signature && signature !== this.lastAlertSignature) {
+      this.log.warn(`Webhook 投递告警：${metrics.alerts.join('；')}`)
+    }
+    this.lastAlertSignature = signature
+  }
+
+  private get leaseMs(): number {
+    return Math.max(envInteger('LC_WEBHOOK_LEASE_MS', WEBHOOK_DEFAULT_LEASE_MS), 30_000)
   }
 
   private get blockPrivate(): boolean {
     return process.env.NODE_ENV === 'production' && process.env.LC_WEBHOOK_ALLOW_PRIVATE !== '1'
   }
+}
+
+function envInteger(name: string, fallback: number): number {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value >= 0 ? value : fallback
+}
+
+function envRatio(name: string, fallback: number): number {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback
 }

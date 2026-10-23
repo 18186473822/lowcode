@@ -49,6 +49,18 @@ export class WebhookController {
     return this.svc.list(this.user(req))
   }
 
+  @Get('metrics')
+  metrics(@Req() req: AuthedRequest) {
+    return this.svc.metrics(this.user(req))
+  }
+
+  @Post('maintenance/cleanup')
+  @HttpCode(200)
+  async cleanup(@Req() req: AuthedRequest) {
+    const archived = await this.svc.cleanupDeliveriesForAdmin(this.user(req))
+    return { archived }
+  }
+
   @Post()
   @HttpCode(200)
   async create(
@@ -99,11 +111,12 @@ export class WebhookController {
   @HttpCode(200)
   async rotateSecret(
     @Param('id') id: string,
+    @Body() body: unknown,
     @Headers('if-match') ifMatch: string | undefined,
     @Req() req: AuthedRequest,
     @Res({ passthrough: true }) res: HeaderSink,
   ) {
-    const rotated = await this.svc.rotateSecret(this.user(req), id, ifMatch)
+    const rotated = await this.svc.rotateSecret(this.user(req), id, ifMatch, body)
     res.setHeader('ETag', makeEtag('webhook', id, rotated.revision))
     return rotated
   }

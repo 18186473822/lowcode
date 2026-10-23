@@ -1,7 +1,11 @@
-# Phase 0 CI —— 与本地验证等价（typecheck → build → test → coverage 阈值 → 服务端冒烟）
-# ⚠️ 状态：代码已推送到 Gitee；Gitee 不执行 GitHub Actions，workflow **仍未在真实 CI 跑过**（台账 D-13 / L-8）。
+# 远端 CI —— 与本地验证等价（typecheck → build → test → coverage 阈值 → 服务端冒烟 → 移动端编译）
 # 触发分支同时覆盖 master（Gitee 默认）与 main（GitHub 默认），并保留手动触发。
 # 未引入 Turborepo（D-4）：用 pnpm -r 递归替代 `turbo build`。
+#
+# 双 Node 版本：
+# - verify（22）：全量门禁 + 覆盖率 + 真实启动冒烟 + H5/小程序/App 编译；
+# - node20-core（20）：核心包兼容性回归。uni 的 vite 插件声明 Node >=22.12，
+#   因此移动端编译只在 22 上跑；20 只验证服务端/渲染器/设计器核心链路。
 name: CI
 
 on:
@@ -40,6 +44,27 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # 移动端三端编译：H5 / 微信小程序 / App（HBuilderX 可导入的 App 资源）。
+      # App 的 apk/ipa 仍需 HBuilderX 原生打包，CI 只验证 uni 编译器能产出 app 资源。
+      - name: Runtime H5 build
+        run: pnpm -F @lc/runtime build:h5
+
+      - name: Runtime WeChat mini-program build
+        run: pnpm -F @lc/runtime build:mp-weixin
+
+      - name: Runtime App build
+        run: pnpm -F @lc/runtime build:app
+
+      - name: Upload mobile build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-mobile-${{ github.sha }}
+          path: |
+            packages/runtime/dist/build/mp-weixin
+            packages/runtime/dist/build/app
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Test
         run: pnpm test
 
@@ -77,3 +102,29 @@ jobs:
           if [ "$SIZE_KB" -gt 1024 ]; then
             echo "::warning::@lc/renderer dist 超过 1024KB（当前 ${SIZE_KB}KB），请检查是否引入了重依赖"
           fi
+
+  # Node 20 兼容性回归：Gitee 托管环境不能升到 22 时，至少服务端与核心包仍可构建/测试。
+  # 移动端 uni 插件自身要求 Node >=22.12，故不在此 job 重复编译。
+  node20-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test

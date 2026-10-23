@@ -1492,6 +1492,7 @@ uni-app 官方 **CLI（Vite）工程**（**D-10 偏差**：环境无 HBuilderX�
 | 2026-10-21 | Phase 4 · 运维事件追加写入 | **去掉 ops 整表覆盖**：① `OpsRepository` 从 `save(events)` 改为 `append(events, limit)`，返回 `{total,dropped}`；② `MysqlOpsRepository` 事务内 `createMany` 后按自增 `seq` 删除超限最旧行，不再 delete + create；③ `FileOpsRepository` 加单进程 Promise 写队列，并发 append 串行化「读 → 合并 → 裁剪 → tmp + rename」；④ service `ingest` 不再先读整表，`POST /ops/events` 响应形状不变；⑤ 新增 `ops-repository.test.ts` 2 例，MySQL 集成补裁剪/10 条并发回读。**未做**：多实例严格 500 上限、JSON 跨进程原子写。 | typecheck ✅ 7 包 exit 0 / design:check ✅ exit 0 / build ✅ 5 包 exit 0 / test ✅ **1070 passed + 7 skipped / 71 文件**（server 214 + 7 skipped）/ coverage ✅ **92.4/87.83/90.75/92.4** exit 0（74.53s）/ MySQL 仓储集成 ✅ **7/7 PASS** / MySQL 真启动冒烟 ✅ **9/9 PASS** |
 | 2026-10-21 | Phase 4 · MySQL 8 + Prisma 第二批 | **流程/运维/应用配置落库（ADR-009）**：① 新增 4 表 `flow_definitions / flow_instances / ops_events / app_config` 与迁移 `20261021150000_flows_ops_appconfig`（已应用 dev + test）；② 新增 `MysqlFlowRepository / MysqlOpsRepository / MysqlAppConfigRepository`，流程定义删除不级联删实例，ops 用自增 `seq` 保同毫秒顺序，app_config 单行 `id='default'`；③ 抽出 `AppConfigRepository` + 文件/MySQL 双实现，`AppConfigService` 改仓储注入，`GET/PUT /apps/config` 契约不变；④ `FlowModule / OpsModule` 统一由 `StorageModule` 注入；⑤ 导入脚本扩展 flows/instances/ops/apps，冒烟扩到 9 项；⑥ **修复测试污染开发库**：发现 Vitest 自动加载 `.env` 覆盖 `test.env`，新增 `setup-json-storage.ts` 强制 JSON + 删除 `DATABASE_URL`，复跑后开发库计数不变。**未做**：文件元数据落库、乐观锁、Redis 限流、CI 实跑 MySQL、小程序真机（ops 追加写入已由「已实现 33」补齐）。 | typecheck ✅ 7 包 exit 0 / design:check ✅ exit 0 / build ✅ 5 包 exit 0 / test ✅ **1068 passed + 7 skipped / 70 文件**（server 212 + 7 skipped）/ coverage ✅ **92.51/87.82/90.82/92.51** exit 0（78.99s）/ MySQL 仓储集成 ✅ **7/7 PASS** / MySQL 真启动冒烟 ✅ **9/9 PASS** / JSON→MySQL 导入 ✅ **flows=1, instances=6, ops=19, appConfig=yes**（开发库已回读） |
 | 2026-10-22 | Phase 4 · MySQL 8 + Prisma 第三批（文件） | **文件元数据与内容落库（ADR-010）**：① 新增第 13 张表 `files`（`id` / `originalName TEXT` / `mimeType` / `size` / `uploadedAt` / `uploadedBy` / `content LONGBLOB`，`uploadedAt` 索引）；② 抽出 `FileRepository` + `StoredFile`，`DiskFileRepository` 保持原双文件布局与降级语义，`MysqlFileRepository` 用 upsert 单行写入，`StorageModule` 按 `LC_STORAGE` 注入；③ `FileService` 契约、10MB 上限、404/500 语义不变；④ 迁移 `20261022000000_files` 已应用 `lowcode` + `lowcode_test`；⑤ 导入脚本补 `files/` + `files-meta/`，开发库补录 8 个历史文件；⑥ 测试扩至 MySQL 仓储 8/8、真启动冒烟 10/10（HTTP 上传 → Prisma 回读 → HTTP 下载字节一致）。**未做**：对象存储/CDN/Range、文件列表/删除/回收站、哈希去重、病毒扫描、下载鉴权。 | typecheck ✅ 7 包 exit 0 / design:check ✅ 42 达标 / build ✅ 5 包 exit 0 / test ✅ **1070 passed + 8 skipped / 71 文件**（server 214 + 8 skipped）/ coverage ✅ **92.15/87.81/90.37/92.15** exit 0（61.29s）/ MySQL 仓储集成 ✅ **8/8 PASS** / MySQL 真启动冒烟 ✅ **10/10 PASS** / 开发库回读 ✅ `files=8`，其余 12 表计数不变 / 存量导入 ✅ 临时目录 `files=1` 回读通过 |
+| 2026-10-23 | Phase 4 · 开放集成生产化 + 远程物料 | **Webhook 3~9 收口**：① 多副本租约（MySQL `FOR UPDATE SKIP LOCKED` + `leaseOwner` CAS；JSON 文件锁），崩溃 90s 后可重领；② 订阅级 `rateLimitPerMinute`，worker 按 60s 已尝试数延后 5s；③ 投递日志默认 30 天先归档再删除，自动节流 + `POST /webhooks/maintenance/cleanup`；④ 发送前 DNS 解析拒绝私网/保留地址 + fetch 前二次解析、不跟随重定向；⑤ 签名时间窗/重放缓存/旧密钥宽限、自定义请求头黑名单；⑥ 管理 UI（订阅 CRUD/测试/日志/指标/轮换/清理）、指标告警、密钥轮换宽限期；⑦ 删除订阅后仍可按订阅 id 查日志；⑧ JSON→MySQL 导入覆盖订阅/投递/归档并真库重复导入验证；⑨ 远程物料受信元数据闭环（ES256、origin allowlist、缓存/安装/版本一致性、内置组件白名单）+ 设计器「物料市场」面板/受控组件插入。**未实现**：服务端市场托管/审核、远程 JS 执行、真机/APK/IPA、GitHub Actions 实跑。 | typecheck ✅ 7 包 exit 0 / build ✅ 5 包 exit 0 / design:check ✅ exit 0 / test ✅ **1174 passed + 10 skipped（80 文件）**（server 281+10 skipped；designer 346；renderer 335；expression 117；schema 90；tokens 5）/ coverage ✅ **94.35/85.22/93.77/94.35** exit 0（80 passed + 1 skipped，1174 passed + 10 skipped）/ MySQL ✅ 迁移 `20261023090000_webhook_hardening` 已应用 `lowcode` + `lowcode_test`；`mysql.persistence.test.ts` **10/10**；导入 fixture 两次均 `webhooks=1, deliveries=1, archives=1`，字段回读一致 / 远端 CI ❌ 未推送触发 |
 
 ---
 
@@ -1502,8 +1503,8 @@ cd D:\mimo\lowcode
 pnpm install          # 首次需 pnpm approve-builds esbuild（vue-demi 已在 allowBuilds 白名单）
 pnpm typecheck        # 期望：7 个包全部 Done（tokens/schema/expression/renderer/server/designer/designer-web）
 pnpm build            # 期望：5 包 Done（packages/{schema,expression,renderer}/dist + apps/server/dist + apps/designer-web/dist）
-pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 309 + server 214 passed + 8 skipped + designer 335 = 1070 passed / 8 skipped / 71 文件
-pnpm coverage         # 期望：92.15/87.81/90.37/92.15（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
+pnpm test             # 期望：6 包全绿 = tokens 5 + schema 90 + expression 117 + renderer 335 + server 281 passed + 10 skipped + designer 346 = 1174 passed / 10 skipped / 80 文件
+pnpm coverage         # 期望：94.35/85.22/93.77/94.35（阈值 90/85/90/90 强制，低于即退出码 1）；报告在 coverage/index.html
                       # B-45/B-46 更正：脚本内含 --no-file-parallelism；vitest 2.1.9 **无 rpcTimeout 选项**（birpc 默认 60s），
                       #      各包 vitest.config.ts 里的 rpcTimeout 为惰性配置 —— 真解法是消除日志洪泛（B-46）+ 串行/限并发
                       # 分包实测（批 2 自 coverage-final.json 聚合）：designer panel 99.91/core 99.46、renderer core 97.24/uni 95.05、server flow 94.79/81.20（stmts 均 ≥90；分包 branch 不设阈值，以总 branch 过 85）
@@ -1517,10 +1518,11 @@ pnpm coverage         # 期望：92.15/87.81/90.37/92.15（阈值 90/85/90/90 �
                       #      2026-10-21 可观测性后 69 文件 1068 例 72.13s / exit 0；
                       #      2026-10-21 运维事件追加后 71 文件（70 通过 + 1 跳过）1070 例 74.53s / exit 0）
                       #      2026-10-22 文件落库后 71 文件 1070 passed + 8 skipped / 61.29s / exit 0（92.15/87.81/90.37/92.15）
+                      #      2026-10-23 开放集成生产化后 80 文件 1174 passed + 10 skipped / exit 0（94.35/85.22/93.77/94.35）
 
 # MySQL 仓储集成（需本机 MySQL，库名必须以 _test 结尾）：
 $env:LC_TEST_DATABASE_URL='mysql://lc_app:<password>@127.0.0.1:3306/lowcode_test'
-pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts   # 期望：8/8 PASS
+pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts   # 期望：10/10 PASS
 
 # MySQL 真启动冒烟（先 build；脚本拒绝非 *_test 库）：
 $env:LC_SMOKE_DATABASE_URL=$env:LC_TEST_DATABASE_URL

@@ -249,18 +249,28 @@ describe('Webhook 管理接口鉴权与校验', () => {
 
 let subId = ''
 let secret = ''
+let previousSecret = ''
 let etag = ''
 let staleEtag = ''
 
 describe('Webhook 订阅 CRUD / ETag / secret 脱敏', () => {
   it('创建 → 返回完整 secret 与 ETag', async () => {
     const r = await call('POST', '/api/v1/webhooks', {
-      body: { name: '业务事件订阅', description: '初始', url: receiverUrl, events: ['*'] },
+      body: {
+        name: '业务事件订阅',
+        description: '初始',
+        url: receiverUrl,
+        events: ['*'],
+        headers: { 'x-custom-token': 'custom-value' },
+        rateLimitPerMinute: 0,
+      },
       token,
     })
     expect(r.status).toBe(200)
     expect(r.body.secret).toMatch(/^[0-9a-f]{64}$/)
     expect(r.body.secretPreview).toContain('…')
+    expect(r.body.headers).toEqual({ 'x-custom-token': 'custom-value' })
+    expect(r.body.rateLimitPerMinute).toBe(0)
     expect(r.body.active).toBe(true)
     expect(r.body.maxAttempts).toBe(5)
     expect(r.body.timeoutMs).toBe(10000)
@@ -347,17 +357,23 @@ describe('Webhook 订阅 CRUD / ETag / secret 脱敏', () => {
     const r = await call('POST', `/api/v1/webhooks/${subId}/rotate-secret`, {
       token,
       headers: { 'if-match': etag },
+      body: { graceSeconds: 3600 },
     })
     expect(r.status).toBe(200)
     expect(r.body.secret).toMatch(/^[0-9a-f]{64}$/)
     expect(r.body.secret).not.toBe(oldSecret)
+    expect(r.body.previousSecretPreview).toBeTruthy()
+    expect(new Date(r.body.previousSecretExpiresAt).getTime()).toBeGreaterThan(Date.now())
     expect(r.body.revision).toBe(4)
     expect(r.headers.etag).toBe(`"webhook:${subId}:4"`)
+    previousSecret = oldSecret
     secret = r.body.secret
     etag = r.headers.etag
 
     const detail = await call('GET', `/api/v1/webhooks/${subId}`, { token })
     expect(detail.body).not.toHaveProperty('secret')
+    expect(detail.body).not.toHaveProperty('previousSecret')
+    expect(detail.body.previousSecretPreview).toBeTruthy()
   })
 
   it('不存在的订阅 → 404；非法 If-Match → 400', async () => {
@@ -413,7 +429,14 @@ describe('记录与流程事件投递 / 签名校验', () => {
     expect(header(captured, 'x-lc-timestamp')).toBe(timestamp)
     expect(header(captured, 'x-lc-event')).toBe('record.created')
     expect(header(captured, 'x-lc-delivery')).toBeTruthy()
+    expect(header(captured, 'x-custom-token')).toBe('custom-value')
     expect(signature).toBe(expectedSignature(secret, timestamp, captured.body))
+    // 密钥轮换宽限期：同一时间戳用旧密钥再签一份，接收方可回退验签。
+    const previousHeader = header(captured, 'x-lc-signature-previous')
+    const previousMatch = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(previousHeader)
+    expect(previousMatch, previousHeader).toBeTruthy()
+    expect(previousMatch![1]).toBe(timestamp)
+    expect(previousMatch![2]).toBe(expectedSignature(previousSecret, timestamp, captured.body))
 
     const payload = JSON.parse(captured.body)
     expect(payload.id).toBeTruthy()
@@ -509,6 +532,15 @@ describe('记录与流程事件投递 / 签名校验', () => {
       expect(r.status, query).toBe(400)
       expect(r.body.code).toBe(code)
     }
+
+    const metrics = await call('GET', '/api/v1/webhooks/metrics', { token })
+    expect(metrics.status).toBe(200)
+    expect(metrics.body.total).toBeGreaterThan(0)
+    expect(metrics.body.success).toBeGreaterThan(0)
+    expect(metrics.body.failureRate).toBeGreaterThanOrEqual(0)
+    expect(metrics.body.thresholds.failureRate).toBeGreaterThan(0)
+    expect(Array.isArray(metrics.body.alerts)).toBe(true)
+    expect(typeof metrics.body.ok).toBe('boolean')
   })
 })
 
@@ -618,7 +650,16 @@ describe('删除订阅保留投递日志', () => {
     expect(file.deliveries.length).toBeGreaterThan(0)
     expect(file.deliveries.every((item: any) => item.subscriptionId === subId)).toBe(true)
 
+    // 删除订阅后仍可按 subscriptionId 查审计日志（不依赖订阅存在）。
+    const archivedLogs = await call('GET', `/api/v1/webhooks/${subId}/deliveries?page=1&size=5`, { token })
+    expect(archivedLogs.status, JSON.stringify(archivedLogs.body)).toBe(200)
+    expect(archivedLogs.body.total).toBeGreaterThan(0)
+    expect(archivedLogs.body.items[0].subscriptionId).toBe(subId)
+
     const testAfterDelete = await call('POST', `/api/v1/webhooks/${subId}/test`, { token })
     expect(testAfterDelete.status).toBe(404)
+
+    const nonAdminLogs = await call('GET', `/api/v1/webhooks/${subId}/deliveries`, { token: dToken })
+    expect(nonAdminLogs.status).toBe(403)
   })
 })

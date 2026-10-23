@@ -842,8 +842,8 @@ const webhookEventTypeSchema: Json = {
 const webhookSubscriptionSchema: Json = {
   type: 'object',
   required: [
-    'id', 'name', 'url', 'events', 'active', 'maxAttempts', 'timeoutMs', 'revision',
-    'secretPreview', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt',
+    'id', 'name', 'url', 'events', 'headers', 'rateLimitPerMinute', 'active', 'maxAttempts',
+    'timeoutMs', 'revision', 'secretPreview', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt',
   ],
   properties: {
     id: { type: 'string' },
@@ -855,6 +855,14 @@ const webhookSubscriptionSchema: Json = {
       minItems: 1,
       items: { type: 'string', enum: ['*', ...webhookEventTypeSchema.enum as string[]] },
     },
+    headers: {
+      type: 'object',
+      additionalProperties: { type: 'string', maxLength: 1024 },
+      description: '自定义请求头；X-LC-* / Host / Content-Length 等系统头禁止覆盖',
+    },
+    rateLimitPerMinute: { type: 'integer', minimum: 0, maximum: 6000, description: '0 = 不限制' },
+    previousSecretExpiresAt: { type: 'string', format: 'date-time' },
+    previousSecretPreview: { type: 'string', examples: ['abcd…wxyz'] },
     active: { type: 'boolean' },
     maxAttempts: { type: 'integer', minimum: 1, maximum: 10 },
     timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000 },
@@ -895,6 +903,13 @@ const webhookCreateRequestSchema: Json = {
       description: '`"*"` 只能单独使用',
     },
     secret: { type: 'string', minLength: 16, maxLength: 128, description: '不传则服务端生成 64 位 hex' },
+    headers: {
+      type: 'object',
+      maxProperties: 20,
+      additionalProperties: { type: 'string', maxLength: 1024 },
+      description: '自定义请求头；禁止 X-LC-* / Host / Content-Length 等系统头',
+    },
+    rateLimitPerMinute: { type: 'integer', minimum: 0, maximum: 6000, default: 0 },
     active: { type: 'boolean', default: true },
     maxAttempts: { type: 'integer', minimum: 1, maximum: 10, default: 5 },
     timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000, default: 10000 },
@@ -915,9 +930,30 @@ const webhookPatchRequestSchema: Json = {
       maxItems: 20,
       items: { type: 'string', enum: ['*', ...webhookEventTypeSchema.enum as string[]] },
     },
+    headers: {
+      type: 'object',
+      maxProperties: 20,
+      additionalProperties: { type: 'string', maxLength: 1024 },
+      description: '传空对象表示清空自定义头',
+    },
+    rateLimitPerMinute: { type: 'integer', minimum: 0, maximum: 6000 },
     active: { type: 'boolean' },
     maxAttempts: { type: 'integer', minimum: 1, maximum: 10 },
     timeoutMs: { type: 'integer', minimum: 1000, maximum: 30000 },
+  },
+  additionalProperties: false,
+}
+
+const webhookRotateSecretRequestSchema: Json = {
+  type: 'object',
+  properties: {
+    graceSeconds: {
+      type: 'integer',
+      minimum: 0,
+      maximum: 604800,
+      default: 86400,
+      description: '旧密钥继续签名的宽限期；0 = 立即失效',
+    },
   },
   additionalProperties: false,
 }
@@ -981,10 +1017,49 @@ const webhookDeliverySchema: Json = {
     responseStatus: { type: 'integer', minimum: 100, maximum: 599 },
     responseBody: { type: 'string' },
     error: { type: 'string' },
+    leaseOwner: { type: 'string', description: '当前租约持有副本；为空表示未被领取' },
+    leaseExpiresAt: { type: 'string', format: 'date-time' },
     revision: { type: 'integer', minimum: 0 },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
+}
+
+const webhookMetricsSchema: Json = {
+  type: 'object',
+  required: [
+    'total', 'pending', 'success', 'failed', 'last24hTotal', 'last24hSuccess', 'last24hFailed',
+    'generatedAt', 'failureRate', 'thresholds', 'alerts', 'ok',
+  ],
+  properties: {
+    total: { type: 'integer', minimum: 0 },
+    pending: { type: 'integer', minimum: 0 },
+    success: { type: 'integer', minimum: 0 },
+    failed: { type: 'integer', minimum: 0 },
+    oldestPendingAt: { type: 'string', format: 'date-time' },
+    last24hTotal: { type: 'integer', minimum: 0 },
+    last24hSuccess: { type: 'integer', minimum: 0 },
+    last24hFailed: { type: 'integer', minimum: 0 },
+    generatedAt: { type: 'string', format: 'date-time' },
+    failureRate: { type: 'number', minimum: 0, maximum: 1 },
+    thresholds: {
+      type: 'object',
+      required: ['failureRate', 'queueDepth', 'pendingAgeMs'],
+      properties: {
+        failureRate: { type: 'number' },
+        queueDepth: { type: 'integer' },
+        pendingAgeMs: { type: 'integer' },
+      },
+    },
+    alerts: { type: 'array', items: { type: 'string' } },
+    ok: { type: 'boolean' },
+  },
+}
+
+const webhookCleanupResponseSchema: Json = {
+  type: 'object',
+  required: ['archived'],
+  properties: { archived: { type: 'integer', minimum: 0 } },
 }
 
 const webhookDeliveryListSchema: Json = {
@@ -1568,6 +1643,24 @@ export function buildOpenApi(): OpenApiDocument {
         requestBody: body(ref('WebhookCreateRequest')),
       }),
     },
+    '/webhooks/metrics': {
+      get: op('Webhooks', 'getWebhookMetrics', 'Webhook 投递指标与告警（仅管理员）', {
+        200: ok('队列/成功率/积压指标与告警判定', ref('WebhookMetrics')),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }, {
+        description: '阈值可用 `LC_WEBHOOK_ALERT_FAILURE_RATE`、`LC_WEBHOOK_ALERT_QUEUE_DEPTH`、`LC_WEBHOOK_ALERT_PENDING_AGE_MS` 覆盖。',
+      }),
+    },
+    '/webhooks/maintenance/cleanup': {
+      post: op('Webhooks', 'cleanupWebhookDeliveries', '归档并清理过期投递日志（仅管理员）', {
+        200: ok('清理完成', ref('WebhookCleanupResponse')),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }, {
+        description: '保留天数由 `LC_WEBHOOK_RETENTION_DAYS` 控制（默认 30）；只清理 success/failed 终态日志，先写归档再删除。',
+      }),
+    },
     '/webhooks/{id}': {
       get: op('Webhooks', 'getWebhook', '读取 Webhook 订阅（仅管理员）', {
         200: ok('订阅详情；响应带 ETag；secret 脱敏', ref('WebhookSubscription'), { ETag: headerRef('ETag') }),
@@ -1616,11 +1709,12 @@ export function buildOpenApi(): OpenApiDocument {
         404: responseRef('NotFound'),
         409: responseRef('Conflict'),
       }, {
-        description: '轮换后旧 secret 立即失效；接收方需同步更新。',
+        description: '默认保留旧 secret 24 小时宽限期：投递同时带 `X-LC-Signature-Previous`，期间接收方可先验新密钥再回退旧密钥；`graceSeconds=0` 表示立即失效。',
         parameters: [
           pathParam('id', 'Webhook 订阅 id', 'wh_1'),
           headerParam('If-Match', '订阅 ETag', { type: 'string' }, '"webhook:wh_1:2"'),
         ],
+        requestBody: body(ref('WebhookRotateSecretRequest')),
       }),
     },
     '/webhooks/{id}/test': {
@@ -1640,11 +1734,10 @@ export function buildOpenApi(): OpenApiDocument {
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
         403: responseRef('Forbidden'),
-        404: responseRef('NotFound'),
       }, {
-        description: '包含每次尝试的 HTTP 状态、耗时、响应摘要与错误，可用于排障和手动重投。',
+        description: '包含每次尝试的 HTTP 状态、耗时、响应摘要与错误。订阅删除后日志仍保留，本接口按 subscriptionId 继续可查。',
         parameters: [
-          pathParam('id', 'Webhook 订阅 id', 'wh_1'),
+          pathParam('id', 'Webhook 订阅 id（可已删除）', 'wh_1'),
           queryParam('status', '投递状态过滤', { type: 'string', enum: ['pending', 'success', 'failed'] }, 'failed'),
           queryParam('eventType', '事件类型过滤', { type: 'string' }, 'record.created'),
           queryParam('page', '页码，从 1 开始', { type: 'integer', minimum: 1, default: 1 }, 1),
@@ -1816,11 +1909,14 @@ export function buildOpenApi(): OpenApiDocument {
         WebhookSubscriptionList: webhookSubscriptionListSchema,
         WebhookCreateRequest: webhookCreateRequestSchema,
         WebhookPatchRequest: webhookPatchRequestSchema,
+        WebhookRotateSecretRequest: webhookRotateSecretRequestSchema,
         WebhookDeleteResponse: webhookDeleteResponseSchema,
         WebhookEventEnvelope: webhookEventEnvelopeSchema,
         WebhookDeliveryAttempt: webhookDeliveryAttemptSchema,
         WebhookDelivery: webhookDeliverySchema,
         WebhookDeliveryList: webhookDeliveryListSchema,
+        WebhookMetrics: webhookMetricsSchema,
+        WebhookCleanupResponse: webhookCleanupResponseSchema,
         Health: healthSchema,
         Ready: readySchema,
         OpenApiDocument: openApiDocumentSchema,

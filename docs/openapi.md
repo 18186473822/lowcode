@@ -26,7 +26,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 
 > 本批只提供机器可读文档，不内置 Swagger UI 页面；生产环境建议用独立网关或文档站托管，避免把 UI 依赖塞进 API 服务。
 
-## 3. 覆盖范围（48 条路由）
+## 3. 覆盖范围（50 条路由）
 
 | 分组 | 方法 | 路径 | 鉴权 |
 |---|---|---|---|
@@ -78,6 +78,8 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Webhooks | POST | `/webhooks/{id}/test` | Bearer + `*` |
 | Webhooks | GET | `/webhooks/{id}/deliveries` | Bearer + `*` |
 | Webhooks | POST | `/webhooks/deliveries/{deliveryId}/retry` | Bearer + `*` |
+| Webhooks | GET | `/webhooks/metrics` | Bearer + `*` |
+| Webhooks | POST | `/webhooks/maintenance/cleanup` | Bearer + `*` |
 
 > “Bearer + `*`”表示接口内部还校验用户权限点包含 `'*'` 通配（超级角色）；“模型 create/read/update/delete”表示按 `ModelSchema.permissions[action]` 校验；“页面可见性”走 `RbacService.canSeePage`。Webhook 管理接口对非管理员返回 `403 ADMIN_REQUIRED`，不返回订阅 URL、密钥或投递体。
 
@@ -145,19 +147,20 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
   1. 反射全部 controller 的 `PATH_METADATA` / `METHOD_METADATA`，与文档路径/方法精确比对；
   2. 校验 `operationId` 唯一、路径参数声明完整、`$ref` 可解析、公共接口 `security: []`；
   3. 真实启动 Nest，请求 `GET /api/v1/openapi.json` 验证无需令牌可读。
-- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 48 条）。
+- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 50 条）。
 
 ## 6. Webhook 管理接口
 
-第二批新增 9 条 `/webhooks*` 管理接口，完整签名算法、事件信封、重试退避与投递状态见 [`protocol.md`](protocol.md) §10.8。OpenAPI 文档中仅暴露管理面：
+生产化批次共 11 条 `/webhooks*` 管理接口，完整签名算法、事件信封、重试退避、租约、限流与归档见 [`protocol.md`](protocol.md) §10.8。OpenAPI 文档中仅暴露管理面：
 
-- 订阅 CRUD + 密钥轮换 + 测试投递 + 投递日志分页 + 手动重投；
+- 订阅 CRUD + 自定义请求头 + 订阅级限流 + 密钥轮换（宽限期）+ 测试投递 + 投递日志分页 + 手动重投；
+- `GET /webhooks/metrics` 返回队列深度、24h 失败率、最老待投递年龄与 `alerts[]`；`POST /webhooks/maintenance/cleanup` 先归档再删除过期终态日志；
 - 订阅/投递写接口的 ETag 与 `If-Match`、`409 VERSION_CONFLICT`/`409 DELIVERY_PENDING`；
-- 创建/轮换响应包含完整 `secret`，其余响应只含 `secretPreview`；
+- 创建/轮换响应包含完整 `secret`，其余响应只含 `secretPreview`；删除订阅后投递日志仍可查询；
 - 事件推送本身是服务端出站 HTTP，不是 OpenAPI 描述的本服务入站路由。
 
 ## 7. 本批未包含
 
-- 远程物料加载 / 物料市场。
+- **服务端物料市场 API**（清单托管、发布审核、租户级安装状态）。当前远程物料为设计器/运行时侧的受信元数据闭环：ES256 清单验签、origin allowlist、Web Storage 缓存、安装状态、市场面板与受控组件插入，且只允许映射宿主内置组件，不下载/执行远程 JS。配置与清单格式见 [`material-market.md`](material-market.md)。
 - Swagger UI 内置页面。
 - 第三方数据源连接器。

@@ -18,3 +18,27 @@ export {
 } from './meta/index'
 /** 审批类物料宿主注入（批 2 D-P3-4）：lc-renderer provide / 物料 inject */
 export { LC_FLOW_HOST_KEY, type LcFlowHost } from './keys'
+
+/**
+ * 远程物料市场：清单验签 / allowlist / 缓存 / 安装状态。
+ * 只导出元数据与校验工具，不导出任何远程代码加载能力。
+ */
+export {
+  REMOTE_MATERIAL_CACHE_KEY,
+  REMOTE_MATERIAL_INSTALLED_KEY,
+  TRUSTED_COMPONENT_IDS,
+  RemoteMaterialRegistry,
+  canonicalJson,
+  validateManifest,
+  validateRemoteMaterial,
+  verifyManifestSignature,
+} from './remote-market'
+export type {
+  RemoteMaterialCache,
+  RemoteMaterialEntry,
+  RemoteMaterialInstall,
+  RemoteMaterialManifest,
+  RemoteMaterialRegistryOptions,
+  SignedManifestEnvelope,
+  StorageLike,
+} from './remote-market'

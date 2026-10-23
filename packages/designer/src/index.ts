@@ -15,7 +15,21 @@ export { default as OutlineTree } from './panel/OutlineTree.vue'
 export { default as HistoryDialog } from './panel/HistoryDialog.vue'
 export { default as RbacPanel } from './panel/RbacPanel.vue'
 export { default as ThemePanel } from './panel/ThemePanel.vue'
+export { default as WebhookPanel } from './panel/WebhookPanel.vue'
+export { default as MaterialMarketPanel } from './panel/MaterialMarketPanel.vue'
 export type { ThemeApi, ThemePatch } from './panel/theme-types'
+export type {
+  WebhookApi,
+  WebhookDelivery,
+  WebhookDeliveryAttempt,
+  WebhookDeliveryPage,
+  WebhookEventType,
+  WebhookListItem,
+  WebhookMetrics,
+  WebhookSubscription,
+  WebhookWriteResult,
+} from './panel/webhook-types'
+export { WEBHOOK_EVENT_OPTIONS } from './panel/webhook-types'
 export { useDesignerStore } from './store/store'
 export type {
   DesignerApi,

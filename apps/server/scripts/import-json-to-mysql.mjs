@@ -10,6 +10,9 @@
  *   flow-instances.json        → flow_instances
  *   ops/events.json            → ops_events
  *   apps.json                  → app_config
+ *   webhooks.json              → webhook_subscriptions
+ *   webhook-deliveries.json    → webhook_deliveries
+ *   webhook-delivery-archive.json → webhook_delivery_archives
  *   files/<id> + files-meta/<id>.json → files（字节 + 元信息）
  *
  * 用户/口令不走 JSON，执行前先 `pnpm -F @lc/server seed:mysql`。
@@ -315,6 +318,124 @@ async function importAppConfig() {
   return true
 }
 
+function normalizeHeaders(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === 'string'))
+}
+
+async function importWebhooks() {
+  const file = path.join(dataDir, 'webhooks.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const subscriptions = Array.isArray(parsed) ? parsed : parsed.subscriptions
+  if (!Array.isArray(subscriptions)) return 0
+
+  for (const sub of subscriptions) {
+    const data = {
+      name: sub.name ?? sub.id,
+      description: sub.description ?? null,
+      url: sub.url,
+      events: Array.isArray(sub.events) ? sub.events : [],
+      secret: sub.secret,
+      previousSecret: sub.previousSecret ?? null,
+      previousSecretExpiresAt: optionalDate(sub.previousSecretExpiresAt),
+      headers: normalizeHeaders(sub.headers),
+      rateLimitPerMinute: Number.isInteger(sub.rateLimitPerMinute) ? sub.rateLimitPerMinute : 0,
+      active: sub.active !== false,
+      maxAttempts: Number.isInteger(sub.maxAttempts) ? sub.maxAttempts : 5,
+      timeoutMs: Number.isInteger(sub.timeoutMs) ? sub.timeoutMs : 10000,
+      revision: Number.isInteger(sub.revision) ? sub.revision : 0,
+      createdBy: sub.createdBy ?? 'system',
+      updatedBy: sub.updatedBy ?? 'system',
+      createdAt: date(sub.createdAt),
+      updatedAt: date(sub.updatedAt),
+    }
+    await prisma.webhookSubscription.upsert({
+      where: { id: sub.id },
+      create: { id: sub.id, ...data },
+      update: data,
+    })
+  }
+  return subscriptions.length
+}
+
+function deliveryData(delivery) {
+  return {
+    subscriptionId: delivery.subscriptionId,
+    eventId: delivery.eventId ?? delivery.id,
+    eventType: delivery.eventType,
+    source: delivery.source ?? 'event',
+    status: delivery.status ?? 'pending',
+    payloadJson: delivery.payload ?? {},
+    attemptsJson: Array.isArray(delivery.attempts) ? delivery.attempts : [],
+    attemptCount: Number.isInteger(delivery.attemptCount) ? delivery.attemptCount : 0,
+    nextAttemptAt: date(delivery.nextAttemptAt ?? delivery.createdAt),
+    lastAttemptAt: optionalDate(delivery.lastAttemptAt),
+    responseStatus: delivery.responseStatus ?? null,
+    responseBody: delivery.responseBody ?? null,
+    error: delivery.error ?? null,
+    leaseOwner: delivery.leaseOwner ?? null,
+    leaseExpiresAt: optionalDate(delivery.leaseExpiresAt),
+    revision: Number.isInteger(delivery.revision) ? delivery.revision : 0,
+    createdAt: date(delivery.createdAt),
+    updatedAt: date(delivery.updatedAt),
+  }
+}
+
+async function importWebhookDeliveries() {
+  const file = path.join(dataDir, 'webhook-deliveries.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const deliveries = Array.isArray(parsed) ? parsed : parsed.deliveries
+  if (!Array.isArray(deliveries)) return 0
+
+  for (const delivery of deliveries) {
+    const data = deliveryData(delivery)
+    await prisma.webhookDelivery.upsert({
+      where: { id: delivery.id },
+      create: { id: delivery.id, ...data },
+      update: data,
+    })
+  }
+  return deliveries.length
+}
+
+async function importWebhookArchives() {
+  const file = path.join(dataDir, 'webhook-delivery-archive.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
+  const deliveries = Array.isArray(parsed) ? parsed : parsed.deliveries
+  if (!Array.isArray(deliveries)) return 0
+
+  for (const delivery of deliveries) {
+    const data = {
+      ...deliveryData(delivery),
+      archivedAt: date(delivery.archivedAt ?? delivery.updatedAt ?? delivery.createdAt),
+    }
+    await prisma.webhookDeliveryArchive.upsert({
+      where: { id: delivery.id },
+      create: { id: delivery.id, ...data },
+      update: data,
+    })
+  }
+  return deliveries.length
+}
+
 /** 文件 id 白名单与服务端一致：防止把目录里的临时文件/异常名导入数据库 */
 const FILE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 
@@ -375,10 +496,14 @@ try {
   const instances = await importFlowInstances()
   const ops = await importOps()
   const appConfig = await importAppConfig()
+  const webhooks = await importWebhooks()
+  const webhookDeliveries = await importWebhookDeliveries()
+  const webhookArchives = await importWebhookArchives()
   const files = await importFiles()
   console.log(
     `导入完成：pages=${pages}, models=${models}, records=${records}, rbac=${rbac ? 'yes' : 'skip'}, ` +
-      `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}, files=${files}`,
+      `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}, ` +
+      `webhooks=${webhooks}, webhookDeliveries=${webhookDeliveries}, webhookArchives=${webhookArchives}, files=${files}`,
   )
 } catch (error) {
   console.error('导入失败：', error)

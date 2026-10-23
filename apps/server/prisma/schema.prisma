@@ -216,6 +216,10 @@ model WebhookSubscription {
   url         String   @db.VarChar(2048)
   events      Json
   secret      String   @db.VarChar(128)
+  previousSecret String? @db.VarChar(128)
+  previousSecretExpiresAt DateTime? @db.DateTime(3)
+  headers     Json     @default("{}")
+  rateLimitPerMinute Int @default(0)
   active      Boolean  @default(true)
   maxAttempts Int      @default(5)
   timeoutMs   Int      @default(10000)
@@ -248,11 +252,43 @@ model WebhookDelivery {
   responseStatus Int?
   responseBody   String?   @db.Text
   error          String?   @db.Text
+  leaseOwner     String?   @db.VarChar(64)
+  leaseExpiresAt DateTime? @db.DateTime(3)
   revision       Int       @default(0)
   createdAt      DateTime  @db.DateTime(3)
   updatedAt      DateTime  @db.DateTime(3)
 
   @@index([subscriptionId, createdAt])
   @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
   @@map("webhook_deliveries")
+}
+
+// Webhook 投递归档：保留字段与 webhook_deliveries 完全一致，额外记录 archivedAt。
+// 清理任务先把终态日志写入本表再删除原表，管理端仍可通过归档表追溯。
+model WebhookDeliveryArchive {
+  id             String    @id @db.VarChar(64)
+  subscriptionId String    @db.VarChar(64)
+  eventId        String    @db.VarChar(64)
+  eventType      String    @db.VarChar(64)
+  source         String    @db.VarChar(16)
+  status         String    @db.VarChar(16)
+  payloadJson    Json
+  attemptsJson   Json
+  attemptCount   Int       @default(0)
+  nextAttemptAt  DateTime  @db.DateTime(3)
+  lastAttemptAt  DateTime? @db.DateTime(3)
+  responseStatus Int?
+  responseBody   String?   @db.Text
+  error          String?   @db.Text
+  leaseOwner     String?   @db.VarChar(64)
+  leaseExpiresAt DateTime? @db.DateTime(3)
+  revision       Int       @default(0)
+  createdAt      DateTime  @db.DateTime(3)
+  updatedAt      DateTime  @db.DateTime(3)
+  archivedAt     DateTime  @db.DateTime(3)
+
+  @@index([subscriptionId, createdAt])
+  @@index([archivedAt])
+  @@map("webhook_delivery_archives")
 }

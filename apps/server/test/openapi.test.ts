@@ -147,10 +147,10 @@ describe('OpenAPI 文档结构', () => {
     })
   })
 
-  it('路径/方法与 Nest controller 实际路由逐条一致（48 条，防止文档漂移）', () => {
+  it('路径/方法与 Nest controller 实际路由逐条一致（50 条，防止文档漂移）', () => {
     const actualRoutes = collectActualRoutes()
     expect([...actualRoutes].sort()).toEqual([...documentedRoutes].sort())
-    expect(documentedRoutes.size).toBe(48)
+    expect(documentedRoutes.size).toBe(50)
   })
 
   it('operationId 全局唯一、summary/tags/responses 齐全', () => {

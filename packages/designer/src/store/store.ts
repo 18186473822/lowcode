@@ -839,8 +839,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
 
   /* ---------------- Phase 2 批 1：模型可视化建模（D-P2-1） ---------------- */
 
-  /** 设计器视图：`page` 画布（默认）| `model` 数据模型管理 | `rbac` 权限管理（批 6）| `theme` 主题配置（批 3） */
-  const view = ref<'page' | 'model' | 'rbac' | 'theme'>('page')
+  /** 设计器视图：`page` 画布（默认）| `model` 数据模型管理 | `rbac` 权限管理 | `theme` 主题配置 | `webhook` 开放集成 | `market` 物料市场 */
+  const view = ref<'page' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'>('page')
   /** 当前编辑的模型（null = 列表视图） */
   const editingModel = ref<ModelSchema | null>(null)
   /** 模型编辑脏态 / 保存中 */
@@ -849,8 +849,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   /** 模型保存门禁错误（**不静默**：面板红字列表，与 modelError 分工 —— 这里是编辑态校验，那边是加载态） */
   const modelErrors = ref<string[]>([])
 
-  /** 切换视图（切到 model/rbac 时刷新对应列表；已在目标视图 no-op；theme 面板自持读写无需预载） */
-  async function switchView(v: 'page' | 'model' | 'rbac' | 'theme'): Promise<void> {
+  /** 切换视图（切到 model/rbac 时刷新对应列表；已在目标视图 no-op；theme/webhook 面板自持读写无需预载） */
+  async function switchView(v: 'page' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'): Promise<void> {
     if (view.value === v) return
     view.value = v
     if (v === 'model') {

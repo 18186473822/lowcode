@@ -164,6 +164,20 @@
             data-testid="toggle-theme-panel"
             @click="onToggleThemePanel"
           >主题配置</button>
+          <button
+            class="top-btn"
+            :class="{ 'top-btn--primary': store.view === 'webhook' }"
+            type="button"
+            data-testid="toggle-webhook"
+            @click="onToggleWebhook"
+          >Webhook 集成</button>
+          <button
+            class="top-btn"
+            :class="{ 'top-btn--primary': store.view === 'market' }"
+            type="button"
+            data-testid="toggle-market"
+            @click="onToggleMarket"
+          >物料市场</button>
         </top-more-menu>
         <!-- 主题切换：只改令牌取值，不改组件用法（design-system.md §2.2 / §10.4） -->
         <span class="top-sep" aria-hidden="true" />
@@ -189,6 +203,19 @@
     <!-- Phase 3 批 3 / D-P3-8：应用主题配置视图（保存成功即设计器自身换肤预览） -->
     <div v-else-if="store.view === 'theme'" class="designer__models">
       <theme-panel :api="themeApi" @saved="onThemeSaved" />
+    </div>
+    <!-- 开放集成：Webhook 订阅 / 投递日志 / 指标 / 密钥轮换 / 清理归档 -->
+    <div v-else-if="store.view === 'webhook'" class="designer__models">
+      <webhook-panel :api="webhookApi" />
+    </div>
+    <!-- 远程物料市场：只加载已验签元数据；受控组件插入时复用宿主内置物料 -->
+    <div v-else-if="store.view === 'market'" class="designer__models">
+      <material-market-panel
+        :manifest-url="marketManifestUrl"
+        :public-key-pem="marketPublicKey"
+        :allowlist="marketAllowlist"
+        @insert="onInsertRemoteMaterial"
+      />
     </div>
     <div v-else class="designer__body">
       <aside
@@ -355,19 +382,22 @@ import type { PageControllerOptions } from '@lc/renderer'
 import {
   LcCanvas,
   HistoryDialog,
+  MaterialMarketPanel,
   MaterialPanel,
   ModelPanel,
   OutlineTree,
   PropsPanel,
   RbacPanel,
   ThemePanel,
+  WebhookPanel,
   resolveKeyIntent,
   useDesignerStore,
 } from '@lc/designer'
 import type { DragSource, AnchorHit } from '@lc/designer'
 import type { AppTheme } from '@lc/schema'
+import type { RemoteMaterialEntry } from '@lc/materials'
 import { mockHost } from './host'
-import { designerApi, themeApi } from './api'
+import { designerApi, themeApi, webhookApi } from './api'
 import { resolveTheme, setTheme, applyBrandVars, type ThemeMode } from './theme'
 import { useBreakpoint, isDrawerLayout, useMinWidth } from './use-breakpoint'
 import TopMoreMenu from './TopMoreMenu.vue'
@@ -545,6 +575,37 @@ function onToggleRbac(): void {
 /** 视图切换（Phase 3 批 3）：画布 ↔ 主题配置 */
 function onToggleThemePanel(): void {
   void store.switchView(store.view === 'theme' ? 'page' : 'theme')
+}
+
+/** 视图切换：开放集成（Webhook 订阅 / 投递日志 / 指标） */
+function onToggleWebhook(): void {
+  void store.switchView(store.view === 'webhook' ? 'page' : 'webhook')
+}
+
+/** 远程物料市场配置：未配置时面板只展示指引，不发任何网络请求。 */
+const marketManifestUrl = import.meta.env.VITE_LC_MATERIAL_MARKET_URL as string | undefined
+const marketPublicKey = (import.meta.env.VITE_LC_MATERIAL_MARKET_PUBLIC_KEY as string | undefined)?.replace(
+  /\\n/g,
+  '\n',
+)
+const marketAllowlist = (import.meta.env.VITE_LC_MATERIAL_MARKET_ALLOWLIST as string | undefined)
+  ?.split(',')
+  .map((item) => item.trim())
+  .filter(Boolean)
+
+function onToggleMarket(): void {
+  void store.switchView(store.view === 'market' ? 'page' : 'market')
+}
+
+/** 只允许把远程“受控组件”映射到宿主内置 componentName；defaultProps 作为受信预设应用。 */
+function onInsertRemoteMaterial(entry: RemoteMaterialEntry): void {
+  if (entry.kind !== 'component' || !entry.component) return
+  if (!store.insertMaterial(entry.component)) return
+  const nodeId = store.selectedId
+  for (const [key, value] of Object.entries(entry.meta.defaultProps ?? {})) {
+    store.setProp(nodeId, key, value)
+  }
+  void store.switchView('page')
 }
 
 /** 主题保存成功 → 设计器自身换肤预览（所见即所得；dark 联动见 theme.ts 说明） */

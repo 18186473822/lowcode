@@ -1,5 +1,10 @@
 import { defineConfig } from 'vite'
-import uni from '@dcloudio/vite-plugin-uni'
+import uniModule from '@dcloudio/vite-plugin-uni'
+
+// `@dcloudio/vite-plugin-uni` 仍是 CJS 包（`exports.default`）。本工程声明 `"type": "module"` 后，
+// Vite 以原生 ESM 加载配置，Node 的 CJS 互操作拿到的是 `module.exports` 而不是 `module.exports.default`；
+// 这里统一解包，避免出现 `uni is not a function`。
+const uni = ((uniModule as unknown as { default?: typeof uniModule }).default ?? uniModule) as typeof uniModule
 
 // uni-app CLI（Vite）工程。@ 插件自带 → src 别名；本工程不定义 build/test/typecheck
 // 脚本，避免被根 `pnpm -r` 全量链逮住（uni 构建重且依赖网络，见台账说明）。

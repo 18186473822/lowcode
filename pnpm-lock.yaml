@@ -162,6 +162,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  estree-walker: 2.0.2
+
 importers:
 
   .:
@@ -169,6 +172,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.8
         version: 2.1.9(supports-color@5.5.0)(vitest@2.1.9(@types/node@22.20.5)(jsdom@25.0.1(supports-color@5.5.0))(supports-color@5.5.0)(terser@5.51.2))
+      estree-walker:
+        specifier: 2.0.2
+        version: 2.0.2
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -337,6 +343,12 @@ importers:
       '@dcloudio/uni-app':
         specifier: 3.0.0-alpha-5030120260930001
         version: 3.0.0-alpha-5030120260930001(@dcloudio/types@3.4.32)(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-app-plus':
+        specifier: 3.0.0-alpha-5030120260930001
+        version: 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-app-vite':
+        specifier: 3.0.0-alpha-5030120260930001
+        version: 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
       '@dcloudio/uni-components':
         specifier: 3.0.0-alpha-5030120260930001
         version: 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
@@ -990,6 +1002,18 @@ packages:
 
   '@dcloudio/types@3.4.32':
     resolution: {integrity: sha512-sjhbkjUKxoym8KLEnyeXxCsxvRlBc7Bd/kNSZZRLj+lewS384bDPtq/x5FZ4iG+NrnzDmg3+HyiwV5u5vu2reQ==}
+
+  '@dcloudio/uni-app-plus@3.0.0-alpha-5030120260930001':
+    resolution: {integrity: sha512-J9cZijx2lZpMFEnWKv2v9slzytTHRh62Tc96r1wWeYTDYAeLA+zBJtmccvxiBIe1HMibwYxFJgXngE74O/ZiGw==}
+
+  '@dcloudio/uni-app-uts@3.0.0-alpha-5030120260930001':
+    resolution: {integrity: sha512-BL3pSl5LDzdSQiMFGjMsxKLwHJFJnJeOGL9eTDWe3CH0fCUY0+R4ne3fKtL5IbXuXofd5EPX+yKjKVEILWQE0Q==}
+
+  '@dcloudio/uni-app-vite@3.0.0-alpha-5030120260930001':
+    resolution: {integrity: sha512-2ALfEmRpKN8z0MLnO+8fBO5pcKjSfy6YYOabX9fhfVzs8P4RN/z8Y+SsncIhH0CSo02ltmztLR7IdtFKgHy+8Q==}
+
+  '@dcloudio/uni-app-vue@3.0.0-alpha-5030120260930001':
+    resolution: {integrity: sha512-lOFjcviEPxlRPBYV89CSM2AXNiSylO2vRydqeuMmZAC3ULC/c/PGlKO2ATpMao57exND/U00cQOOaHBNgN+Xdw==}
 
   '@dcloudio/uni-app@3.0.0-alpha-5030120260930001':
     resolution: {integrity: sha512-qdyyPwL7u6frgu0fMKmTUrA5K5a5chtESsAFRY2tci9JUEQF49ndL+lIhrYK7h58nmkzuMqCCY4oZnp3CwNKhQ==}
@@ -1951,6 +1975,10 @@ packages:
   '@vue/compiler-ssr@3.5.43':
     resolution: {integrity: sha512-GF62orf7KiJX9RqrHNGrYBudsQGD0OhJ5nDs90O8UiDuS40+YMYomiXu6w6EuvtXuRDc3MSNis3EaaSKAVSWpg==}
 
+  '@vue/consolidate@1.0.0':
+    resolution: {integrity: sha512-oTyUE+QHIzLw2PpV14GD/c7EohDyP64xCniWTcqcEmTd699eFqTIwOmtDYjcO1j3QgdXoJEoWv1/cCdLrRoOfg==}
+    engines: {node: '>= 0.12.0'}
+
   '@vue/devtools-api@6.6.4':
     resolution: {integrity: sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==}
 
@@ -2538,9 +2566,6 @@ packages:
 
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
-
-  estree-walker@3.0.3:
-    resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
 
   esutils@2.0.3:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
@@ -4807,6 +4832,85 @@ snapshots:
 
   '@dcloudio/types@3.4.32': {}
 
+  '@dcloudio/uni-app-plus@3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))':
+    dependencies:
+      '@dcloudio/uni-app-uts': 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-app-vite': 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-app-vue': 3.0.0-alpha-5030120260930001
+      debug: 4.3.7(supports-color@5.5.0)
+      fs-extra: 10.1.0
+      licia: 1.41.1
+      postcss-selector-parser: 6.1.2
+    transitivePeerDependencies:
+      - '@nuxt/kit'
+      - '@vueuse/core'
+      - postcss
+      - rollup
+      - supports-color
+      - ts-node
+      - vite
+      - vue
+
+  '@dcloudio/uni-app-uts@3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vue@3.4.21(typescript@5.9.3))':
+    dependencies:
+      '@babel/parser': 7.25.6
+      '@babel/types': 7.25.6
+      '@dcloudio/uni-cli-shared': 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-console': 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-i18n': 3.0.0-alpha-5030120260930001
+      '@dcloudio/uni-nvue-styler': 3.0.0-alpha-5030120260930001
+      '@dcloudio/uni-shared': 3.0.0-alpha-5030120260930001
+      '@jridgewell/gen-mapping': 0.3.13
+      '@jridgewell/trace-mapping': 0.3.31
+      '@rollup/pluginutils': 5.1.0(rollup@4.63.5)
+      '@vue/compiler-core': 3.4.21
+      '@vue/compiler-dom': 3.4.21
+      '@vue/compiler-sfc': 3.4.21
+      '@vue/consolidate': 1.0.0
+      '@vue/shared': 3.4.21
+      debug: 4.3.7(supports-color@5.5.0)
+      es-module-lexer: 1.5.4
+      estree-walker: 2.0.2
+      fast-glob: 3.3.3
+      fs-extra: 10.1.0
+      magic-string: 0.30.11
+      picocolors: 1.1.0
+      source-map-js: 1.2.1
+      unimport: 4.1.1
+    transitivePeerDependencies:
+      - '@nuxt/kit'
+      - '@vueuse/core'
+      - postcss
+      - rollup
+      - supports-color
+      - ts-node
+      - vue
+
+  '@dcloudio/uni-app-vite@3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))':
+    dependencies:
+      '@dcloudio/uni-cli-shared': 3.0.0-alpha-5030120260930001(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vue@3.4.21(typescript@5.9.3))
+      '@dcloudio/uni-i18n': 3.0.0-alpha-5030120260930001
+      '@dcloudio/uni-nvue-styler': 3.0.0-alpha-5030120260930001
+      '@dcloudio/uni-shared': 3.0.0-alpha-5030120260930001
+      '@rollup/pluginutils': 5.1.0(rollup@4.63.5)
+      '@vitejs/plugin-vue': 5.2.4(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))
+      '@vue/compiler-dom': 3.4.21
+      '@vue/compiler-sfc': 3.4.21
+      debug: 4.3.7(supports-color@5.5.0)
+      fs-extra: 10.1.0
+      picocolors: 1.1.0
+    transitivePeerDependencies:
+      - '@nuxt/kit'
+      - '@vueuse/core'
+      - postcss
+      - rollup
+      - supports-color
+      - ts-node
+      - vite
+      - vue
+
+  '@dcloudio/uni-app-vue@3.0.0-alpha-5030120260930001': {}
+
   '@dcloudio/uni-app@3.0.0-alpha-5030120260930001(@dcloudio/types@3.4.32)(@vueuse/core@15.0.0(vue@3.4.21(typescript@5.9.3)))(postcss@8.5.28)(rollup@4.63.5)(supports-color@5.5.0)(vite@5.2.8(@types/node@22.20.5)(terser@5.51.2))(vue@3.4.21(typescript@5.9.3))':
     dependencies:
       '@dcloudio/types': 3.4.32
@@ -5930,7 +6034,7 @@ snapshots:
   '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@22.20.5)(terser@5.51.2))':
     dependencies:
       '@vitest/spy': 2.1.9
-      estree-walker: 3.0.3
+      estree-walker: 2.0.2
       magic-string: 0.30.21
     optionalDependencies:
       vite: 5.4.21(@types/node@22.20.5)(terser@5.51.2)
@@ -6048,6 +6152,8 @@ snapshots:
     dependencies:
       '@vue/compiler-dom': 3.5.43
       '@vue/shared': 3.5.43
+
+  '@vue/consolidate@1.0.0': {}
 
   '@vue/devtools-api@6.6.4': {}
 
@@ -6659,10 +6765,6 @@ snapshots:
   escape-string-regexp@5.0.0: {}
 
   estree-walker@2.0.2: {}
-
-  estree-walker@3.0.3:
-    dependencies:
-      '@types/estree': 1.0.9
 
   esutils@2.0.3: {}
 
@@ -7983,7 +8085,7 @@ snapshots:
     dependencies:
       acorn: 8.19.0
       escape-string-regexp: 5.0.0
-      estree-walker: 3.0.3
+      estree-walker: 2.0.2
       fast-glob: 3.3.3
       local-pkg: 1.2.1
       magic-string: 0.30.21

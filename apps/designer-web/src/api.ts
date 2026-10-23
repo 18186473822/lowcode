@@ -14,6 +14,10 @@ import type {
   RoleRecord,
   RbacConfig,
   ThemeApi,
+  WebhookApi,
+  WebhookDeliveryPage,
+  WebhookMetrics,
+  WebhookSubscription,
 } from '@lc/designer'
 import type { PageSchema, ModelSchema, AppTheme } from '@lc/schema'
 
@@ -79,6 +83,81 @@ export const themeApi: ThemeApi = {
     })
     const body = (await res.json()) as { theme?: AppTheme }
     return body.theme ?? {}
+  },
+}
+
+function etagOf(res: Response): string | undefined {
+  return res.headers.get('ETag') ?? undefined
+}
+
+/** Webhook 管理通道：写操作回传 If-Match；409 由 req 统一抛错，不自动覆盖。 */
+export const webhookApi: WebhookApi = {
+  async list() {
+    const res = await req('/webhooks')
+    return (await res.json()) as { items: WebhookSubscription[] }
+  },
+  async create(body) {
+    const res = await req('/webhooks', { method: 'POST', body: JSON.stringify(body) })
+    const data = (await res.json()) as WebhookSubscription & { secret?: string }
+    return {
+      data,
+      secret: data.secret ?? '',
+      ...(etagOf(res) ? { etag: etagOf(res) } : {}),
+    }
+  },
+  async update(id, body, ifMatch) {
+    const res = await req(`/webhooks/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: ifMatch ? { 'If-Match': ifMatch } : {},
+      body: JSON.stringify(body),
+    })
+    return {
+      data: (await res.json()) as WebhookSubscription,
+      ...(etagOf(res) ? { etag: etagOf(res) } : {}),
+    }
+  },
+  async remove(id, ifMatch) {
+    await req(`/webhooks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: ifMatch ? { 'If-Match': ifMatch } : {},
+    })
+  },
+  async rotate(id, graceSeconds, ifMatch) {
+    const res = await req(`/webhooks/${encodeURIComponent(id)}/rotate-secret`, {
+      method: 'POST',
+      headers: ifMatch ? { 'If-Match': ifMatch } : {},
+      body: JSON.stringify({ graceSeconds }),
+    })
+    const data = (await res.json()) as WebhookSubscription & { secret?: string }
+    return {
+      data,
+      secret: data.secret ?? '',
+      ...(etagOf(res) ? { etag: etagOf(res) } : {}),
+    }
+  },
+  async test(id) {
+    const res = await req(`/webhooks/${encodeURIComponent(id)}/test`, { method: 'POST' })
+    return {
+      data: (await res.json()) as WebhookDeliveryPage['items'][number],
+      ...(etagOf(res) ? { etag: etagOf(res) } : {}),
+    }
+  },
+  async deliveries(id, query = {}) {
+    const params = new URLSearchParams()
+    if (query.status) params.set('status', query.status)
+    if (query.page) params.set('page', String(query.page))
+    if (query.size) params.set('size', String(query.size))
+    const qs = params.toString()
+    const res = await req(`/webhooks/${encodeURIComponent(id)}/deliveries${qs ? `?${qs}` : ''}`)
+    return (await res.json()) as WebhookDeliveryPage
+  },
+  async metrics() {
+    const res = await req('/webhooks/metrics')
+    return (await res.json()) as WebhookMetrics
+  },
+  async cleanup() {
+    const res = await req('/webhooks/maintenance/cleanup', { method: 'POST' })
+    return (await res.json()) as { archived: number }
   },
 }
 

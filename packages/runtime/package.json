@@ -2,15 +2,19 @@
   "name": "@lc/runtime",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "description": "uni-app 运行时壳（Phase 0：H5 跑通 + 手写 JSON 渲染 3 个静态组件，解决 L-5）",
   "scripts": {
     "dev:h5": "uni",
     "dev:mp-weixin": "uni -p mp-weixin",
     "build:h5": "uni build",
-    "build:mp-weixin": "uni build -p mp-weixin"
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:app": "uni build -p app"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-app-plus": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-app-vite": "3.0.0-alpha-5030120260930001",
     "@dcloudio/uni-components": "3.0.0-alpha-5030120260930001",
     "@dcloudio/uni-h5": "3.0.0-alpha-5030120260930001",
     "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5030120260930001",

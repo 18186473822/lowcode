@@ -20,10 +20,17 @@ import {
   normalizeWebhookUrl,
   parseCreateWebhookInput,
   parsePatchWebhookInput,
+  parseRotateSecretInput,
   retryDelayMs,
   signWebhook,
   validateWebhookEvents,
+  validateWebhookHeaders,
 } from '../src/webhook/webhook.service.js'
+import {
+  WebhookReplayCache,
+  parseWebhookSignature,
+  verifyWebhookSignature,
+} from '../src/webhook/webhook.verify.js'
 import {
   isWebhookDeliveryEventType,
   isWebhookEventType,
@@ -181,6 +188,19 @@ describe('Webhook 纯函数', () => {
     ).toMatchObject({ name: 'n', description: null, maxAttempts: 10 })
     expect(parsePatchWebhookInput({ description: 'x' }, false)).toEqual({ description: 'x' })
 
+    const withHeaders = parseCreateWebhookInput(
+      {
+        name: 'n',
+        url: 'https://e.com',
+        events: ['*'],
+        headers: { 'X-Custom': ' value ', Authorization: 'Bearer x' },
+        rateLimitPerMinute: 60,
+      },
+      false,
+    )
+    expect(withHeaders.headers).toEqual({ 'x-custom': ' value ', authorization: 'Bearer x' })
+    expect(withHeaders.rateLimitPerMinute).toBe(60)
+
     for (const body of [
       null,
       {},
@@ -193,9 +213,80 @@ describe('Webhook 纯函数', () => {
       { active: 1 },
       { maxAttempts: 0 },
       { timeoutMs: 99999 },
+      { headers: 'bad' },
+      { headers: { host: 'evil' } },
+      { headers: { 'x-lc-signature': 'forged' } },
+      { headers: { 'x-a': 'a\nb' } },
+      { headers: { 'x-a': 1 } },
+      { rateLimitPerMinute: 6001 },
     ]) {
       expect(() => parsePatchWebhookInput(body, false)).toThrow()
     }
+
+    expect(validateWebhookHeaders({})).toEqual({})
+    expect(() => validateWebhookHeaders({ 'x-a': 'a'.repeat(1025) })).toThrow('1024')
+    expect(() => validateWebhookHeaders({ 'bad name': 'x' })).toThrow('键名')
+  })
+
+  it('密钥轮换宽限期入参', () => {
+    expect(parseRotateSecretInput(undefined).graceSeconds).toBe(86400)
+    expect(parseRotateSecretInput({})).toEqual({ graceSeconds: 86400 })
+    expect(parseRotateSecretInput({ graceSeconds: 0 })).toEqual({ graceSeconds: 0 })
+    expect(parseRotateSecretInput({ graceSeconds: 3600 })).toEqual({ graceSeconds: 3600 })
+    expect(() => parseRotateSecretInput({ graceSeconds: -1 })).toThrow()
+    expect(() => parseRotateSecretInput({ graceSeconds: 604801 })).toThrow()
+    expect(() => parseRotateSecretInput({ other: 1 })).toThrow()
+  })
+
+  it('接收方验签：格式 / 时间窗 / 旧密钥回退 / 重放缓存', () => {
+    const rawBody = '{"id":"e1"}'
+    const timestamp = 1_700_000_000
+    const header = `t=${timestamp},v1=${signWebhook('new-secret', String(timestamp), rawBody)}`
+    expect(parseWebhookSignature(header)).toEqual({
+      timestamp,
+      signature: signWebhook('new-secret', String(timestamp), rawBody),
+    })
+    expect(parseWebhookSignature('bad')).toBeNull()
+    expect(parseWebhookSignature(`t=${timestamp},v1=xyz`)).toBeNull()
+
+    const current = verifyWebhookSignature({
+      secret: 'new-secret',
+      rawBody,
+      header,
+      now: timestamp * 1000,
+    })
+    expect(current.ok).toBe(true)
+    expect(current.usedPreviousSecret).toBeUndefined()
+    expect(
+      verifyWebhookSignature({
+        secret: 'new-secret',
+        rawBody,
+        header,
+        now: (timestamp + 301) * 1000,
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining('时间窗') })
+    expect(
+      verifyWebhookSignature({
+        secret: 'wrong',
+        rawBody,
+        header,
+        now: timestamp * 1000,
+        previousSecret: 'new-secret',
+      }),
+    ).toMatchObject({ ok: true, usedPreviousSecret: true })
+    expect(
+      verifyWebhookSignature({ secret: 'wrong', rawBody, header, now: timestamp * 1000 }),
+    ).toMatchObject({ ok: false })
+
+    const cache = new WebhookReplayCache(1_000, 2)
+    expect(cache.checkAndRemember('e1', 1_000)).toBe(false)
+    expect(cache.checkAndRemember('e1', 1_001)).toBe(true)
+    expect(cache.checkAndRemember('e1', 2_001)).toBe(false)
+    cache.checkAndRemember('e2', 2_001)
+    cache.checkAndRemember('e3', 2_001)
+    expect(cache.size).toBeLessThanOrEqual(2)
+    cache.clear()
+    expect(cache.size).toBe(0)
   })
 })
 
@@ -211,6 +302,8 @@ function subRow(overrides: Record<string, unknown> = {}) {
     url: 'https://example.com/hook',
     events: ['*'],
     secret: 's'.repeat(16),
+    headers: {},
+    rateLimitPerMinute: 0,
     active: true,
     maxAttempts: 5,
     timeoutMs: 10000,
@@ -258,10 +351,28 @@ function fakePrisma(overrides: Record<string, any> = {}): PrismaClient {
     webhookDelivery: {
       findMany: vi.fn(async () => [deliveryRow()]),
       findUnique: vi.fn(async () => deliveryRow()),
+      findFirst: vi.fn(async () => ({ nextAttemptAt: NOW })),
       count: vi.fn(async () => 1),
       createMany: vi.fn(async () => ({ count: 1 })),
-      upsert: vi.fn(async () => deliveryRow()),
+      updateMany: vi.fn(async () => ({ count: 1 })),
+      deleteMany: vi.fn(async () => ({ count: 1 })),
+      groupBy: vi.fn(async () => [
+        { status: 'success', _count: { _all: 2 } },
+        { status: 'pending', _count: { _all: 1 } },
+      ]),
     },
+    webhookDeliveryArchive: {
+      createMany: vi.fn(async () => ({ count: 1 })),
+    },
+    $transaction: vi.fn(async (arg: any) => {
+      if (typeof arg === 'function') {
+        return arg({
+          $queryRaw: vi.fn(async () => [{ id: 'd1' }]),
+          webhookDelivery: prisma.webhookDelivery,
+        })
+      }
+      return Promise.all(arg)
+    }),
     ...overrides,
   }
   return prisma as PrismaClient
@@ -354,8 +465,10 @@ describe('MysqlWebhookRepository', () => {
     await repo.createDeliveries([delivery()])
     expect(prisma.webhookDelivery.createMany.mock.calls[0][0].data[0].id).toBe('d1')
 
-    await repo.saveDelivery(delivery())
-    expect(prisma.webhookDelivery.upsert.mock.calls[0][0].create.id).toBe('d1')
+    expect(await repo.saveDelivery(delivery())).toBe(true)
+    expect(prisma.webhookDelivery.updateMany.mock.calls[0][0].where).toEqual({ id: 'd1' })
+    prisma.webhookDelivery.updateMany.mockResolvedValueOnce({ count: 0 })
+    expect(await repo.saveDelivery(delivery(), 'other-worker')).toBe(false)
 
     prisma.webhookDelivery.findMany.mockResolvedValueOnce([deliveryRow()])
     const due = await repo.dueDeliveries(NOW.toISOString(), 5)
@@ -379,6 +492,8 @@ function subscription(overrides: Partial<WebhookSubscription> = {}): WebhookSubs
     url: 'https://example.com/hook',
     events: ['*'],
     secret: 's'.repeat(16),
+    headers: {},
+    rateLimitPerMinute: 0,
     active: true,
     maxAttempts: 5,
     timeoutMs: 1000,
@@ -446,15 +561,73 @@ class MemoryRepo implements WebhookRepository {
   async createDeliveries(items: WebhookDelivery[]): Promise<void> {
     this.deliveries.push(...items)
   }
-  async saveDelivery(item: WebhookDelivery): Promise<void> {
+  async saveDelivery(item: WebhookDelivery, expectedLeaseOwner?: string): Promise<boolean> {
     const idx = this.deliveries.findIndex((entry) => entry.id === item.id)
-    if (idx >= 0) this.deliveries[idx] = item
-    else this.deliveries.push(item)
+    if (idx < 0) return false
+    if (expectedLeaseOwner && this.deliveries[idx].leaseOwner !== expectedLeaseOwner) return false
+    this.deliveries[idx] = { ...item, leaseOwner: undefined, leaseExpiresAt: undefined }
+    return true
   }
   async dueDeliveries(now: string, limit: number): Promise<WebhookDelivery[]> {
     return this.deliveries
       .filter((item) => item.status === 'pending' && item.nextAttemptAt <= now)
       .slice(0, limit)
+  }
+  async claimDueDeliveries(now: string, limit: number, owner: string, leaseMs: number): Promise<WebhookDelivery[]> {
+    const claimed = this.deliveries
+      .filter(
+        (item) =>
+          item.status === 'pending' &&
+          item.nextAttemptAt <= now &&
+          (!item.leaseOwner || item.leaseOwner === owner || (item.leaseExpiresAt ?? '') <= now),
+      )
+      .slice(0, limit)
+    for (const item of claimed) {
+      item.leaseOwner = owner
+      item.leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString()
+    }
+    return claimed
+  }
+  async claimDelivery(id: string, owner: string, leaseMs: number): Promise<WebhookDelivery | null> {
+    const item = this.deliveries.find((entry) => entry.id === id)
+    if (!item || item.status !== 'pending') return null
+    const now = new Date().toISOString()
+    if (item.leaseOwner && item.leaseOwner !== owner && (item.leaseExpiresAt ?? '') > now) return null
+    item.leaseOwner = owner
+    item.leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString()
+    return item
+  }
+  async countRecentDeliveries(subscriptionId: string, since: string): Promise<number> {
+    return this.deliveries.filter(
+      (item) => item.subscriptionId === subscriptionId && (item.lastAttemptAt ?? '') >= since,
+    ).length
+  }
+  async stats(now: string): Promise<import('../src/webhook/webhook.types.js').WebhookDeliveryStats> {
+    const dayAgo = new Date(new Date(now).getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const pending = this.deliveries.filter((item) => item.status === 'pending')
+    const recent = this.deliveries.filter((item) => item.createdAt >= dayAgo)
+    return {
+      total: this.deliveries.length,
+      pending: pending.length,
+      success: this.deliveries.filter((item) => item.status === 'success').length,
+      failed: this.deliveries.filter((item) => item.status === 'failed').length,
+      ...(pending.length === 0
+        ? {}
+        : { oldestPendingAt: pending.map((item) => item.nextAttemptAt).sort()[0] }),
+      last24hTotal: recent.length,
+      last24hSuccess: recent.filter((item) => item.status === 'success').length,
+      last24hFailed: recent.filter((item) => item.status === 'failed').length,
+    }
+  }
+  async archiveDeliveries(before: string, limit: number): Promise<number> {
+    const ids = new Set(
+      this.deliveries
+        .filter((item) => item.status !== 'pending' && item.createdAt < before)
+        .slice(0, limit)
+        .map((item) => item.id),
+    )
+    this.deliveries = this.deliveries.filter((item) => !ids.has(item.id))
+    return ids.size
   }
 }
 
@@ -511,7 +684,7 @@ describe('WebhookService worker 边界', () => {
     expect(await svc.dispatchDue()).toBe(1)
     expect(repo.deliveries[0].status).toBe('success')
 
-    vi.spyOn(repo, 'dueDeliveries').mockRejectedValueOnce(new Error('boom'))
+    vi.spyOn(repo, 'claimDueDeliveries').mockRejectedValueOnce(new Error('boom'))
     expect(await svc.dispatchDue()).toBe(0)
   })
 
@@ -582,6 +755,93 @@ describe('WebhookService worker 边界', () => {
     const success = await svc.dispatchDelivery('d2')
     expect(success?.status).toBe('success')
     expect(success?.responseBody).toBeUndefined()
+  })
+
+  it('dispatchDelivery：自定义头 + 轮换旧签名 + 系统头不可被覆盖', async () => {
+    const { svc, repo } = service()
+    repo.subscriptions = [
+      subscription({
+        headers: { 'x-custom': 'v', 'x-lc-signature': 'forged' } as Record<string, string>,
+        previousSecret: 'old'.repeat(8),
+        previousSecretExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    ]
+    repo.deliveries = [delivery()]
+    let captured: RequestInit | undefined
+    svc.fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      captured = init
+      return okResponse()
+    }) as unknown as typeof fetch
+
+    expect((await svc.dispatchDelivery('d1'))?.status).toBe('success')
+    const headers = captured!.headers as Record<string, string>
+    expect(headers['x-custom']).toBe('v')
+    expect(headers['x-lc-signature']).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/)
+    expect(headers['x-lc-signature']).not.toBe('forged')
+    expect(headers['x-lc-signature-previous']).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/)
+  })
+
+  it('dispatchDelivery：订阅级限流延后 5s，窗口过后继续', async () => {
+    const { svc, repo } = service()
+    repo.subscriptions = [subscription({ rateLimitPerMinute: 1 })]
+    repo.deliveries = [
+      delivery({ id: 'd1', lastAttemptAt: new Date().toISOString() }),
+      delivery({ id: 'd2' }),
+    ]
+    const fetchMock = vi.fn(async () => okResponse())
+    svc.fetchImpl = fetchMock as unknown as typeof fetch
+
+    const deferred = await svc.dispatchDelivery('d2')
+    expect(deferred?.status).toBe('pending')
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+    expect(new Date(deferred!.nextAttemptAt).getTime()).toBeGreaterThan(Date.now())
+
+    repo.deliveries[0].lastAttemptAt = new Date(Date.now() - 61_000).toISOString()
+    repo.deliveries[1].nextAttemptAt = new Date(0).toISOString()
+    expect((await svc.dispatchDelivery('d2'))?.status).toBe('success')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('多副本租约：未过期租约阻止其它副本发送，过期后可接管', async () => {
+    const { svc, repo } = service()
+    repo.subscriptions = [subscription()]
+    repo.deliveries = [delivery()]
+    const expected = await repo.claimDelivery('d1', 'other-worker', 60_000)
+    expect(expected?.leaseOwner).toBe('other-worker')
+
+    const fetchMock = vi.fn(async () => okResponse())
+    svc.fetchImpl = fetchMock as unknown as typeof fetch
+    const blocked = await svc.dispatchDelivery('d1')
+    expect(blocked?.status).toBe('pending')
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+
+    repo.deliveries[0].leaseExpiresAt = new Date(Date.now() - 1_000).toISOString()
+    expect((await svc.dispatchDelivery('d1'))?.status).toBe('success')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('metrics：失败率/积压阈值产生告警；清理只归档终态旧日志', async () => {
+    const { svc, repo } = service()
+    process.env.LC_WEBHOOK_ALERT_FAILURE_RATE = '0.1'
+    process.env.LC_WEBHOOK_ALERT_QUEUE_DEPTH = '1'
+    process.env.LC_WEBHOOK_RETENTION_DAYS = '30'
+    repo.deliveries = [
+      delivery({ id: 'd1', status: 'success' }),
+      delivery({ id: 'd2', status: 'failed' }),
+      delivery({ id: 'd3', status: 'pending', nextAttemptAt: new Date(Date.now() - 60_000).toISOString() }),
+      delivery({ id: 'd4', status: 'success', createdAt: '2020-01-01T00:00:00.000Z' }),
+    ]
+
+    const metrics = await svc.metrics(USER)
+    expect(metrics.total).toBe(4)
+    expect(metrics.failureRate).toBeGreaterThanOrEqual(0.1)
+    expect(metrics.alerts.some((item) => item.includes('失败率'))).toBe(true)
+    expect(metrics.alerts.some((item) => item.includes('队列'))).toBe(true)
+    expect(metrics.ok).toBe(false)
+
+    expect(await svc.cleanupDeliveries()).toBe(1)
+    expect(repo.deliveries.map((item) => item.id)).not.toContain('d4')
+    expect(repo.deliveries.map((item) => item.id)).toContain('d3')
   })
 
   it('worker 生命周期：off 不启动；开启后 timer 可销毁', async () => {
