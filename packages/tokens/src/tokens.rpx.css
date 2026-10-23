@@ -79,43 +79,43 @@
    * ============================================================ */
 
   --lc-space-0: 0;
-  --lc-space-0-5: 2px; /* 半档：密集 chrome 的 2px 级微调（4px 基准下的 0.5 倍） */
-  --lc-space-1: 4px;
-  --lc-space-1-5: 6px; /* 半档：面板行内 gap / 紧凑内边距，使用频次最高 */
-  --lc-space-2: 8px;
-  --lc-space-2-5: 10px; /* 半档：字段间与徽标内边距 */
-  --lc-space-3: 12px;
-  --lc-space-4: 16px;
-  --lc-space-5: 20px;
-  --lc-space-6: 24px;
-  --lc-space-8: 32px;
-  --lc-space-10: 40px;
-  --lc-space-12: 48px;
-  --lc-space-16: 64px;
+  --lc-space-0-5: 4rpx; /* 半档：密集 chrome 的 2px 级微调（4px 基准下的 0.5 倍） */
+  --lc-space-1: 8rpx;
+  --lc-space-1-5: 12rpx; /* 半档：面板行内 gap / 紧凑内边距，使用频次最高 */
+  --lc-space-2: 16rpx;
+  --lc-space-2-5: 20rpx; /* 半档：字段间与徽标内边距 */
+  --lc-space-3: 24rpx;
+  --lc-space-4: 32rpx;
+  --lc-space-5: 40rpx;
+  --lc-space-6: 48rpx;
+  --lc-space-8: 64rpx;
+  --lc-space-10: 80rpx;
+  --lc-space-12: 96rpx;
+  --lc-space-16: 128rpx;
 
-  --lc-radius-xs: 4px;
-  --lc-radius-sm: 6px;
-  --lc-radius-md: 8px;
-  --lc-radius-lg: 12px;
-  --lc-radius-xl: 16px;
-  --lc-radius-pill: 999px;
+  --lc-radius-xs: 8rpx;
+  --lc-radius-sm: 12rpx;
+  --lc-radius-md: 16rpx;
+  --lc-radius-lg: 24rpx;
+  --lc-radius-xl: 32rpx;
+  --lc-radius-pill: 1998rpx;
 
-  --lc-font-micro: 11px;
-  --lc-font-caption: 12px;
-  --lc-font-body-sm: 13px;
-  --lc-font-body: 14px; /* 全局基准 */
-  --lc-font-body-lg: 15px;
-  --lc-font-h3: 16px;
-  --lc-font-h2: 18px;
-  --lc-font-h1: 22px;
-  --lc-font-display: 28px;
+  --lc-font-micro: 22rpx;
+  --lc-font-caption: 24rpx;
+  --lc-font-body-sm: 26rpx;
+  --lc-font-body: 28rpx; /* 全局基准 */
+  --lc-font-body-lg: 30rpx;
+  --lc-font-h3: 32rpx;
+  --lc-font-h2: 36rpx;
+  --lc-font-h1: 44rpx;
+  --lc-font-display: 56rpx;
 
-  --lc-lh-caption: 18px;
-  --lc-lh-body: 22px;
-  --lc-lh-h3: 24px;
-  --lc-lh-h2: 26px;
-  --lc-lh-h1: 30px;
-  --lc-lh-display: 36px;
+  --lc-lh-caption: 36rpx;
+  --lc-lh-body: 44rpx;
+  --lc-lh-h3: 48rpx;
+  --lc-lh-h2: 52rpx;
+  --lc-lh-h1: 60rpx;
+  --lc-lh-display: 72rpx;
 
   /* 行高（无单位比率）—— 正文 / UI 文本**一律用这一族**：
      比率随字号缩放，200% 文字缩放不会裁字；上面的 lh-*(px) 只用于固定尺寸的展示型标题。
@@ -188,33 +188,33 @@
   --lc-overlay-scrim: rgba(20, 24, 29, 0.45);
 
   /* 阴影层级（暗色下改为 border-strong 描边区分，见下方覆盖） */
-  --lc-shadow-e1: 0 1px 3px rgba(16, 24, 40, 0.08);
-  --lc-shadow-e2: 0 4px 10px -2px rgba(16, 24, 40, 0.1);
-  --lc-shadow-e3: 0 10px 24px -6px rgba(16, 24, 40, 0.14);
-  --lc-shadow-e4: 0 20px 40px -12px rgba(16, 24, 40, 0.18);
+  --lc-shadow-e1: 0 2rpx 6rpx rgba(16, 24, 40, 0.08);
+  --lc-shadow-e2: 0 8rpx 20rpx -4rpx rgba(16, 24, 40, 0.1);
+  --lc-shadow-e3: 0 20rpx 48rpx -12rpx rgba(16, 24, 40, 0.14);
+  --lc-shadow-e4: 0 40rpx 80rpx -24rpx rgba(16, 24, 40, 0.18);
 
   /* ============================================================
    * L3 组件层 · Component（Light）
    * ============================================================ */
 
   /* 按钮 */
-  --lc-btn-h-sm: 24px;
-  --lc-btn-h-md: 32px;
-  --lc-btn-h-lg: 36px;
-  --lc-btn-h-touch: 44px; /* 移动端触控 */
+  --lc-btn-h-sm: 48rpx;
+  --lc-btn-h-md: 64rpx;
+  --lc-btn-h-lg: 72rpx;
+  --lc-btn-h-touch: 88rpx; /* 移动端触控 */
   --lc-btn-radius: var(--lc-radius-sm);
-  --lc-btn-pad-y: 6px; /* 6 + lh-caption 18 + border 2 = 32，与 btn-h-md 对齐 */
-  --lc-btn-pad-x: 16px;
+  --lc-btn-pad-y: 12rpx; /* 6 + lh-caption 18 + border 2 = 32，与 btn-h-md 对齐 */
+  --lc-btn-pad-x: 32rpx;
 
   /* 输入框 */
-  --lc-input-h: 32px;
+  --lc-input-h: 64rpx;
   --lc-input-radius: var(--lc-radius-sm);
-  --lc-input-pad-y: 4px;
-  --lc-input-pad-x: 8px;
+  --lc-input-pad-y: 8rpx;
+  --lc-input-pad-x: 16rpx;
 
   /* 面板 / 卡片 */
   --lc-panel-radius: var(--lc-radius-md) ;
-  --lc-border-width: 1px;
+  --lc-border-width: 2rpx;
   --lc-border-dashed: dashed;
 
   /* 组件层颜色别名 —— 与设计稿 Component 变量集一一对应，供组件按设计稿命名取值。
@@ -243,7 +243,7 @@
   --lc-topbar-btn-text: #e5e7eb;
   --lc-topbar-input-bg: #111827;
   --lc-topbar-sep: var(--lc-neutral-600);
-  --lc-topbar-h: 48px;
+  --lc-topbar-h: 96rpx;
 
   /* 顶栏保存状态徽标（恒在深色顶栏上，不随主题翻转） */
   --lc-topbar-badge-idle-bg: #14532d;
@@ -256,11 +256,11 @@
   --lc-topbar-badge-error-text: #fecaca;
 
   /* 设计器外壳尺寸 */
-  --lc-aside-w-left: 220px;
-  --lc-aside-w-right: 280px;
-  --lc-bottombar-h: 30px;
-  --lc-device-w: 375px;
-  --lc-device-min-h: 620px;
+  --lc-aside-w-left: 440rpx;
+  --lc-aside-w-right: 560rpx;
+  --lc-bottombar-h: 60rpx;
+  --lc-device-w: 750rpx;
+  --lc-device-min-h: 1240rpx;
   --lc-device-radius: var(--lc-radius-xl); /* 16 —— §2.4 规定手机壳用 xl */
   --lc-canvas-shell: var(--lc-neutral-0); /* 手机壳内底（画布内渲染色，等同 bg-surface） */
 
@@ -273,7 +273,7 @@
   --lc-gradient-brand: linear-gradient(135deg, var(--lc-brand-500) 0%, var(--lc-brand-400) 100%);
 
   /* 焦点环 */
-  --lc-focus-ring: 0 0 0 2px var(--lc-brand-300);
+  --lc-focus-ring: 0 0 0 4rpx var(--lc-brand-300);
 }
 
 /* ============================================================
@@ -325,8 +325,8 @@
   /* 暗色下用描边区分层级，不叠加更黑的阴影 */
   --lc-shadow-e1: none;
   --lc-shadow-e2: none;
-  --lc-shadow-e3: 0 10px 24px -6px rgba(0, 0, 0, 0.5);
-  --lc-shadow-e4: 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+  --lc-shadow-e3: 0 20rpx 48rpx -12rpx rgba(0, 0, 0, 0.5);
+  --lc-shadow-e4: 0 40rpx 80rpx -24rpx rgba(0, 0, 0, 0.6);
 
   --lc-topbar-bg: var(--lc-dark-0);
   --lc-topbar-text: #e8ecf2;
@@ -347,5 +347,5 @@
   --lc-drag-hint: var(--lc-brand-400);
   --lc-drag-hint-bg: rgba(96, 150, 250, 0.14);
 
-  --lc-focus-ring: 0 0 0 2px var(--lc-brand-700);
+  --lc-focus-ring: 0 0 0 4rpx var(--lc-brand-700);
 }

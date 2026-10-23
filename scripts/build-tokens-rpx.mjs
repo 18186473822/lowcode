@@ -46,7 +46,10 @@ function convertLine(line) {
   return head + converted + tail
 }
 
-const source = readFileSync(SRC, 'utf8')
+// 先归一化换行：Windows 工作区检出可能是 CRLF，`convertLine` 的正则末尾锚点
+// 会被行尾 `\r` 顶掉而静默不转换（产物不漂移但内容仍是 px），导致 CI（LF）两侧不一致。
+// 统一按 LF 生成，保证任何平台产物一致。
+const source = readFileSync(SRC, 'utf8').replace(/\r\n?/g, '\n')
 const generated = BANNER + source.split('\n').map(convertLine).join('\n')
 
 if (CHECK) {

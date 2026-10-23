@@ -38,11 +38,13 @@ jobs:
       - name: Design tokens & color literals
         run: pnpm design:check
 
-      - name: Typecheck
-        run: pnpm typecheck
-
+      # 先 build：workspace 包（schema/expression/renderer）的 package.json `types` 指向
+      # dist/*.d.ts，全新检出时若先 typecheck 会报 “Cannot find module '@lc/schema'”。
       - name: Build
         run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       # 移动端三端编译：H5 / 微信小程序 / App（HBuilderX 可导入的 App 资源）。
       # App 的 apk/ipa 仍需 HBuilderX 原生打包，CI 只验证 uni 编译器能产出 app 资源。
@@ -120,11 +122,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
-
+      # 同 verify：workspace 包类型指向 dist，必须先 build 再 typecheck。
       - name: Build
         run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Test
         run: pnpm test
