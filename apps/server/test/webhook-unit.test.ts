@@ -825,10 +825,17 @@ describe('WebhookService worker 边界', () => {
     process.env.LC_WEBHOOK_ALERT_FAILURE_RATE = '0.1'
     process.env.LC_WEBHOOK_ALERT_QUEUE_DEPTH = '1'
     process.env.LC_WEBHOOK_RETENTION_DAYS = '30'
+    // 「最近 24 小时」按真实时钟统计，fixture 必须用相对当前时间，不能复用固定的 NOW
+    const recent = new Date().toISOString()
     repo.deliveries = [
-      delivery({ id: 'd1', status: 'success' }),
-      delivery({ id: 'd2', status: 'failed' }),
-      delivery({ id: 'd3', status: 'pending', nextAttemptAt: new Date(Date.now() - 60_000).toISOString() }),
+      delivery({ id: 'd1', status: 'success', createdAt: recent }),
+      delivery({ id: 'd2', status: 'failed', createdAt: recent }),
+      delivery({
+        id: 'd3',
+        status: 'pending',
+        createdAt: recent,
+        nextAttemptAt: new Date(Date.now() - 60_000).toISOString(),
+      }),
       delivery({ id: 'd4', status: 'success', createdAt: '2020-01-01T00:00:00.000Z' }),
     ]
 
