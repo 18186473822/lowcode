@@ -64,6 +64,8 @@ model Page {
   draft          Json?
   draftUpdatedAt DateTime?     @db.DateTime(3)
   draftUpdatedBy String?       @db.VarChar(64)
+  // 创建者：写权限归属（创建者或 '*' 管理员可编辑）；存量页面为空时仅管理员可编辑
+  createdBy      String?       @db.VarChar(64)
   createdAt      DateTime      @db.DateTime(3)
   updatedAt      DateTime      @db.DateTime(3)
   versions       PageVersion[]

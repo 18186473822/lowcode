@@ -36,6 +36,7 @@ function mapPage(row: PageWithVersions): PageRecord {
     draft: row.draft as PageSchema | null,
     ...(row.draftUpdatedAt === null ? {} : { draftUpdatedAt: row.draftUpdatedAt.toISOString() }),
     ...(row.draftUpdatedBy === null ? {} : { draftUpdatedBy: row.draftUpdatedBy }),
+    ...(row.createdBy === null ? {} : { createdBy: row.createdBy }),
     versions: row.versions.map(mapVersion),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -56,6 +57,7 @@ function pageData(record: PageRecord) {
         : (record.draft as unknown as Prisma.InputJsonValue),
     draftUpdatedAt: record.draftUpdatedAt ? new Date(record.draftUpdatedAt) : null,
     draftUpdatedBy: record.draftUpdatedBy ?? null,
+    createdBy: record.createdBy ?? null,
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),
   }

@@ -24,8 +24,8 @@ GitHub Actions 远端 CI 已实跑全绿。
 |---|---|---|
 | 数据库表 | **19 张** | `apps/server/prisma/schema.prisma` |
 | OpenAPI 路由 | **64 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
-| 测试 | **1206 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
-| 覆盖率 | **94.48 / 85.60 / 94.06 / 94.48**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
+| 测试 | **1210 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
+| 覆盖率 | **94.50 / 85.65 / 94.06 / 94.50**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
 | 远端 CI | **两个 job 全绿** | GitHub Actions run #13（`e86ce7f`）`verify` + `node20-core` |
@@ -86,6 +86,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | JSON 仓储 | ✅ | 默认/测试路径；单进程 `KeyedLock`；原子写 |
 | MySQL 8 + Prisma | ✅ | 19 表；全部业务仓储双实现；迁移纳入发布流程 |
 | 乐观锁 / 幂等 | ✅ | 页面、记录、流程实例 `revision` CAS；`If-Match`；审批幂等 + `pendingPatch` |
+| 写权限归属 | ✅ | 页面/模型仅创建者或 `*` 管理员可写；新建即记录创建者，存量无创建者按仅管理员 |
 | 文件 | ✅ | 10MB 上限；MySQL `LONGBLOB` 或本地双文件 |
 | 数据导入 | ✅ | `import:json-to-mysql` 覆盖页面/模型/记录/RBAC/流程/运维/配置/文件/Webhook 三表/市场三表 |
 
@@ -228,6 +229,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64；CI run #10/#11 全绿 |
 | 2026-10-27 | MySQL 导入实测 | `market.json` → 市场三表 3/3/3；重复执行快照一致；`MysqlMarketRepository` 回读字段一致；CI run #12 全绿 |
 | 2026-10-27 | 安全修复 | RBAC 三个管理接口补管理员校验（权限点 `*`），封堵任意登录用户自提权；补 403 回归测试、OpenAPI 403 与协议文档；CI run #13 全绿 |
+| 2026-10-27 | 安全修复 | 页面/模型写权限收敛为「创建者或管理员」：页面新增 `createdBy` 列 + 迁移；保存草稿/发布/回滚/PUT 模型统一 403 判定；补 4 条 e2e 与 MySQL 映射用例 |
 
 ---
 
@@ -266,8 +268,8 @@ pnpm install --frozen-lockfile
 pnpm design:check      # 6 道设计门禁
 pnpm build             # 必须先于 typecheck（workspace types 指向 dist）
 pnpm typecheck
-pnpm test              # 1206 passed + 10 skipped / 83 文件
-pnpm coverage          # 94.48 / 85.60 / 94.06 / 94.48
+pnpm test              # 1210 passed + 10 skipped / 83 文件
+pnpm coverage          # 94.50 / 85.65 / 94.06 / 94.50
 pnpm -F @lc/runtime build:h5
 pnpm -F @lc/runtime build:mp-weixin
 pnpm -F @lc/runtime build:app

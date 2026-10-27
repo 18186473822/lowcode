@@ -1470,14 +1470,17 @@ export function buildOpenApi(): OpenApiDocument {
           }, 'draft'),
         ],
       }),
-      put: op('Pages', 'savePageDraft', '保存页面草稿', {
+      put: op('Pages', 'savePageDraft', '保存页面草稿（创建者或管理员）', {
         200: okWithEtag('保存成功；validation 给出警告', ref('PageSaveResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
         404: responseRef('NotFound'),
         409: responseRef('Conflict'),
       }, {
-        description: '服务端再次校验 Schema；携带 `If-Match` 时版本不一致返回 409 `VERSION_CONFLICT`，不自动覆盖。',
+        description:
+          '新建页面放行并记录创建者；已存在页面仅创建者或 `*` 管理员可写，否则 403 `PERMISSION_DENIED`。' +
+          '存量页面无 `createdBy` 时按仅管理员可写保守处理。携带 `If-Match` 时版本不一致返回 409 `VERSION_CONFLICT`，不自动覆盖。',
         parameters: [
           pathParam('id', '页面 id', 'p_demo'),
           headerParam('If-Match', '页面 ETag，如 `"page:p_demo:3"`', { type: 'string' }, ETAG_PAGE),
@@ -1489,14 +1492,15 @@ export function buildOpenApi(): OpenApiDocument {
       }),
     },
     '/pages/{id}/publish': {
-      post: op('Pages', 'publishPage', '发布页面（固化版本）', {
+      post: op('Pages', 'publishPage', '发布页面（固化版本；创建者或管理员）', {
         200: okWithEtag('发布成功', ref('PagePublishResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
         404: responseRef('NotFound'),
         409: responseRef('Conflict'),
       }, {
-        description: '把当前草稿固化为新版本；没有草稿返回 409 `NO_DRAFT`。',
+        description: '把当前草稿固化为新版本；仅创建者或 `*` 管理员可发布，否则 403 `PERMISSION_DENIED`；没有草稿返回 409 `NO_DRAFT`。',
         parameters: [
           pathParam('id', '页面 id', 'p_demo'),
           headerParam('If-Match', '页面 ETag', { type: 'string' }, ETAG_PAGE),
@@ -1507,14 +1511,15 @@ export function buildOpenApi(): OpenApiDocument {
       }),
     },
     '/pages/{id}/rollback': {
-      post: op('Pages', 'rollbackPage', '回滚页面到历史版本（写入新草稿）', {
+      post: op('Pages', 'rollbackPage', '回滚页面到历史版本（写入新草稿；创建者或管理员）', {
         200: okWithEtag('回滚成功；仍需再次发布才对外生效', ref('PageRollbackResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
         404: responseRef('NotFound'),
         409: responseRef('Conflict'),
       }, {
-        description: '只改草稿，`currentVersion` 不回退；版本不存在返回 404 `VERSION_NOT_FOUND`。',
+        description: '仅创建者或 `*` 管理员可回滚，否则 403 `PERMISSION_DENIED`；只改草稿，`currentVersion` 不回退；版本不存在返回 404 `VERSION_NOT_FOUND`。',
         parameters: [
           pathParam('id', '页面 id', 'p_demo'),
           headerParam('If-Match', '页面 ETag', { type: 'string' }, ETAG_PAGE),
@@ -1563,12 +1568,15 @@ export function buildOpenApi(): OpenApiDocument {
       }, {
         parameters: [pathParam('id', '模型 id', 'm_employee')],
       }),
-      put: op('Models', 'saveModel', '保存模型定义（upsert）', {
+      put: op('Models', 'saveModel', '保存模型定义（upsert；创建者或管理员）', {
         200: ok('保存成功；validation 给出警告', ref('ModelSaveResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
       }, {
-        description: '不存在即建档；服务端校验 `schemaVersion`、字段 key/类型/保留名、表达式规则语法，失败返回 400 `MODEL_INVALID`。',
+        description:
+          '不存在即建档并记录创建者；已存在模型仅创建者或 `*` 管理员可写，否则 403 `PERMISSION_DENIED`。' +
+          '服务端校验 `schemaVersion`、字段 key/类型/保留名、表达式规则语法，失败返回 400 `MODEL_INVALID`。',
         parameters: [pathParam('id', '模型 id', 'm_employee')],
         requestBody: body(ref('ModelSchema')),
       }),

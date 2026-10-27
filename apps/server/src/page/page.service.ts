@@ -11,6 +11,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -20,6 +21,7 @@ import { checkExpr } from '@lc/expression'
 import { PAGE_REPOSITORY, type PageRecord, type PageRepository, type PageStatus } from './page.types.js'
 import type { AuthUser } from '../common/jwt.service.js'
 import { parseIfMatch } from '../common/etag.js'
+import { RbacService, WILDCARD } from '../rbac/rbac.service.js'
 
 /** 页面 id 白名单：字母/下划线开头，仅限 [A-Za-z0-9_-]，长度 ≤ 64（防路径穿越） */
 const PAGE_ID_RE = /^[A-Za-z_][\w-]{0,63}$/
@@ -141,7 +143,10 @@ export function validateSchemaInput(input: unknown): ValidationResult {
 
 @Injectable()
 export class PageService {
-  constructor(@Inject(PAGE_REPOSITORY) private readonly repo: PageRepository) {}
+  constructor(
+    @Inject(PAGE_REPOSITORY) private readonly repo: PageRepository,
+    @Inject(RbacService) private readonly rbac: RbacService,
+  ) {}
 
   /** 保存前静态校验（永远 200，结果在 body 里，便于设计器渲染问题列表） */
   validateOnly(schema: unknown): ValidationResult {
@@ -238,11 +243,13 @@ export class PageService {
 
     const now = new Date().toISOString()
     const existing = await this.repo.find(id)
+    // 写权限：新建放行；已存在页面要求创建者本人或 '*' 管理员。
+    await this.assertWritable(existing, user, id)
     const currentRevision = existing?.revision ?? 0
     if (expected !== undefined && expected !== currentRevision) {
       throw this.versionConflict(id, expected, currentRevision)
     }
-    const record = existing ?? this.newRecord(id, body, now)
+    const record = existing ?? this.newRecord(id, body, now, user.username)
 
     if (body?.appId !== undefined) {
       if (typeof body.appId !== 'string' || !body.appId.trim()) {
@@ -284,6 +291,7 @@ export class PageService {
     ifMatch?: string,
   ): Promise<PagePublishResponse> {
     const record = await this.mustFind(id)
+    await this.assertWritable(record, user, id)
     const expected = parseIfMatch(ifMatch, 'page', id)
     const currentRevision = record.revision ?? 0
     if (expected !== undefined && expected !== currentRevision) {
@@ -328,6 +336,7 @@ export class PageService {
     ifMatch?: string,
   ): Promise<PageRollbackResponse> {
     const record = await this.mustFind(id)
+    await this.assertWritable(record, user, id)
     const expected = parseIfMatch(ifMatch, 'page', id)
     const currentRevision = record.revision ?? 0
     if (expected !== undefined && expected !== currentRevision) {
@@ -429,7 +438,12 @@ export class PageService {
     return record
   }
 
-  private newRecord(id: string, body: SaveDraftBody | undefined, now: string): PageRecord {
+  private newRecord(
+    id: string,
+    body: SaveDraftBody | undefined,
+    now: string,
+    createdBy: string,
+  ): PageRecord {
     return {
       id,
       appId: typeof body?.appId === 'string' && body.appId.trim() ? body.appId.trim() : 'app_default',
@@ -439,10 +453,30 @@ export class PageService {
       currentVersion: 0,
       revision: 0,
       draft: null,
+      createdBy,
       versions: [],
       createdAt: now,
       updatedAt: now,
     }
+  }
+
+  /**
+   * 页面写权限：新建（record 为 null）放行；已存在页面要求创建者本人或 '*' 管理员。
+   * 存量页面没有 `createdBy` 时保守按「仅管理员可编辑」处理（不放宽为全员可写）。
+   */
+  private async assertWritable(
+    record: PageRecord | null | undefined,
+    user: AuthUser,
+    pageId: string,
+  ): Promise<void> {
+    if (!record) return
+    const perms = await this.rbac.permsOf(user)
+    if (perms.includes(WILDCARD)) return
+    if (record.createdBy === user.username) return
+    throw new ForbiddenException({
+      code: 'PERMISSION_DENIED',
+      message: `仅页面创建者或管理员可编辑页面 ${pageId}`,
+    })
   }
 
   private versionConflict(id: string, expected: number, current: number): ConflictException {

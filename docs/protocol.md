@@ -509,9 +509,9 @@
 | GET | `/pages` | — | `200 Array<{ id, appId, name, type, status, currentVersion, revision, versionCount, updatedAt, createdAt }>`（**页面列表（2026-10-20 补）**：轻量摘要、`updatedAt` **倒序**、同刻按 `id` 升序；**不含 `draft` / `versions` 全文** —— 换页请再调 `GET :id/schema`；可见性口径与 `GET /apps/bootstrap` 完全一致（无条目=全员可见，`'*'` 恒通）） |
 | DELETE | `/pages/:id` | — | `200 { pageId, deleted: true, removedVersions: number }`（**删除页面（2026-10-20 补）**：草稿与**全部历史版本一并删除**、不可恢复；**仅 `'*'` 通配角色**，否则 `403 PERMISSION_DENIED`；不存在 `404 PAGE_NOT_FOUND`；`id` 非法 `400 INVALID_PAGE_ID`） |
 | GET | `/pages/:id/schema?version=` | `version`: `draft`（默认）/ `published` / `vN` | 见 10.2；响应带页面行 `revision` 与 `ETag`；**页面可见性守卫（批 6）**：用户对页面无权限时 `403 PAGE_FORBIDDEN`（draft/published/vN 一视同仁，防直达绕过菜单） |
-| PUT | `/pages/:id/schema` | `{ schema, appId? }`，可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, updatedAt, validation: { valid: true, warnings } }`，响应带新 `ETag`；版本冲突 `409 VERSION_CONFLICT` |
-| POST | `/pages/:id/publish` | `{ note? }`（≤500 字），可选 `If-Match` | `200 { pageId, status: 'published', version, revision, publishedAt, createdBy, note? }`，响应带新 `ETag` |
-| POST | `/pages/:id/rollback` | `{ version: number }`（≥1 整数），可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, rolledBackTo, updatedAt }`，响应带新 `ETag` |
+| PUT | `/pages/:id/schema` | `{ schema, appId? }`，可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, updatedAt, validation: { valid: true, warnings } }`，响应带新 `ETag`；版本冲突 `409 VERSION_CONFLICT`；**写权限（2026-10-27）**：新建放行并记录创建者，已存在页面仅创建者或 `'*'` 管理员可写，否则 `403 PERMISSION_DENIED`（存量无 `createdBy` 的页面按仅管理员可写保守降级） |
+| POST | `/pages/:id/publish` | `{ note? }`（≤500 字），可选 `If-Match` | `200 { pageId, status: 'published', version, revision, publishedAt, createdBy, note? }`，响应带新 `ETag`；**同样要求创建者或 `'*'` 管理员** |
+| POST | `/pages/:id/rollback` | `{ version: number }`（≥1 整数），可选 `If-Match` | `200 { pageId, status: 'draft', currentVersion, revision, rolledBackTo, updatedAt }`，响应带新 `ETag`；**同样要求创建者或 `'*'` 管理员** |
 | GET | `/pages/:id/versions` | — | `200 { pageId, status: 'draft' \| 'published', currentVersion, versions: Array<{ version, createdBy, createdAt, note? }> }`（**版本历史列表**，`versions` **倒序**且**不含 schema 全文** —— 查全文走 `GET :id/schema?version=vN`；Phase 2 批 5 / D-P2-8） |
 
 **数据模型与业务记录（方案 8.3 动态 CRUD，Phase 1 落地）**
@@ -520,7 +520,7 @@
 |---|---|---|---|
 | GET | `/models` | — | `200 Array<{ id, name, code, type?, fieldCount, updatedAt }>`（按 `updatedAt` 倒序）。**勘误 2026-10-20**：原文写作 `{ items: [...] }`，与实现及前端 `listModels()` 消费形状不符，实现返回裸数组 |
 | GET | `/models/:id` | — | `200` `ModelSchema` + `{ createdAt, updatedAt, createdBy, updatedBy }`；不存在 `404 MODEL_NOT_FOUND` |
-| PUT | `/models/:id` | `ModelSchema`（**upsert**：不存在即建档） | `200` 定义体 + 审计字段 + `validation: { valid: true, warnings }` |
+| PUT | `/models/:id` | `ModelSchema`（**upsert**：不存在即建档） | `200` 定义体 + 审计字段 + `validation: { valid: true, warnings }`；**写权限（2026-10-27）**：新建放行，已存在模型仅创建者或 `'*'` 管理员可写，否则 `403 PERMISSION_DENIED` |
 | POST | `/models/:modelId/records` | 业务字段对象 | `200 { ...payload, id, revision, createdAt, updatedAt, createdBy, updatedBy }`，响应带 `ETag` |
 | GET | `/models/:modelId/records` | `?filter=&sort=&page=&size=`（见 10.4） | `200 { items, total, page, size }`（每项含 `revision`；软删记录不返回） |
 | PUT | `/models/:modelId/records/:rid` | **部分**字段（合并后整体再校验），可选 `If-Match` | `200` 合并后的完整记录（含新 `revision`）；版本冲突 `409 VERSION_CONFLICT` |
@@ -595,7 +595,7 @@
 ### 10.2 版本语义（对应方案 8.4 双表模型）
 
 ```
-pages(id, app_id, name, type, current_version, status, revision)
+pages(id, app_id, name, type, current_version, status, revision, created_by)
 page_versions(page_id, version, schema, created_by, created_at, note)
 data_records(model_id, id, payload, revision, ...)
 flow_instances(id, ..., status, revision, pending_patch_json)
@@ -610,6 +610,7 @@ flow_instances(id, ..., status, revision, pending_patch_json)
 - 写接口的 `If-Match` **可选**：旧客户端不带仍可写，服务端仍用请求开始读到的 `revision` 做 CAS，避免「读→写」窗口丢更新；一旦携带，`If-Match` 与当前 `revision` 不等即 `409 VERSION_CONFLICT`，响应体含 `expectedRevision` / `currentRevision`。格式非法（空串、非本资源 ETag、非数字）→ `400 INVALID_IF_MATCH`。
 - **并发实现**：JSON 模式用进程内 `KeyedLock` 串行化同一资源的「读→判版本→写」，只保证单进程；MySQL 模式用 `UPDATE ... WHERE revision = ?` 行级 CAS，多实例安全。JSON 多实例部署不在支持范围（文件仓储本身也不支持共享目录并发写）。
 - 存储实现：`LC_STORAGE=json`（默认）为 `<LC_DATA_DIR>/pages/<id>.json` 原子写；`LC_STORAGE=mysql` 使用 Prisma + MySQL 的 `pages` / `page_versions` 双表（ADR-008）。接口 `PageRepository` 不变。
+- **页面创建者与写权限（2026-10-27）**：首次 `PUT /pages/:id/schema` 建档时写入 `pages.createdBy`（MySQL）/ 记录字段（JSON）。此后保存草稿、发布、回滚统一要求「`createdBy === 当前用户名` 或权限点含 `'*'`」，否则 `403 PERMISSION_DENIED`。迁移 `20261027010000_page_owner` 只新增可空列，**不回填存量**：历史页面 `createdBy` 为 `NULL` 时仅管理员可写（宁收紧不放宽）。模型复用既有 `ModelDef.createdBy`，判定口径相同。
 
 ### 10.3 服务端错误码
 

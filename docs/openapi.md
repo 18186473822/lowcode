@@ -41,14 +41,14 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Pages | GET | `/pages` | Bearer |
 | Pages | POST | `/pages/validate` | Bearer |
 | Pages | GET | `/pages/{id}/schema` | Bearer + 页面可见性 |
-| Pages | PUT | `/pages/{id}/schema` | Bearer |
-| Pages | POST | `/pages/{id}/publish` | Bearer |
-| Pages | POST | `/pages/{id}/rollback` | Bearer |
+| Pages | PUT | `/pages/{id}/schema` | Bearer + 创建者或 `*` |
+| Pages | POST | `/pages/{id}/publish` | Bearer + 创建者或 `*` |
+| Pages | POST | `/pages/{id}/rollback` | Bearer + 创建者或 `*` |
 | Pages | GET | `/pages/{id}/versions` | Bearer |
 | Pages | DELETE | `/pages/{id}` | Bearer + `*` |
 | Models | GET | `/models` | Bearer |
 | Models | GET | `/models/{id}` | Bearer |
-| Models | PUT | `/models/{id}` | Bearer |
+| Models | PUT | `/models/{id}` | Bearer + 创建者或 `*` |
 | Records | POST | `/models/{modelId}/records` | Bearer + 模型 create |
 | Records | GET | `/models/{modelId}/records` | Bearer + 模型 read + dataScope |
 | Records | PUT | `/models/{modelId}/records/{rid}` | Bearer + 模型 update |

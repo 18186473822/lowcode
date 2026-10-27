@@ -9,10 +9,11 @@
  *
  * 错误响应形状与页面保存对齐：`{ code: 'MODEL_INVALID', message, errors, warnings }`。
  */
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { isValidVersion, validateModel, type Issue, type ModelSchema } from '@lc/schema'
 import { checkExpr } from '@lc/expression'
 import type { AuthUser } from '../common/jwt.service.js'
+import { RbacService, WILDCARD } from '../rbac/rbac.service.js'
 import { MODEL_REPOSITORY, type ModelEntity, type ModelRepository } from './model.types.js'
 
 /** 模型 id 白名单：字母/下划线开头，仅限 [A-Za-z0-9_-]，长度 ≤ 64（防路径穿越，与页面 id 同规则） */
@@ -160,7 +161,10 @@ function toResponse(entity: ModelEntity): ModelResponse {
 
 @Injectable()
 export class ModelService {
-  constructor(@Inject(MODEL_REPOSITORY) private readonly repo: ModelRepository) {}
+  constructor(
+    @Inject(MODEL_REPOSITORY) private readonly repo: ModelRepository,
+    @Inject(RbacService) private readonly rbac: RbacService,
+  ) {}
 
   /** 模型摘要列表（按更新时间倒序） */
   async listSummaries(): Promise<ModelSummary[]> {
@@ -221,6 +225,8 @@ export class ModelService {
 
     const now = new Date().toISOString()
     const prev = await this.repo.find(id)
+    // 写权限：新建放行；已存在模型要求创建者本人或 '*' 管理员。
+    await this.assertWritable(prev, user, id)
     const entity: ModelEntity = {
       schema,
       createdAt: prev?.createdAt ?? now,
@@ -242,5 +248,24 @@ export class ModelService {
       throw new NotFoundException({ code: 'MODEL_NOT_FOUND', message: `数据模型 ${id} 不存在` })
     }
     return entity
+  }
+
+  /**
+   * 模型写权限：新建（prev 为 null）放行；已存在模型要求创建者本人或 '*' 管理员。
+   * 口径与页面 `PageService.assertWritable` 一致。
+   */
+  private async assertWritable(
+    prev: ModelEntity | null | undefined,
+    user: AuthUser,
+    modelId: string,
+  ): Promise<void> {
+    if (!prev) return
+    const perms = await this.rbac.permsOf(user)
+    if (perms.includes(WILDCARD)) return
+    if (prev.createdBy === user.username) return
+    throw new ForbiddenException({
+      code: 'PERMISSION_DENIED',
+      message: `仅模型创建者或管理员可编辑模型 ${modelId}`,
+    })
   }
 }

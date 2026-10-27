@@ -50,6 +50,7 @@ function pageRow(overrides: Record<string, unknown> = {}) {
     draft: { id: 'p1' },
     draftUpdatedAt: NOW,
     draftUpdatedBy: 'u1',
+    createdBy: 'u1',
     versions: [
       {
         version: 1,
@@ -77,6 +78,7 @@ function pageRecord(overrides: Partial<PageRecord> = {}): PageRecord {
     draft: { id: 'p1' } as PageSchema,
     draftUpdatedAt: NOW.toISOString(),
     draftUpdatedBy: 'u1',
+    createdBy: 'u1',
     versions: [
       {
         version: 1,
@@ -171,6 +173,7 @@ describe('MysqlPageRepository', () => {
     const repo = new MysqlPageRepository(prisma)
 
     expect((await repo.find('p1'))?.revision).toBe(1)
+    expect((await repo.find('p1'))?.createdBy).toBe('u1')
     expect(await repo.find('bad id')).toBeNull()
     expect((await repo.list())[0]!.versions[0]!.version).toBe(1)
 

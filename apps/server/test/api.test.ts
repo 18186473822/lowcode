@@ -4,7 +4,7 @@
  */
 import 'reflect-metadata'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { sign as jwtSign } from 'jsonwebtoken' // vitest/esbuild 互操作下可用；生产代码见 jwt.service.ts 的 CJS 默认导入说明
@@ -590,5 +590,163 @@ describe('批 6：RBAC 配置接口 + bootstrap 权限 + 页面可见性守卫',
   it('RBAC 接口需令牌：无令牌 401', async () => {
     const r = await call('GET', '/api/v1/rbac/roles')
     expect(r.status).toBe(401)
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 8. 写权限收敛：创建者或管理员                                        */
+/* ------------------------------------------------------------------ */
+
+/** 写权限用例专用页面 Schema（id 与路径一致，避免落盘文件互相覆盖） */
+function ownerPage(id: string): PageSchema {
+  return {
+    schemaVersion: '1.0.0',
+    id,
+    name: `归属测试 ${id}`,
+    type: 'form',
+    root: { id: 'root', componentName: 'Page', children: [] },
+  } as PageSchema
+}
+
+/** 写权限用例专用模型定义 */
+function ownerModel(id: string): Record<string, unknown> {
+  return {
+    schemaVersion: '1.0.0',
+    id,
+    name: `归属测试 ${id}`,
+    code: `owner_${id}`,
+    fields: [{ key: 'name', name: '名称', type: 'string' }],
+  }
+}
+
+describe('页面/模型写权限：创建者或管理员', () => {
+  let dToken: string
+
+  beforeAll(async () => {
+    const login = await call('POST', '/api/v1/auth/login', {
+      body: { username: 'designer', password: 'designer123' },
+    })
+    expect(login.status).toBe(200)
+    dToken = login.body.accessToken
+    expect(dToken).toBeTruthy()
+  })
+
+  it('页面：designer 新建写入创建者，自改 200；改管理员页面 403', async () => {
+    const created = await call('PUT', '/api/v1/pages/p_owner_d/schema', {
+      body: { schema: ownerPage('p_owner_d') },
+      token: dToken,
+    })
+    expect(created.status).toBe(200)
+
+    // 创建者本人可继续编辑
+    const own = await call('PUT', '/api/v1/pages/p_owner_d/schema', {
+      body: { schema: ownerPage('p_owner_d') },
+      token: dToken,
+    })
+    expect(own.status).toBe(200)
+
+    // admin 建页面，designer 不可写
+    const adminCreated = await call('PUT', '/api/v1/pages/p_owner_a/schema', {
+      body: { schema: ownerPage('p_owner_a') },
+      token,
+    })
+    expect(adminCreated.status).toBe(200)
+
+    const denied = await call('PUT', '/api/v1/pages/p_owner_a/schema', {
+      body: { schema: ownerPage('p_owner_a') },
+      token: dToken,
+    })
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBe('PERMISSION_DENIED')
+  })
+
+  it('页面：发布/回滚同样受写权限约束，管理员可操作他人页面', async () => {
+    const deniedPublish = await call('POST', '/api/v1/pages/p_owner_a/publish', {
+      body: {},
+      token: dToken,
+    })
+    expect(deniedPublish.status).toBe(403)
+    expect(deniedPublish.body.code).toBe('PERMISSION_DENIED')
+
+    // 管理员可发布 designer 的页面（证明放行分支不是单向的）
+    const adminPublish = await call('POST', '/api/v1/pages/p_owner_d/publish', {
+      body: {},
+      token,
+    })
+    expect(adminPublish.status).toBe(200)
+
+    const deniedRollback = await call('POST', '/api/v1/pages/p_owner_a/rollback', {
+      body: { version: 1 },
+      token: dToken,
+    })
+    expect(deniedRollback.status).toBe(403)
+    expect(deniedRollback.body.code).toBe('PERMISSION_DENIED')
+  })
+
+  it('页面：存量无 createdBy 按仅管理员可编辑（保守降级）', async () => {
+    const now = new Date().toISOString()
+    await mkdir(path.join(dataDir, 'pages'), { recursive: true })
+    await writeFile(
+      path.join(dataDir, 'pages', 'p_legacy.json'),
+      JSON.stringify({
+        id: 'p_legacy',
+        appId: 'app_default',
+        name: 'p_legacy',
+        type: 'form',
+        status: 'draft',
+        currentVersion: 0,
+        revision: 0,
+        draft: null,
+        versions: [],
+        createdAt: now,
+        updatedAt: now,
+      }),
+      'utf8',
+    )
+
+    const denied = await call('PUT', '/api/v1/pages/p_legacy/schema', {
+      body: { schema: ownerPage('p_legacy') },
+      token: dToken,
+    })
+    expect(denied.status).toBe(403)
+
+    const allowed = await call('PUT', '/api/v1/pages/p_legacy/schema', {
+      body: { schema: ownerPage('p_legacy') },
+      token,
+    })
+    expect(allowed.status).toBe(200)
+  })
+
+  it('模型：designer 新建/自改 200；改管理员模型 403；管理员改 designer 模型 200', async () => {
+    const created = await call('PUT', '/api/v1/models/md_owner_d', {
+      body: ownerModel('md_owner_d'),
+      token: dToken,
+    })
+    expect(created.status).toBe(200)
+
+    const own = await call('PUT', '/api/v1/models/md_owner_d', {
+      body: ownerModel('md_owner_d'),
+      token: dToken,
+    })
+    expect(own.status).toBe(200)
+
+    const adminCreated = await call('PUT', '/api/v1/models/md_owner_a', {
+      body: ownerModel('md_owner_a'),
+      token,
+    })
+    expect(adminCreated.status).toBe(200)
+
+    const denied = await call('PUT', '/api/v1/models/md_owner_a', {
+      body: ownerModel('md_owner_a'),
+      token: dToken,
+    })
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBe('PERMISSION_DENIED')
+
+    const adminEdit = await call('PUT', '/api/v1/models/md_owner_d', {
+      body: ownerModel('md_owner_d'),
+      token,
+    })
+    expect(adminEdit.status).toBe(200)
   })
 })
