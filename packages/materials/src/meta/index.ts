@@ -1,5 +1,5 @@
 /**
- * META 注册表 —— 全部 33 份物料元信息（designer-plan D-A4；Phase 2 批 3 由 13 → 31；
+ * META 注册表 —— 全部 33 份物料元信息（PLANS.md §1 D-A4；Phase 2 批 3 由 13 → 31；
  * Phase 3 批 2 +2 → 33：biz 组 ApprovalBar / Timeline）。
  *
  * - `META_LIST`：33 项（Page + FormGroup + 31 物料组件），按 category/order 排序；

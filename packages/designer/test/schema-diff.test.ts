@@ -1,5 +1,5 @@
 /**
- * schema-diff.test.ts —— 批 5 结构化 diff 纯函数（phase2-plan §9 / D-P2-9）。
+ * schema-diff.test.ts —— 批 5 结构化 diff 纯函数（PLANS.md §2 / D-P2-9）。
  *
  * 覆盖：空 diff / add / remove / 子树只报顶层 / change 多键与键消失 /
  * componentName 变化 / move 换父换序 / 输出顺序约定（remove→add→change→move）。

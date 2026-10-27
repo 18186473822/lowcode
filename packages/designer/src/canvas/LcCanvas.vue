@@ -1,5 +1,5 @@
 <!--
-  LcCanvas.vue —— 设计器画布（designer-plan §5 批 1 + 批 2 DnD）
+  LcCanvas.vue —— 设计器画布（PLANS.md §1 批 1 + 批 2 DnD）
 
   职责：
    ① 375px 手机壳容器（主方案 6.2 布局；rpx 换算基准 375/750 → ×0.5，由 vite 插件处理）

@@ -1,5 +1,5 @@
 /**
- * rbac-store.test.ts —— 批 6：权限 RBAC store actions（phase2-plan §10 / D-P2-12）。
+ * rbac-store.test.ts —— 批 6：权限 RBAC store actions（PLANS.md §2 / D-P2-12）。
  *
  * 覆盖：loadRbac 三态（成功载入 roles+pages+页面行源 / 无 api / 拉取失败）、
  * 角色编辑生命周期（newRole/editRole/setRoleProp/setRolePerms/roleGateErrors/saveRole 门禁与落库）、

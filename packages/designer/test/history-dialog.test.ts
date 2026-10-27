@@ -1,5 +1,5 @@
 /**
- * history-dialog.test.ts —— 批 5 HistoryDialog 组件（phase2-plan §9）。
+ * history-dialog.test.ts —— 批 5 HistoryDialog 组件（PLANS.md §2）。
  *
  * 覆盖：v-if 开关、列表三态（载入/失败/空）、倒序行与当前版徽标、note、
  * diff 条目渲染与无差异空态、两步确认回滚（取消 / 确认真调 rollback）、

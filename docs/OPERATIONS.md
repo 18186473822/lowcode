@@ -2,9 +2,10 @@
 
 > 面向：本地开发、演示、部署与日常运维。
 > 环境基线：Node.js ≥ 20（CI 用 22 与 20）、pnpm 12、MySQL 8（可选）。
-> 相关文档：[`README.md`](../README.md)（快速启动）、[`STATUS.md`](STATUS.md)（能力与剩余工作）、
+> 相关文档：[`README.md`](../README.md)（快速启动）、[`PROGRESS.md`](PROGRESS.md)（能力与剩余工作）、
 > [`protocol.md`](protocol.md)（对外契约）、[`openapi.md`](openapi.md)（接口清单）、
-> [`observability-deployment-2026-10-21.md`](observability-deployment-2026-10-21.md)（部署细节）。
+> [`DECISIONS.md`](DECISIONS.md)（架构决策）。
+> 安全机制与可观测性契约的实现边界见本文 **附录 A / 附录 B**。
 
 ---
 
@@ -16,6 +17,8 @@
 | 用设计器建页面并发布 | §3（重点 §3.6） |
 | 切 MySQL、备份、部署上线 | §5 → §6 |
 | 出问题了 | §7 故障排查 → §8 命令速查 |
+| 查安全配置的启动校验规则 | 附录 A |
+| 查探针/日志/请求 ID 的字段契约 | 附录 B |
 
 默认端口：
 
@@ -633,3 +636,191 @@ curl -fsS http://127.0.0.1:3000/api/v1/openapi.json > openapi.json
 6. 远程物料只接受受信元数据与内置组件白名单，**永不下载/执行远程 JS**。
 7. 生产迁移只用 `prisma migrate deploy`，禁用 `db push`。
 8. 备份、导出文件与投递日志都可能含个人信息，按敏感数据管理。
+
+---
+
+## 附录 A：安全机制与实现边界
+
+> 来源：原 `security-hardening-2026-10-20.md`（已合并，git 历史可追溯）。
+> 本附录写「怎么校验、失败什么行为」；部署命令见 §6，红线见 §9。
+
+### A.1 四项机制
+
+| # | 机制 | 实现 |
+|---|---|---|
+| 1 | JWT 密钥 fail-closed | 生产未设置 / 长度 <32 / 等于仓库内置开发值 → 启动失败（exit 1）；非生产未设置才回退开发密钥并打印警告 |
+| 2 | CORS 白名单 | `LC_CORS_ORIGINS` 逗号分隔、必须是完整源；拒绝 `*`、带路径、带查询、非 `http(s)`；生产未设置 = 不发送 CORS 允许头 |
+| 3 | 限流 | 单进程固定窗口；普通接口默认 600 次/分钟/IP，登录默认 20 次/分钟/IP；超限 `429 RATE_LIMITED` + `Retry-After` |
+| 4 | 反向代理 | `LC_TRUST_PROXY=true` 时启用 Express `trust proxy`，按 `X-Forwarded-For` 取客户端 IP（**只信任一层**） |
+
+相关环境变量：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `LC_JWT_SECRET` | 非生产回退开发密钥 | 生产必填，≥32 字符，禁止等于仓库内置开发值 |
+| `LC_CORS_ORIGINS` | 开发：`localhost:5173/5174` | 生产显式白名单；只接受完整源，如 `https://lc.example.com` |
+| `LC_RATE_LIMIT_WINDOW_MS` | `60000` | 限流窗口（毫秒） |
+| `LC_RATE_LIMIT_MAX` | `600` | 普通接口每 IP 每窗口上限 |
+| `LC_LOGIN_RATE_LIMIT_MAX` | `20` | 登录接口每 IP 每窗口上限 |
+| `LC_TRUST_PROXY` | `false` | 反代后设 `true`；仅信任一层 |
+
+生产启动示例（bash）：
+
+```bash
+export NODE_ENV=production
+export LC_JWT_SECRET="$(openssl rand -base64 48)"
+export LC_CORS_ORIGINS="https://lc.example.com"
+export LC_TRUST_PROXY=true
+node apps/server/dist/main.js
+```
+
+### A.2 启动期行为
+
+| 场景 | 行为 |
+|---|---|
+| production + 无 `LC_JWT_SECRET` | 抛错，进程 exit 1，不监听端口 |
+| production + 密钥 <32 字符 | 抛错，exit 1 |
+| 任意环境 + 密钥等于仓库内置开发值 | 抛错，exit 1 |
+| development/test + 无密钥 | 使用开发默认值，启动成功并打印警告 |
+| `LC_CORS_ORIGINS=*` | 抛错，exit 1 |
+| `LC_CORS_ORIGINS` 含路径 / 查询 / 非 http(s) | 抛错，exit 1 |
+| 限流参数非正整数 / 越界 | 抛错，exit 1 |
+
+### A.3 请求期行为
+
+- 允许的 `Origin`：返回 `Access-Control-Allow-Origin: <该源>` 与 `Vary: Origin`；
+- 未在名单的 `Origin`：**不返回** `Access-Control-Allow-Origin`（由浏览器拦截）；
+- 预检 `OPTIONS` 不计入限流；
+- 超限：`429`，响应体 `{ "code": "RATE_LIMITED", "message": "请求过于频繁，请稍后再试" }`；
+- 响应头：`X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`；超限时额外 `Retry-After`（秒）；
+- 登录限流按**所有登录尝试**计数（成功与失败都算），避免「只有失败才计数」被绕过。
+
+### A.4 实现位置
+
+| 文件 | 作用 |
+|---|---|
+| `apps/server/src/common/security.config.ts` | 密钥 / CORS / 限流参数解析与启动自检 |
+| `apps/server/src/common/rate-limit.ts` | 固定窗口计数器 + Nest 中间件 |
+| `apps/server/src/common/jwt.service.ts` | 使用 `resolveJwtSecret()`，生产 fail-closed |
+| `apps/server/src/app.module.ts` | 注册全局限流中间件 |
+| `apps/server/src/main.ts` | 启动自检、CORS、trust proxy、错误退出 |
+| `apps/server/test/security.test.ts` | 安全回归用例 |
+| `apps/server/scripts/smoke-security.mjs` | 真实启动冒烟（CORS / 登录 429 / 生产 fail-closed） |
+
+### A.5 验证方式与边界
+
+```bash
+pnpm -F @lc/server test          # security.test.ts 覆盖密钥/CORS/限流
+pnpm smoke:security              # 自起临时实例，10 项真实冒烟
+```
+
+该批次（2026-10-20）实测：`security.test.ts` 25 例，服务端 201 例全通过；冒烟 10/10 PASS（含「CORS 黑名单源无 ACAO」「第 3 次登录 429」「生产缺密钥 exit 1」）。
+
+**剩余风险**（未实现，不要当成已有能力）：
+
+1. **单实例限流**：计数在进程内，多副本各算各的额度；扩容前需换 Redis 等共享计数。
+2. **无审计日志**：登录失败、429、CORS 拒绝只返回状态，不写安全审计。
+3. **无账号锁定**：限流按 IP，代理池/僵尸网络仍可能绕过；可后续加账号维度退避。
+4. **CORS 未设置即关闭**：前后端分域部署时必须显式配 `LC_CORS_ORIGINS`，否则浏览器会拦截。
+5. **密钥轮换**：只支持单密钥，无 `kid` / 双密钥过渡；轮换需重启，旧令牌自然过期（8h）。
+
+---
+
+## 附录 B：可观测性契约与边界
+
+> 来源：原 `observability-deployment-2026-10-21.md`（已合并，git 历史可追溯）。
+> 本附录定「探针返回什么、日志记什么」；systemd / nginx / 备份命令见 §6。
+
+### B.1 探针契约
+
+`GET /api/v1/health`（liveness）：无需登录，不查磁盘，只证明 Node 进程与 HTTP 栈可响应。
+
+```json
+{
+  "status": "ok",
+  "storage": "mysql",
+  "version": "9.9.9",
+  "uptimeSeconds": 123,
+  "timestamp": "2026-10-21T09:00:00.000Z"
+}
+```
+
+- `version` 取 `LC_APP_VERSION`，未设置回退 `0.1.0`；建议注入构建号或镜像 tag。
+- `uptimeSeconds` 取 `process.uptime()`，用于判断是否频繁重启。
+
+`GET /api/v1/ready`（readiness）：JSON 模式检查 `LC_DATA_DIR` 可 `mkdir -p` 且可写；MySQL 模式额外执行 `SELECT 1`。
+
+```json
+{ "status": "ok", "storage": "mysql", "checks": { "dataDir": "ok", "database": "ok" }, "timestamp": "..." }
+```
+
+任一检查失败返回 `503`：
+
+```json
+{
+  "code": "NOT_READY",
+  "message": "存储未就绪",
+  "storage": "mysql",
+  "checks": { "dataDir": "ok", "database": "unavailable" },
+  "timestamp": "..."
+}
+```
+
+**取舍**：探针不鉴权、不计入限流，避免负载均衡高频探测消耗真实用户额度；`/ready` 只检查已引入的下游（数据目录、数据库），不含对象存储。
+
+### B.2 请求 ID
+
+- 客户端可传 `X-Request-Id`；仅接受 `[A-Za-z0-9._-]{8,128}`，其余（含空格、换行、超长、数组）一律生成 UUID。
+- 服务端把最终 ID 写回响应头，并挂到 `req.requestId`，供错误处理与业务日志复用。
+- 建议由反向代理生成并透传：nginx `proxy_set_header X-Request-Id $request_id;`。
+
+### B.3 访问日志
+
+字段固定，单行 JSON 写 stdout：
+
+```json
+{"level":"info","type":"access","at":"2026-10-21T09:00:00.000Z","requestId":"...","method":"GET","path":"/api/v1/pages","status":200,"durationMs":12,"ip":"10.0.0.8","userAgent":"Mozilla/5.0 ..."}
+```
+
+- **只记 path，不记 query**（避免 `?token=` 等敏感参数）；不记 body、`Authorization`、`Cookie`。
+- `durationMs` 为响应 `finish` 时减去请求进入时间；被中断的请求不计。
+- 默认 `NODE_ENV=production` 开启；非生产默认关闭，避免本地测试刷屏。`LC_ACCESS_LOG=1/0`（兼容 `true/false/yes/no/on/off`）显式覆盖；非法值启动失败。
+- 日志交给 journald / Docker 日志驱动 / 云日志采集；当前**不做文件轮转**。
+
+相关环境变量：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `LC_ACCESS_LOG` | production 开启 | 访问日志开关；非法值启动失败 |
+| `LC_APP_VERSION` | `0.1.0` | 健康检查版本号 |
+| `LC_STORAGE` | `json` | `json` / `mysql`；非法值启动失败 |
+| `DATABASE_URL` | — | `LC_STORAGE=mysql` 时必填 |
+| `LC_DATA_DIR` | `<cwd>/data` | JSON 模式数据根目录；MySQL 模式仅历史兼容；`/ready` 检查可写 |
+
+> 服务端**不自动加载 `.env`**：systemd 用 `EnvironmentFile=`，容器用 `-e/--env-file`，shell 用 `export`。
+
+### B.4 JSON 模式数据布局
+
+`LC_STORAGE=json` 时数据都在 `LC_DATA_DIR`（生产示例 `/var/lib/lowcode/data`）：
+
+| 路径 | 内容 |
+|---|---|
+| `pages/<id>.json` | 页面草稿与历史版本 |
+| `models/<id>.json` | 模型定义与记录 |
+| `rbac.json` | 角色与页面授权 |
+| `flows.json` / `flow-instances.json` | 流程定义与实例 |
+| `ops/events.json` | 运维事件（环形 500 条） |
+| `apps.json` | 主题配置 |
+
+跨文件没有事务，运行中直接拷贝可能拿到不同时间点组合：尽量停机或做文件系统快照，备份与恢复步骤见 §6.6。
+
+### B.5 验证方式与边界
+
+```bash
+pnpm -F @lc/server test          # observability.test.ts
+pnpm smoke:observability         # 自起临时实例，4 项真实冒烟
+```
+
+该批次（2026-10-22）实测：`observability.test.ts` 11 例通过；冒烟 4/4 PASS（探针字段、请求 ID 复用与伪造回退、访问日志开关、非法值启动失败）。
+
+**明确未实现**：指标（Prometheus / OpenTelemetry）、分布式追踪、日志轮转与集中采集、告警、多实例共享限流、对象存储 / CDN / Range 下载（大附件场景）。

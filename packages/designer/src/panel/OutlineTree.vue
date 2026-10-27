@@ -1,5 +1,5 @@
 <!--
-  OutlineTree.vue —— 大纲树面板（Phase 2 批 4，phase2-plan §8）
+  OutlineTree.vue —— 大纲树面板（Phase 2 批 4，PLANS.md §2）
 
   左栏 Tab「物料 / 大纲」的第二页签：从 store.schema.root 扁平化出树行，
   与画布**双向联动**（点击行 ↔ 画布选中高亮）；行内删除复用 store.removeById。

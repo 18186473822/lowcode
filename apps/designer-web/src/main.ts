@@ -1,5 +1,5 @@
 /**
- * designer-web 入口（designer-plan §5 批 1）
+ * designer-web 入口（PLANS.md §1 批 1）
  *
  * 注册顺序即依赖链：**令牌层（最先，保证后续样式有变量可用）**
  * → shim（picker/radio 组件 + uni API + image/switch 增强器由画布挂载）

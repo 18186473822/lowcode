@@ -1,5 +1,5 @@
 <!--
-  App.vue —— 设计器三栏布局（designer-plan §6.2）
+  App.vue —— 设计器三栏布局（PLANS.md §1）
   批 1：左物料面板 + 中画布（LcCanvas，375 手机壳）+ 右属性面板（占位）。
   批 2：画布 @drop 分发到 store（insertMaterial / moveByDrop）、全局 Delete/Backspace 删除。
   批 3：顶栏 pageId 打开/新建/保存/发布 + 保存状态徽标；底栏 validatePage 错误列表 + 操作状态；
@@ -90,7 +90,7 @@
         <span class="top-sep" aria-hidden="true" />
         <button class="top-btn top-btn--primary" type="button" @click="onSave">保存</button>
         <button class="top-btn" type="button" @click="onPublish">发布</button>
-        <!-- Phase 2 批 4：撤销/重做 + 复制/剪切/粘贴（phase2-plan §8） -->
+        <!-- Phase 2 批 4：撤销/重做 + 复制/剪切/粘贴（PLANS.md §2） -->
         <span class="top-sep" aria-hidden="true" />
         <button
           class="top-btn"

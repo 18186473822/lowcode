@@ -1,5 +1,5 @@
 /**
- * schema-ops.ts —— 页面 Schema 树操作纯函数（designer-plan D-A3，设计器批 2）
+ * schema-ops.ts —— 页面 Schema 树操作纯函数（PLANS.md §1 D-A3，设计器批 2）
  *
  * 关键约束（方案 4.3）：
  * 1. **纯函数**：输入 schema，返回新 schema（结构共享，被修改路径重建），不原地改 ——
@@ -464,7 +464,7 @@ export function setRequiredRule(schema: PageSchema, nodeId: string, required: bo
 }
 
 /* ------------------------------------------------------------------ */
-/* 批 4：复制粘贴（phase2-plan §8 —— 内存剪贴板 + 跨页粘贴）             */
+/* 批 4：复制粘贴（PLANS.md §2 —— 内存剪贴板 + 跨页粘贴）             */
 /* ------------------------------------------------------------------ */
 
 /** 节点级深拷贝（剪贴板快照；与内部 clone 同源语义 —— 保留 undefined） */
@@ -487,7 +487,7 @@ export function remapIds(node: NodeSchema): NodeSchema {
 }
 
 /**
- * 粘贴子树（批 4）。定位三规则（phase2-plan §8）：
+ * 粘贴子树（批 4）。定位三规则（PLANS.md §2）：
  * ① 有选中且选中是容器（带 `children` 字段）→ 插其 children 末尾；
  * ② 有选中且是叶子 → 插其**同级之后**；
  * ③ 无选中 / 选中不存在 → root children 末尾。

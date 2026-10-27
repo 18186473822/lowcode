@@ -1,5 +1,5 @@
 <!--
-  MaterialPanel.vue —— 物料面板（designer-plan 4.4 D-A4 + 批 2 验收）
+  MaterialPanel.vue —— 物料面板（PLANS.md §1 4.4 D-A4 + 批 2 验收）
 
   数据源 = `@lc/materials` 的 META_LIST（排除 Page：root 不可拖 → 面板展示 12 项）。
   按 category 分组展示，HTML5 draggable 发起拖放；drop 接收方在画布（LcCanvas）。

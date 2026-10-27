@@ -2,7 +2,7 @@
  * meta-sync.test.ts —— META 注册表同步锁（Phase 2 批 3）
  *
  * 背景：批 3 展示物料 12 → 30（META 31 项排除 Page）。META_LIST 是物料面板与
- *       属性面板的单一数据源（designer-plan D-A4）——注册表与组件/映射一旦脱节，
+ *       属性面板的单一数据源（PLANS.md §1 D-A4）——注册表与组件/映射一旦脱节，
  *       面板出现「拖入即未知组件」的断链。本文件锁死数量、唯一性、新名在册与
  *       settings 齐备四件事。
  */
@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
 import { META_LIST, META_MAP } from '@lc/materials'
 import { MATERIAL_MAP } from '../src/material-map'
 
-/** 批 3 新增 18 物料（对齐 FieldType 全集 + 方案缺口清单，详设见 phase2-plan §6B） */
+/** 批 3 新增 18 物料（对齐 FieldType 全集 + 方案缺口清单，详设见 PLANS.md §2B） */
 const BATCH3_NEW = [
   'DatePicker',
   'DateTimePicker',
@@ -34,10 +34,10 @@ const BATCH3_NEW = [
 
 const LEGAL_CATEGORIES = new Set(['basic', 'layout', 'form', 'data', 'nav', 'feedback', 'biz'])
 
-/** Phase 3 批 2 新增 2 物料（biz 组审批物料，详设见 phase3-plan §4 D-P3-4） */
+/** Phase 3 批 2 新增 2 物料（biz 组审批物料，详设见 PLANS.md §3 D-P3-4） */
 const BATCH2_NEW = ['ApprovalBar', 'Timeline'] as const
 
-/** Phase 3 批 4 新增 2 物料（data 组图表 / 指标卡，详设见 phase3-plan §7 D-P3-10） */
+/** Phase 3 批 4 新增 2 物料（data 组图表 / 指标卡，详设见 PLANS.md §3 D-P3-10） */
 const BATCH4_NEW = ['Chart', 'Statistic'] as const
 
 describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 32；批 4 后：35 / 34）', () => {

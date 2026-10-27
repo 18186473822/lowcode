@@ -1,5 +1,5 @@
 /**
- * outline.test.ts —— 大纲树面板（Phase 2 批 4，phase2-plan §8）
+ * outline.test.ts —— 大纲树面板（Phase 2 批 4，PLANS.md §2）
  *
  * 覆盖：树行与 schema 节点一致（demo 32 行 = root + 30 物料 + 组内子节点）、
  * 点击 ↔ 选中双向联动、选中高亮、折叠/展开、选中自动展开父链、行内删除、root 保护。

@@ -1,5 +1,5 @@
 /**
- * keyboard.test.ts —— 全局快捷键意图分发（Phase 2 批 4，phase2-plan §8）
+ * keyboard.test.ts —— 全局快捷键意图分发（Phase 2 批 4，PLANS.md §2）
  * resolveKeyIntent 是纯函数；事件经真实 dispatch 到目标元素取得 `e.target`（输入态排除语义）。
  */
 import { describe, it, expect, beforeEach } from 'vitest'

@@ -1,5 +1,5 @@
 /**
- * clipboard.test.ts —— 复制/剪切/粘贴（Phase 2 批 4，phase2-plan §8 / DoD ②）
+ * clipboard.test.ts —— 复制/剪切/粘贴（Phase 2 批 4，PLANS.md §2 / DoD ②）
  *
  * 覆盖：root 禁拷、remapIds 递归换 id、粘贴三定位规则（容器内/同级后/root 末尾）、
  * 跨页剪贴板保留（DoD ②「剪贴板跨页粘贴」）、粘贴后选中新根、校验无重复 id。

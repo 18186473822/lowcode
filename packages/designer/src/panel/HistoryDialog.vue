@@ -1,5 +1,5 @@
 <!--
-  HistoryDialog.vue —— 版本历史弹层（Phase 2 批 5，phase2-plan §9）
+  HistoryDialog.vue —— 版本历史弹层（Phase 2 批 5，PLANS.md §2）
 
   顶栏「历史」按钮驱动 store.historyOpen；手写 modal（fixed 遮罩 + 居中面板，
   不引 Element Plus —— 设计器现状全手写 CSS，EP 实际未使用）。

@@ -1,5 +1,5 @@
 /**
- * schema-diff.ts —— 版本结构化 diff（Phase 2 批 5，phase2-plan §9 / 决策 D-P2-9）。
+ * schema-diff.ts —— 版本结构化 diff（Phase 2 批 5，PLANS.md §2 / 决策 D-P2-9）。
  *
  * 纯函数 `diffSchema(before, after)`：before = 历史版本 vN、after = 当前画布（内存 schema）。
  * 对齐键 = 节点 id（设计态 id 稳定）；**零依赖自研**，不引 JSON diff 库。

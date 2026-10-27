@@ -1,7 +1,7 @@
 /**
  * @lc/designer —— 设计器核心包入口
  *
- * 批 1 范围（designer-plan §5）：uni-shim + 物料映射 + 画布。
+ * 批 1 范围（PLANS.md §1）：uni-shim + 物料映射 + 画布。
  * 批 2+ 追加：schema-ops 树操作纯函数、anchor 拖拽锚点、面板组件。
  */
 export * from './shim/index'

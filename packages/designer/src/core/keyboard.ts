@@ -1,5 +1,5 @@
 /**
- * keyboard.ts —— 设计器全局快捷键意图分发（批 4，phase2-plan §8）。
+ * keyboard.ts —— 设计器全局快捷键意图分发（批 4，PLANS.md §2）。
  *
  * 纯函数：`KeyboardEvent` → 意图枚举；App.vue 只做「监听 → 分发 → 调 store」接线，
  * 逻辑本体可单测（输入态排除 / 修饰键组合 / 键位映射）。

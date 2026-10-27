@@ -1,5 +1,5 @@
 /**
- * history.test.ts —— 撤销/重做双栈（Phase 2 批 4，phase2-plan §8 / DoD ①）
+ * history.test.ts —— 撤销/重做双栈（Phase 2 批 4，PLANS.md §2 / DoD ①）
  *
  * 关键语义：
  * - 每个独立 action（一个用户事件）= 一个快照 —— 测试以 `nextTick` 分隔模拟事件间隔

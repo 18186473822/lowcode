@@ -6,7 +6,7 @@
  * lc-node 模板里的 `<lc-input>` 等标签在两侧解析到同一物料）。
  *
  * Page / FormGroup 无物料组件（lc-node 容器分支内联处理），故不在此表。
- * 未来：schema-cli 按流水线④自动生成本文件（designer-plan D-A2/D-A4）。
+ * 未来：schema-cli 按流水线④自动生成本文件（PLANS.md §1 D-A2/D-A4）。
  */
 import type { App, Component } from 'vue'
 import LcText from '@lc/materials/src/text/index.vue'

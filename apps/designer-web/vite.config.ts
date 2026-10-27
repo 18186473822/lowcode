@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 /**
- * rpx → px（designer-plan D-A1）：uni 设计稿 750 宽，画布按 375px 渲染 → 1rpx = 0.5px。
+ * rpx → px（PLANS.md §1 D-A1）：uni 设计稿 750 宽，画布按 375px 渲染 → 1rpx = 0.5px。
  * 作用于全部 CSS；designer 自身样式只用 px 不会命中 rpx 正则，物料的 rpx 统一换算。
  */
 function rpxToPx() {

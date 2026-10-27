@@ -1,5 +1,5 @@
 /**
- * 设计器全局状态（designer-plan D-A7：Pinia 单 store；批 2 扩展 schema 操作 actions）。
+ * 设计器全局状态（PLANS.md §1 D-A7：Pinia 单 store；批 2 扩展 schema 操作 actions）。
  *
  * 关键约束（方案 4.3）：**所有 schema 修改必须经 core/schema-ops 纯函数** ——
  * 本 store 是唯一的「执行者」（视图组件只发意图），为 undo/redo（Phase 2）留接缝。
@@ -212,7 +212,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   )
   const isRootSelected = computed(() => selectedId.value === schema.value.root.id)
 
-  /* ---------------- 批 4：撤销/重做 + 剪贴板（phase2-plan §8，D-P2-7） ---------------- */
+  /* ---------------- 批 4：撤销/重做 + 剪贴板（PLANS.md §2，D-P2-7） ---------------- */
 
   /** 撤销栈（变更前快照引用 —— schema-ops 全线 clone-then-replace，旧引用永不被改） */
   const undoStack = ref<PageSchema[]>([])
@@ -297,7 +297,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     return true
   }
 
-  /* ---------------- 批 5：版本历史 / 回滚 / 对比（phase2-plan §9，D-P2-8/9） ---------------- */
+  /* ---------------- 批 5：版本历史 / 回滚 / 对比（PLANS.md §2，D-P2-8/9） ---------------- */
 
   /** 版本弹层开关（顶栏「历史」按钮驱动） */
   const historyOpen = ref(false)

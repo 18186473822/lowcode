@@ -1,5 +1,5 @@
 /**
- * rbac-panel.test.ts —— 批 6：RbacPanel 权限管理视图（phase2-plan §10 / D-P2-12）。
+ * rbac-panel.test.ts —— 批 6：RbacPanel 权限管理视图（PLANS.md §2 / D-P2-12）。
  *
  * 覆盖：角色列表渲染与空态、新建 → 编辑视图、门禁红字（空 name 不发 PUT）、
  * 保存成功回列表、页面授权矩阵渲染与勾选写回、rbacError 可见不静默。

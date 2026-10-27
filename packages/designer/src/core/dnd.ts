@@ -1,5 +1,5 @@
 /**
- * dnd.ts —— 拖放共享契约（designer-plan D-A5）。
+ * dnd.ts —— 拖放共享契约（PLANS.md §1 D-A5）。
  * 物料面板（拖拽源）、画布（接收方）、store（落库方）三方共用的 MIME 与类型。
  */
 /** 物料拖入的 dataTransfer MIME（值 = MaterialSchema.name） */

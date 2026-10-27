@@ -1,5 +1,5 @@
 /**
- * anchor.ts —— 拖拽锚点计算纯函数（designer-plan D-A5，设计器批 2）
+ * anchor.ts —— 拖拽锚点计算纯函数（PLANS.md §1 D-A5，设计器批 2）
  *
  * 输入 = 鼠标坐标 + 画布可见节点的 DOMRect 列表（几何事实），输出 = 插入提示
  * （目标节点 + before/after/into 三态）。**不依赖 schema**（index 由 drop 处理器

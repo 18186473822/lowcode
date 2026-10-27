@@ -3,7 +3,7 @@
  *
  * 与 renderer 组件测试（stub 物料）的差异：本文件用 **MATERIAL_MAP 真物料 + UNI_SHIM**，
  * 验证「lc-node PC 编译路径 → 物料 → shim → 受控值联动」整链在 designer-web 同款
- * 环境下可用 —— 覆盖 designer-plan D-A1 的两个落地前提（R2 解析 + 事件双端兼容）。
+ * 环境下可用 —— 覆盖 PLANS.md §1 D-A1 的两个落地前提（R2 解析 + 事件双端兼容）。
  */
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'

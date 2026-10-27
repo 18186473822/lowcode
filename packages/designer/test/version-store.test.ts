@@ -1,5 +1,5 @@
 /**
- * version-store.test.ts —— 批 5：版本历史 / 回滚 / 对比 store actions（phase2-plan §9）。
+ * version-store.test.ts —— 批 5：版本历史 / 回滚 / 对比 store actions（PLANS.md §2）。
  *
  * 覆盖：openHistory 三态（成功倒序载入 / api 未注入 / 拉取失败）、compareVersion 的
  * version 参数透传与 diffEntries 产出、rollbackTo 成功（openPage 重载 + 关弹清 diff）

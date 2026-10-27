@@ -2,8 +2,8 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/STATUS.md`](docs/STATUS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包；仍未开发：服务端市场托管/审核。
-> **当前能力与剩余工作**见 [`docs/STATUS.md`](docs/STATUS.md)；上手与运维操作见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md)；逐批进度与缺陷留档见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；已收口的历史过程文档在 [`docs/archive/`](docs/archive/README.md)。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包；仍未开发：服务端市场托管/审核。
+> **当前能力与剩余工作**见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；上手与运维操作见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md)；架构决策见 [`docs/DECISIONS.md`](docs/DECISIONS.md)；历史设计依据见 [`docs/PLANS.md`](docs/PLANS.md)。
 
 ---
 
@@ -93,7 +93,7 @@ export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行�
 | `LC_LOGIN_RATE_LIMIT_MAX` | `20` | 登录接口每 IP 每窗口上限 |
 | `LC_TRUST_PROXY` | `false` | 反向代理后设 `true`（仅信任一层） |
 
-超限返回 `429 { code: 'RATE_LIMITED' }` 与 `Retry-After`。当前为单进程内存限流，多实例部署需换 Redis；详见 [`docs/security-hardening-2026-10-20.md`](docs/security-hardening-2026-10-20.md)。
+超限返回 `429 { code: 'RATE_LIMITED' }` 与 `Retry-After`。当前为单进程内存限流，多实例部署需换 Redis；详见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md) 附录 A。
 
 ### 可观测性与部署探针（Phase 4）
 
@@ -106,7 +106,7 @@ export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行�
 - `GET /api/v1/ready`：就绪探针；JSON 模式检查 `LC_DATA_DIR`，MySQL 模式同时检查数据目录与 `SELECT 1`；不可用返回 `503 { code: 'NOT_READY', checks }`。
 - 两个探针**不计入限流**；所有响应带 `X-Request-Id`（合法客户端值原样复用，否则生成 UUID）。
 - 访问日志为**单行 JSON**，字段含 `requestId/method/path/status/durationMs/ip`，不记录 query、body、Authorization。
-- 部署、systemd、备份与日志采集见 [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md)。
+- 部署、systemd、备份与日志采集见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md) §6；探针/日志字段契约见附录 B。
 
 ### 开放接口文档（Phase 4）
 
@@ -184,7 +184,7 @@ docs/           协议规范、设计系统、分阶段方案、ADR、进度台�
 scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图标表）
 ```
 
-分层约定（详见 `docs/adr/`）：**业务逻辑进 `packages/*` 的纯函数，副作用留在宿主薄壳**；设计器不直接发请求，一律经 `DesignerApi` 接口注入。
+分层约定（详见 [`docs/DECISIONS.md`](docs/DECISIONS.md)）：**业务逻辑进 `packages/*` 的纯函数，副作用留在宿主薄壳**；设计器不直接发请求，一律经 `DesignerApi` 接口注入。
 
 ## 门禁
 
@@ -215,22 +215,19 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/STATUS.md`](docs/STATUS.md) | **当前状态总览**：能力清单、实测指标、剩余工作（按优先级）、环境阻塞、明确不做 |
-| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | **操作手册**：本地启动、设计器建页/发布、多端构建、MySQL 切换、部署备份、故障排查 |
+| [`docs/PROGRESS.md`](docs/PROGRESS.md) | **当前状态与变更记录**：能力清单、实测指标、剩余工作（按优先级）、环境阻塞、里程碑、缺陷教训 |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | **操作手册**：本地启动、设计器建页/发布、多端构建、MySQL 切换、部署备份、故障排查、安全/可观测性附录 |
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
 | [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、50 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
 | [`docs/material-market.md`](docs/material-market.md) | 远程物料市场：清单格式、ES256 验签、origin allowlist、受控组件白名单与配置 |
-| [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范） |
-| [`docs/PROGRESS.md`](docs/PROGRESS.md) | 实施进度台账：已实现 / 未实现 / 偏差 / 缺陷留档 |
-| [`docs/observability-deployment-2026-10-21.md`](docs/observability-deployment-2026-10-21.md) | 探针 / 请求 ID / 访问日志 / systemd / MySQL 与 JSON 备份 |
-| [`docs/adr/`](docs/adr/) | 11 篇架构决策记录（含 ADR-008 第一批、ADR-009 第二批、ADR-010 文件落库、ADR-011 乐观锁/幂等） |
-| [`docs/phase2-plan.md`](docs/phase2-plan.md) / [`docs/phase3-plan.md`](docs/phase3-plan.md) | 分阶段拆批详设（均已收口，保留作设计依据） |
-| [`docs/archive/`](docs/archive/README.md) | 已收口/被取代的历史过程文档（结论不代表现状） |
+| [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范）+ 实施台账与 6 道门禁 |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | 架构决策记录 ADR-001~011（静态注册/表达式/仓储/MySQL/乐观锁等） |
+| [`docs/PLANS.md`](docs/PLANS.md) | Phase 1~3 历史设计依据与关键决策（均已收口） |
 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
-- **CI 已实跑通过**：GitHub Actions（[run #3](https://github.com/18186473822/lowcode/actions/runs/39890896238) `f5fb6f0` / run #4 `cf4fae1`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/STATUS.md`](docs/STATUS.md) §2。
+- **CI 已实跑通过**：GitHub Actions（[run #6](https://github.com/18186473822/lowcode/actions/runs/39903958427) `ff07ff9`，此前 run #3 `f5fb6f0` / run #4 `cf4fae1`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
 - **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
 - **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 50 条路由（含 11 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；服务端物料市场 API（清单托管、发布审核、租户级安装状态）未实现，设计器侧已有受信元数据闭环与市场面板。
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递/归档（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。

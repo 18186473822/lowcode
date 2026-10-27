@@ -321,7 +321,7 @@
 - `url` → 组件 emit `open-url` → 壳层 `window.open`（MP 端忽略，不报错）；
 - 两者都缺 → 卡片仅展示、不可点（不报错，允许「占位卡」）。
 
-> **实现状态（Phase 3 批 4 新增，2026-10-20，D-P3-11）**：`packages/renderer/src/uni/lc-portal-page.vue` 已兑现三字段 + 卡片事件；`packages/runtime/src/pages/view/index.vue` 按 `schema.type === 'portal'` 分发到门户页并接 `onOpenUrl`；设计器属性面板「门户」区（`data-testid=portal-config / portal-title / portal-columns / portal-card-i`）可增删改卡片、切换页型为「门户」；`PageType` 增加 `portal`，但 **`isStdPage` 仍只含 list/detail**（门户的 `root` 树要渲染，不占位）。服务端冒烟：`node apps/server/scripts/smoke-p3b4.mjs`（13 项断言：落库回读 + 非法卡片 400 `SCHEMA_INVALID`）。**未做**：卡片拖拽排序 / 卡片内自定义物料 / 门户级数据源（卡片角标自动取数）——见 `phase3-plan.md` §7.4。
+> **实现状态（Phase 3 批 4 新增，2026-10-20，D-P3-11）**：`packages/renderer/src/uni/lc-portal-page.vue` 已兑现三字段 + 卡片事件；`packages/runtime/src/pages/view/index.vue` 按 `schema.type === 'portal'` 分发到门户页并接 `onOpenUrl`；设计器属性面板「门户」区（`data-testid=portal-config / portal-title / portal-columns / portal-card-i`）可增删改卡片、切换页型为「门户」；`PageType` 增加 `portal`，但 **`isStdPage` 仍只含 list/detail**（门户的 `root` 树要渲染，不占位）。服务端冒烟：`node apps/server/scripts/smoke-p3b4.mjs`（13 项断言：落库回读 + 非法卡片 400 `SCHEMA_INVALID`）。**未做**：卡片拖拽排序 / 卡片内自定义物料 / 门户级数据源（卡片角标自动取数）——见 [`PLANS.md`](PLANS.md) §3。
 
 ---
 
@@ -694,7 +694,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 请求 ID | 所有响应带 `X-Request-Id`；合法客户端值（`[A-Za-z0-9._-]{8,128}`）复用，否则生成 UUID |
 | 访问日志 | production 默认开启，`LC_ACCESS_LOG` 可覆盖；单行 JSON，不记录 query/body/Authorization |
 
-> 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`security-hardening-2026-10-20.md`](security-hardening-2026-10-20.md)；探针/日志/部署见 [`observability-deployment-2026-10-21.md`](observability-deployment-2026-10-21.md)。
+> 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`OPERATIONS.md`](OPERATIONS.md) 附录 A；探针/日志/部署见附录 B 与 §6。
 
 **存储模式（Phase 4 第一批）**
 
@@ -704,7 +704,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives`（16 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
-- **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](adr/008-mysql-prisma-first-batch.md) / [ADR-009](adr/009-mysql-prisma-second-batch.md) / [ADR-010](adr/010-mysql-files.md) / [ADR-011](adr/011-optimistic-locking.md)。
+- **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](DECISIONS.md#adr-008) / [ADR-009](DECISIONS.md#adr-009) / [ADR-010](DECISIONS.md#adr-010) / [ADR-011](DECISIONS.md#adr-011)。
 
 ### 10.6 乐观锁、审批幂等与流程 outbox（Phase 4，ADR-011）
 

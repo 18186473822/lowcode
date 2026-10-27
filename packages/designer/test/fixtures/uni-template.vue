@@ -1,5 +1,5 @@
 <!--
-  uni-template.vue —— B-22 实测结论的固化（designer-plan D-A1 修正）
+  uni-template.vue —— B-22 实测结论的固化（PLANS.md §1 D-A1 修正）
   ① view/text/image/switch：**SVG 标签**，Vue 编译期按保留元素直出（组件 shim 无效）
      → 断言直出 + CSS/增强器兜底；
   ② picker/radio/radio-group：不在保留名单 → 组件 shim 生效。
