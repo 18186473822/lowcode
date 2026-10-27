@@ -187,7 +187,7 @@ create → draft ──submit──→ pending ──review──→ approved �
 - `LC_STORAGE=json`（默认）：单文件 `<DATA_DIR>/market.json`，形如 `{ materials, versions, installs }`，临时文件 + rename 原子写，单进程 `KeyedLock` 串行化；
 - `LC_STORAGE=mysql`：`market_materials`、`market_material_versions`、`market_installs` 三表；发布在事务内完成「revision CAS + 版本快照插入」；
 - 版本快照不建外键，删除物料仍保留历史用于审计；
-- 导入实测（2026-10-27）：`market.json` 的 3 物料 / 3 版本 / 3 安装导入 `lowcode_test`，重复执行后三表行内容快照完全一致，`MysqlMarketRepository` 回读字段一致；同一验证已加入 CI 流程；
+- 导入实测（2026-10-27）：`market.json` 的 3 物料 / 3 版本 / 3 安装导入 `lowcode_test`，重复执行后三表行内容快照完全一致，`MysqlMarketRepository` 回读字段一致；本机与 CI 均通过；
 - JSON 模式下多实例共享同一数据目录不受支持（与其它文件仓储同一口径）；MySQL 模式支持多实例。
 
 ## 8. 设计器操作
