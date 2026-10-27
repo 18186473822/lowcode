@@ -5,7 +5,7 @@
  * 1. **文档自身质量**：OpenAPI 3.1 版本、operationId 唯一、路径参数声明完整、
  *    `$ref` 可解析、公共接口鉴权覆盖、JSON 可无损序列化；
  * 2. **文档与代码不漂移**：通过 Nest 的 `PATH_METADATA` / `METHOD_METADATA`
- *    反射全部 controller 的实际路由，与 `paths` 逐条比对（64 条）。
+ *    反射全部 controller 的实际路由，与 `paths` 逐条比对（65 条）。
  *
  * 最后一个 describe 真实启动 Nest 应用，确认 `GET /api/v1/openapi.json` 无需令牌即可读取。
  */
@@ -28,6 +28,7 @@ import { FileController } from '../src/file/file.controller.js'
 import { FlowController } from '../src/flow/flow.controller.js'
 import { RbacController } from '../src/rbac/rbac.controller.js'
 import { OpsController } from '../src/ops/ops.controller.js'
+import { AuditController } from '../src/audit/audit.controller.js'
 import { OpenController } from '../src/open/open.controller.js'
 import { WebhookController } from '../src/webhook/webhook.controller.js'
 import { MarketController, MarketManifestController } from '../src/market/market.controller.js'
@@ -48,6 +49,7 @@ const CONTROLLERS: Type<unknown>[] = [
   FlowController,
   RbacController,
   OpsController,
+  AuditController,
   OpenController,
   WebhookController,
   MarketManifestController,
@@ -150,10 +152,10 @@ describe('OpenAPI 文档结构', () => {
     })
   })
 
-  it('路径/方法与 Nest controller 实际路由逐条一致（64 条，防止文档漂移）', () => {
+  it('路径/方法与 Nest controller 实际路由逐条一致（65 条，防止文档漂移）', () => {
     const actualRoutes = collectActualRoutes()
     expect([...actualRoutes].sort()).toEqual([...documentedRoutes].sort())
-    expect(documentedRoutes.size).toBe(64)
+    expect(documentedRoutes.size).toBe(65)
   })
 
   it('operationId 全局唯一、summary/tags/responses 齐全', () => {

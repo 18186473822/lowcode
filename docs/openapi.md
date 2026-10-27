@@ -26,7 +26,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 
 > 本批只提供机器可读文档，不内置 Swagger UI 页面；生产环境建议用独立网关或文档站托管，避免把 UI 依赖塞进 API 服务。
 
-## 3. 覆盖范围（64 条路由）
+## 3. 覆盖范围（65 条路由）
 
 | 分组 | 方法 | 路径 | 鉴权 |
 |---|---|---|---|
@@ -69,6 +69,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Ops | POST | `/ops/events` | Bearer |
 | Ops | GET | `/ops/events` | Bearer + `*` |
 | Ops | GET | `/ops/summary` | Bearer + `*` |
+| Audit | GET | `/audit/events` | Bearer + `*` |
 | Webhooks | GET | `/webhooks` | Bearer + `*` |
 | Webhooks | POST | `/webhooks` | Bearer + `*` |
 | Webhooks | GET | `/webhooks/{id}` | Bearer + `*` |
@@ -163,7 +164,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
   1. 反射全部 controller 的 `PATH_METADATA` / `METHOD_METADATA`，与文档路径/方法精确比对；
   2. 校验 `operationId` 唯一、路径参数声明完整、`$ref` 可解析、公共接口 `security: []`；
   3. 真实启动 Nest，请求 `GET /api/v1/openapi.json` 验证无需令牌可读。
-- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 64 条）。
+- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 65 条）。
 
 ## 6. Webhook 管理接口
 

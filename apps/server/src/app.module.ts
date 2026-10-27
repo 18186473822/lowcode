@@ -21,14 +21,17 @@ import { OpsModule } from './ops/ops.module.js'
 import { OpenModule } from './open/open.module.js'
 import { WebhookModule } from './webhook/webhook.module.js'
 import { MarketModule } from './market/market.module.js'
+import { AuditModule } from './audit/audit.module.js'
+import { AuditMiddleware } from './audit/audit.middleware.js'
 
 @Module({
-  imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule, OpenModule, WebhookModule, MarketModule],
+  imports: [StorageModule, RbacModule, IdentityModule, PageModule, ModelModule, FileModule, FlowModule, OpsModule, OpenModule, WebhookModule, MarketModule, AuditModule],
   controllers: [HealthController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // 顺序：先挂请求 ID/访问日志，再限流；这样 429 响应也能带上 X-Request-Id 并落日志。
-    consumer.apply(RequestObservabilityMiddleware, RateLimitMiddleware).forRoutes('*')
+    // 顺序：请求 ID/访问日志 → 安全审计 → 限流。
+    // 审计必须早于限流，才能捕获限流中间件直接返回的 429。
+    consumer.apply(RequestObservabilityMiddleware, AuditMiddleware, RateLimitMiddleware).forRoutes('*')
   }
 }

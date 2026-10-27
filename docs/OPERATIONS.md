@@ -55,7 +55,7 @@ pnpm install --frozen-lockfile
 | 模式 | 启用方式 | 适用 | 数据位置 |
 |---|---|---|---|
 | JSON（默认） | 不设置 `LC_STORAGE` | 单测、演示、单机 | `apps/server/data/` |
-| MySQL | `LC_STORAGE=mysql` + `DATABASE_URL` | 生产、多实例 | MySQL 19 张表 |
+| MySQL | `LC_STORAGE=mysql` + `DATABASE_URL` | 生产、多实例 | MySQL 20 张表 |
 
 > 仓库**不提交** `apps/server/data/`。新克隆首次启动是空库，没有演示页面，需要在设计器里新建。
 
@@ -428,7 +428,7 @@ pnpm -F @lc/server smoke:mysql
 ### 5.7 切换检查清单
 
 - [ ] 已备份 JSON 数据目录
-- [ ] `prisma migrate deploy` 成功，19 张表齐全
+- [ ] `prisma migrate deploy` 成功，20 张表齐全
 - [ ] `import:json-to-mysql` 已执行，回读计数与源一致（含市场三表）
 - [ ] `/ready` 返回 `database: ok`
 - [ ] 设计器可登录（MySQL 模式必须 `seed:mysql` 或已有用户）

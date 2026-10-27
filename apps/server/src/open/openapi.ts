@@ -1285,6 +1285,38 @@ const readySchema: Json = {
   },
 }
 
+const auditEventSchema: Json = {
+  type: 'object',
+  required: ['id', 'at', 'type', 'ip', 'method', 'path', 'status'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    at: { type: 'string', format: 'date-time' },
+    type: {
+      type: 'string',
+      enum: ['login_failed', 'unauthorized', 'forbidden', 'rate_limited'],
+    },
+    username: {
+      type: 'string',
+      description: '登录失败时为尝试的用户名；其余为当前登录用户',
+    },
+    ip: { type: 'string' },
+    method: { type: 'string' },
+    path: { type: 'string', description: '不含查询串' },
+    status: { type: 'integer', enum: [401, 403, 429] },
+    code: { type: 'string' },
+    userAgent: { type: 'string' },
+  },
+}
+
+const auditListResponseSchema: Json = {
+  type: 'object',
+  required: ['items', 'total'],
+  properties: {
+    items: { type: 'array', items: auditEventSchema },
+    total: { type: 'integer', minimum: 0 },
+  },
+}
+
 const openApiDocumentSchema: Json = {
   type: 'object',
   required: ['openapi', 'info', 'paths'],
@@ -2200,6 +2232,34 @@ export function buildOpenApi(): OpenApiDocument {
         ],
       }),
     },
+
+    /* ------------------------------ 安全审计 ------------------------------ */
+    '/audit/events': {
+      get: op('Audit', 'listAuditEvents', '查询安全审计事件（仅管理员）', {
+        200: ok('事件列表（新 → 旧）', ref('AuditList')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }, {
+        description:
+          '只记录服务端判定为拒绝的事件：`login_failed` / `unauthorized` / `forbidden` / `rate_limited`（不记成功访问）。' +
+          '仅 `*` 通配角色可查；JSON 模式环形保留 2000 条，MySQL 模式持久保留。',
+        parameters: [
+          queryParam('type', '事件类型', {
+            type: 'string',
+            enum: ['login_failed', 'unauthorized', 'forbidden', 'rate_limited'],
+          }, 'login_failed'),
+          queryParam('username', '用户名（登录失败为尝试的用户名）', { type: 'string' }, 'alice'),
+          queryParam('since', 'ISO 时间下界（含）', { type: 'string', format: 'date-time' }),
+          queryParam('limit', '返回条数，1~500', {
+            type: 'integer',
+            minimum: 1,
+            maximum: 500,
+            default: 100,
+          }, 100),
+        ],
+      }),
+    },
   }
 
   return {
@@ -2238,6 +2298,7 @@ export function buildOpenApi(): OpenApiDocument {
       { name: 'Flows', description: '流程定义、待办与审批' },
       { name: 'RBAC', description: '角色与页面授权' },
       { name: 'Ops', description: '埋点/错误/性能事件' },
+      { name: 'Audit', description: '安全审计：登录失败 / 401 / 403 / 429' },
       { name: 'Webhooks', description: 'Webhook 订阅、投递日志与重投' },
       { name: 'Market', description: '物料市场：签名清单、发布审核与租户级安装' },
     ],
@@ -2300,6 +2361,8 @@ export function buildOpenApi(): OpenApiDocument {
         OpsEvent: opsEventSchema,
         OpsIngestResponse: opsIngestResponseSchema,
         OpsList: opsListResponseSchema,
+        AuditEvent: auditEventSchema,
+        AuditList: auditListResponseSchema,
         OpsSummary: opsSummarySchema,
         WebhookSubscription: webhookSubscriptionSchema,
         WebhookSubscriptionSecret: webhookSubscriptionSecretSchema,

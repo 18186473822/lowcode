@@ -22,10 +22,10 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 指标 | 实测值 | 证据 |
 |---|---|---|
-| 数据库表 | **19 张** | `apps/server/prisma/schema.prisma` |
-| OpenAPI 路由 | **64 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
-| 测试 | **1210 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
-| 覆盖率 | **94.50 / 85.65 / 94.06 / 94.50**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
+| 数据库表 | **20 张** | `apps/server/prisma/schema.prisma` |
+| OpenAPI 路由 | **65 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
+| 测试 | **1226 passed + 10 skipped / 84 文件** | `pnpm test`（2026-10-27 实测） |
+| 覆盖率 | **94.56 / 85.65 / 94.21 / 94.56**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
 | 远端 CI | **两个 job 全绿** | GitHub Actions run #14（`f600a86`）`verify` + `node20-core` |
@@ -81,12 +81,13 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 能力 | 状态 | 要点 |
 |---|---|---|
-| NestJS API | ✅ | 64 条路由；JWT、RBAC、限流、CORS、请求 ID |
+| NestJS API | ✅ | 65 条路由；JWT、RBAC、限流、CORS、请求 ID |
 | 动态 CRUD | ✅ | 模型/记录/文件/页面/RBAC/流程/运维/应用配置/Webhook/物料市场 |
 | JSON 仓储 | ✅ | 默认/测试路径；单进程 `KeyedLock`；原子写 |
-| MySQL 8 + Prisma | ✅ | 19 表；全部业务仓储双实现；迁移纳入发布流程 |
+| MySQL 8 + Prisma | ✅ | 20 表；全部业务仓储双实现；迁移纳入发布流程 |
 | 乐观锁 / 幂等 | ✅ | 页面、记录、流程实例 `revision` CAS；`If-Match`；审批幂等 + `pendingPatch` |
 | 写权限归属 | ✅ | 页面/模型仅创建者或 `*` 管理员可写；新建即记录创建者，存量无创建者按仅管理员 |
+| 安全审计 | ✅ | 登录失败 / 401 / 403 / 429 旁路落库；仅管理员可查；JSON 环形 2000 / MySQL 持久 |
 | 文件 | ✅ | 10MB 上限；MySQL `LONGBLOB` 或本地双文件 |
 | 数据导入 | ✅ | `import:json-to-mysql` 覆盖页面/模型/记录/RBAC/流程/运维/配置/文件/Webhook 三表/市场三表 |
 
@@ -230,6 +231,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-27 | MySQL 导入实测 | `market.json` → 市场三表 3/3/3；重复执行快照一致；`MysqlMarketRepository` 回读字段一致；CI run #12 全绿 |
 | 2026-10-27 | 安全修复 | RBAC 三个管理接口补管理员校验（权限点 `*`），封堵任意登录用户自提权；补 403 回归测试、OpenAPI 403 与协议文档；CI run #13 全绿 |
 | 2026-10-27 | 安全修复 | 页面/模型写权限收敛为「创建者或管理员」：页面新增 `createdBy` 列 + 迁移；保存草稿/发布/回滚/PUT 模型统一 403 判定；补 4 条 e2e 与 MySQL 映射用例；CI run #14 全绿 |
+| 2026-10-27 | 安全审计 | 拒绝类事件落库：登录失败 / 401 / 403 / 429；`AuditMiddleware` 旁路记录 + 登录 401 去重；`GET /audit/events` 仅管理员；JSON 环形 2000 条 / MySQL `audit_events` 持久；补 6 条单测 + 5 条中间件单测 + 4 条 e2e + MySQL 映射 |
 
 ---
 
@@ -268,8 +270,8 @@ pnpm install --frozen-lockfile
 pnpm design:check      # 6 道设计门禁
 pnpm build             # 必须先于 typecheck（workspace types 指向 dist）
 pnpm typecheck
-pnpm test              # 1210 passed + 10 skipped / 83 文件
-pnpm coverage          # 94.50 / 85.65 / 94.06 / 94.50
+pnpm test              # 1226 passed + 10 skipped / 84 文件
+pnpm coverage          # 94.56 / 85.65 / 94.21 / 94.56
 pnpm -F @lc/runtime build:h5
 pnpm -F @lc/runtime build:mp-weixin
 pnpm -F @lc/runtime build:app
@@ -304,7 +306,7 @@ pnpm smoke:observability
 | [`PROGRESS.md`](PROGRESS.md) | **本文件**：当前状态、能力总览、剩余工作、里程碑、缺陷教训 |
 | [`OPERATIONS.md`](OPERATIONS.md) | 操作与运维：启动、建页发布、多端构建、MySQL、部署备份、排障、安全/可观测性附录 |
 | [`protocol.md`](protocol.md) | 对外协议规范（Expr / Page / Action / Material / Model / Flow / App / 错误码 / 接口） |
-| [`openapi.md`](openapi.md) | OpenAPI 3.1：获取方式、64 条路由、鉴权/乐观锁/幂等约定 |
+| [`openapi.md`](openapi.md) | OpenAPI 3.1：获取方式、65 条路由、鉴权/乐观锁/幂等约定 |
 | [`material-market.md`](material-market.md) | 服务端市场（清单托管/审核/发布/租户安装）+ 设计器侧清单格式、验签、白名单与配置 |
 | [`design-system.md`](design-system.md) | 设计规范（§1~§8）+ 实施台账与 6 道门禁（§9~§10） |
 | [`DECISIONS.md`](DECISIONS.md) | 架构决策记录 ADR-001~011（追加式，不删改） |

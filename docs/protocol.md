@@ -592,6 +592,34 @@
 - **校验策略**：结构性错误 `400 OPS_INVALID`（`type`/`name` 缺失或非法、`pageId` 白名单、`pageVersion` 非负整数或 `'draft'`、`source` 枚举、`detail` 非对象、`perf` 缺 `durationMs`、`error` 缺 `message`、条数越界）—— message 汇总最多 3 处且带 `events[i]` 下标；**数据性超限只截断不报错**（`message` > 500 截断加 `…`；`detail` 序列化 > 2000 → 存 `{ truncated: true, preview }`）。
 - **存储与保留**：`<LC_DATA_DIR>/ops/events.json` 单文件 `{ version: 1, events: [] }` 原子写（临时文件 + rename）；**环形上限 500 条**（新入队后从头部丢最旧）；文件损坏时改名备份并视为空表（埋点不阻塞业务）。
 
+**安全审计（2026-10-27，拒绝类事件落库）**
+
+| 方法 | 路径 | 请求 | 成功响应 |
+|---|---|---|---|
+| GET | `/audit/events?type=&username=&since=&limit=` | 四参数均可选；`type` ∈ `login_failed\|unauthorized\|forbidden\|rate_limited`；`since` 为 ISO 时间；`limit` 默认 100 上限 500 | `200 { items: AuditEvent[], total }`（**新 → 旧**；`total` 为过滤后总数）；非法参数 `400 AUDIT_INVALID` |
+
+```ts
+interface AuditEvent {
+  id: string            // uuid
+  at: string            // 服务端 ISO 时间
+  type: 'login_failed' | 'unauthorized' | 'forbidden' | 'rate_limited'
+  username?: string     // 登录失败 = 尝试的用户名；其余 = 当前登录用户
+  ip: string            // LC_TRUST_PROXY=true 时取 X-Forwarded-For
+  method: string
+  path: string          // 不含查询串
+  status: number        // 401 / 403 / 429
+  code?: string         // INVALID_CREDENTIALS / PERMISSION_DENIED / RATE_LIMITED ...
+  userAgent?: string    // 截断 256
+}
+```
+
+- **只记拒绝、不记成功**：成功访问已有结构化访问日志；审计表只回答「谁在被拒绝、为什么」。
+- **记录点**：`login_failed` 在 `AuthController` 登录失败分支（对外仍统一 `INVALID_CREDENTIALS`，防用户名枚举）；`unauthorized` / `forbidden` / `rate_limited` 由 `AuditMiddleware` 在响应 `finish` 时按状态码记录，中间件顺序为 **可观测性 → 审计 → 限流**（审计必须早于限流才能看到 429）。
+- **去重**：`POST /auth/login` 的 401 只记一条（中间件跳过该路径）。
+- **旁路写入**：`AuditService.record` 永不抛出，存储失败只 `warn`；字段超长截断（username 64 / ip 64 / path 512 / code 64 / UA 256）。
+- **存储与保留**：JSON 模式 `<LC_DATA_DIR>/audit/events.json`（原子写 + 写队列串行 + **环形 2000 条**）；MySQL 模式 `audit_events` 表（`at` / `type,at` / `username,at` 索引），**持久保留**、由运维归档。
+- **权限**：仅 `'*'` 通配角色可查，否则 `403 PERMISSION_DENIED`（该 403 同样会被记录）。
+
 ### 10.2 版本语义（对应方案 8.4 双表模型）
 
 ```
@@ -707,12 +735,29 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 
 > 当前限流为**单进程内存计数**；多副本部署需换 Redis 等共享存储。安全实现与验证见 [`OPERATIONS.md`](OPERATIONS.md) 附录 A；探针/日志/部署见附录 B 与 §6。
 
+**安全审计（2026-10-27）**
+
+只记录服务端判定为**拒绝**的事件，不记成功访问（成功访问已有结构化访问日志）：
+
+| 事件类型 | 触发点 | 关键字段 |
+|---|---|---|
+| `login_failed` | `POST /auth/login` 口令错误 / 用户不存在 / 账号禁用 | `username` = **尝试的用户名**、`code: INVALID_CREDENTIALS` |
+| `unauthorized` | 缺令牌 / 令牌非法或过期导致 `401`（登录接口除外） | `code` 取响应体业务码（如 `UNAUTHORIZED`） |
+| `forbidden` | RBAC、页面可见性、创建者归属、管理员限制等 `403` | `username` = 当前登录用户、`code` 如 `PERMISSION_DENIED` / `ADMIN_REQUIRED` |
+| `rate_limited` | 触发普通或登录限流 `429` | `code: RATE_LIMITED` |
+
+- 查询接口：`GET /audit/events`（仅 `*` 管理员），支持 `type` / `username` / `since` / `limit`（默认 100，上限 500），返回 `{ items, total }`，**新 → 旧**；非法参数 `400 AUDIT_INVALID`。
+- 写入不开放 HTTP 接口：只由登录失败分支与 `AuditMiddleware`（响应 `finish` 时判定 401/403/429）记录，客户端无法伪造。
+- 去重：`POST /auth/login` 的 401 只由 `AuthController` 记一条（带尝试用户名），中间件跳过该路径的 401。
+- 审计写入是**旁路**：存储失败只记 `warn`，绝不影响原请求；`username` 截断 64、`ip` 64、`path` 512（剥离查询串）、UA 256。
+- 保留策略：JSON 模式 `<LC_DATA_DIR>/audit/events.json` 环形 2000 条；MySQL 模式 `audit_events` 表持久保留，由运维按归档策略处理。
+
 **存储模式（Phase 4 第一批）**
 
 | `LC_STORAGE` | 数据位置 | 适用 |
 |---|---|---|
-| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json / market.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
-| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives / market_materials / market_material_versions / market_installs`（19 表） | 本地联调、生产；需 `DATABASE_URL` |
+| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / audit/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json / market.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / audit_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives / market_materials / market_material_versions / market_installs`（20 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
 - **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](DECISIONS.md#adr-008) / [ADR-009](DECISIONS.md#adr-009) / [ADR-010](DECISIONS.md#adr-010) / [ADR-011](DECISIONS.md#adr-011)。
@@ -762,13 +807,13 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 端点 | `GET /api/v1/openapi.json`（公开只读，无需 JWT；仍计入普通限流） |
 | 版本 | OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀 |
 | 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId} / materials/manifest / materials/manifest/key） |
-| 覆盖 | 当前 **64 条**实际路由；含页面/记录/流程/Webhook/物料 `If-Match`、审批 `Idempotency-Key`、错误体与 304/409/413/429/503 响应 |
+| 覆盖 | 当前 **65 条**实际路由；含页面/记录/流程/Webhook/物料 `If-Match`、审批 `Idempotency-Key`、错误体与 304/409/413/429/503 响应 |
 | 缓存 | `Cache-Control: public, max-age=300` |
 | 实现 | `apps/server/src/open/openapi.ts`（构建器）+ `open.controller.ts` / `open.module.ts` |
 | 防漂移 | `apps/server/test/openapi.test.ts` 反射 Nest 路由元数据，路径/方法少一条或多一条即失败；并校验 `operationId` 唯一、路径参数完整、`$ref` 可解析、公共接口鉴权 |
 | 使用 | 可导入 Swagger UI / Apifox / Postman / OpenAPI Generator；详细说明见 [`openapi.md`](openapi.md) |
 
-> 本批只交付机器可读文档，不内置 Swagger UI 页面。Webhook 共 11 条管理接口已纳入文档；远程物料市场为设计器侧受信元数据闭环（见 [`material-market.md`](material-market.md)），服务端市场 API 仍属后续批次。
+> 本批只交付机器可读文档，不内置 Swagger UI 页面。Webhook 共 11 条管理接口、服务端物料市场 14 条接口与安全审计 1 条查询接口均已纳入文档；远程物料市场为设计器侧受信元数据闭环（见 [`material-market.md`](material-market.md)）。
 
 ### 10.8 Webhook 订阅、签名投递与重试（Phase 4 开放集成生产化）
 

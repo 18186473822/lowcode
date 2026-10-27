@@ -750,3 +750,125 @@ describe('页面/模型写权限：创建者或管理员', () => {
     expect(adminEdit.status).toBe(200)
   })
 })
+
+/* ------------------------------------------------------------------ */
+/* 安全审计：登录失败 / 403 / 429 落库                                  */
+/* ------------------------------------------------------------------ */
+
+describe('安全审计：拒绝类事件落库与查询', () => {
+  let dToken: string
+
+  beforeAll(async () => {
+    const login = await call('POST', '/api/v1/auth/login', {
+      body: { username: 'designer', password: 'designer123' },
+    })
+    expect(login.status).toBe(200)
+    dToken = login.body.accessToken
+  })
+
+  /** 中间件是旁路写入（void），轮询等待落盘；超时返回 undefined。 */
+  async function waitForAudit(predicate: (event: any) => boolean): Promise<any | undefined> {
+    const deadline = Date.now() + 3000
+    for (;;) {
+      const r = await call('GET', '/api/v1/audit/events?limit=500', { token })
+      expect(r.status).toBe(200)
+      const hit = r.body.items.find(predicate)
+      if (hit) return hit
+      if (Date.now() > deadline) return undefined
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+  }
+
+  it('登录失败落 login_failed（尝试用户名/IP/错误码），且不与 401 中间件重复', async () => {
+    const r = await call('POST', '/api/v1/auth/login', {
+      body: { username: 'audit_probe', password: 'wrong-password' },
+    })
+    expect(r.status).toBe(401)
+    expect(r.body.code).toBe('INVALID_CREDENTIALS')
+
+    const event = await waitForAudit(
+      (e) => e.type === 'login_failed' && e.username === 'audit_probe',
+    )
+    expect(event).toMatchObject({
+      type: 'login_failed',
+      username: 'audit_probe',
+      method: 'POST',
+      path: '/api/v1/auth/login',
+      status: 401,
+      code: 'INVALID_CREDENTIALS',
+    })
+    expect(typeof event.ip).toBe('string')
+    expect(event.ip.length).toBeGreaterThan(0)
+
+    // 去重：登录 401 只由 AuthController 记一条（中间件跳过该路径）
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const filtered = await call(
+      'GET',
+      '/api/v1/audit/events?type=login_failed&username=audit_probe',
+      { token },
+    )
+    expect(filtered.body.total).toBe(1)
+  })
+
+  it('非管理员查询审计 403，同时该 403 自身落 forbidden', async () => {
+    const denied = await call('GET', '/api/v1/audit/events', { token: dToken })
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBe('PERMISSION_DENIED')
+
+    const event = await waitForAudit(
+      (e) =>
+        e.type === 'forbidden' &&
+        e.username === 'designer' &&
+        e.path === '/api/v1/audit/events',
+    )
+    expect(event).toMatchObject({ status: 403, code: 'PERMISSION_DENIED', method: 'GET' })
+  })
+
+  it('管理员可按 type/username/limit 过滤；非法 type 400', async () => {
+    const r = await call(
+      'GET',
+      '/api/v1/audit/events?type=login_failed&username=audit_probe&limit=10',
+      { token },
+    )
+    expect(r.status).toBe(200)
+    expect(r.body.total).toBe(1)
+    expect(r.body.items).toHaveLength(1)
+    expect(r.body.items[0]).toMatchObject({ type: 'login_failed', username: 'audit_probe' })
+
+    const bad = await call('GET', '/api/v1/audit/events?type=nope', { token })
+    expect(bad.status).toBe(400)
+    expect(bad.body.code).toBe('AUDIT_INVALID')
+  })
+
+  it('登录限流 429 落 rate_limited（置于文件最后，避免影响其他登录用例）', async () => {
+    let limited: any
+    for (let i = 0; i < 40; i += 1) {
+      const r = await call('POST', '/api/v1/auth/login', {
+        body: { username: 'rate_probe', password: 'wrong-password' },
+      })
+      if (r.status === 429) {
+        limited = r
+        break
+      }
+      expect(r.status).toBe(401)
+    }
+    expect(limited?.body?.code).toBe('RATE_LIMITED')
+
+    const event = await waitForAudit(
+      (e) => e.type === 'rate_limited' && e.path === '/api/v1/auth/login',
+    )
+    if (!event) {
+      const raw = await readFile(path.join(dataDir, 'audit', 'events.json'), 'utf8')
+      const parsed = JSON.parse(raw)
+      console.error(
+        'DEBUG audit others:',
+        JSON.stringify(
+          parsed.events
+            .filter((e: any) => e.type !== 'login_failed')
+            .map((e: any) => [e.type, e.status, e.path, e.username, e.code]),
+        ),
+      )
+    }
+    expect(event).toMatchObject({ status: 429, code: 'RATE_LIMITED' })
+  })
+})

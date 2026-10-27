@@ -356,3 +356,23 @@ model MarketInstall {
   @@index([materialId])
   @@map("market_installs")
 }
+
+// 安全审计：只记服务端拒绝（登录失败 / 401 / 403 / 429）。
+// JSON 模式环形保留 2000 条；MySQL 持久保留，由运维归档。
+model AuditEvent {
+  id        String   @id @db.VarChar(36)
+  at        DateTime @db.DateTime(3)
+  type      String   @db.VarChar(32)
+  username  String?  @db.VarChar(64)
+  ip        String   @db.VarChar(64)
+  method    String   @db.VarChar(8)
+  path      String   @db.VarChar(512)
+  status    Int
+  code      String?  @db.VarChar(64)
+  userAgent String?  @db.VarChar(256)
+
+  @@index([at])
+  @@index([type, at])
+  @@index([username, at])
+  @@map("audit_events")
+}

@@ -10,6 +10,9 @@ import { JwtService, type AuthUser } from './jwt.service.js'
 /** 携带登录态的请求形状（骨架阶段自定义，避免服务端强依赖 express 类型） */
 export interface AuthedRequest {
   headers: Record<string, string | string[] | undefined>
+  /** Express 解析后的客户端 IP（trust proxy 时取 X-Forwarded-For） */
+  ip?: string
+  socket?: { remoteAddress?: string }
   user?: AuthUser
 }
 

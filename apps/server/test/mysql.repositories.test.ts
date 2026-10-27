@@ -21,6 +21,7 @@ import { MysqlOpsRepository } from '../src/persistence/mysql/ops.repository.js'
 import { MysqlRbacRepository } from '../src/persistence/mysql/rbac.repository.js'
 import { MysqlUserRepository } from '../src/persistence/mysql/user.repository.js'
 import { MysqlMarketRepository } from '../src/persistence/mysql/market.repository.js'
+import { MysqlAuditRepository } from '../src/persistence/mysql/audit.repository.js'
 import { Prisma } from '@prisma/client'
 import type { PageRecord } from '../src/page/page.types.js'
 import type { DataRecordEntity } from '../src/model/model.types.js'
@@ -846,6 +847,67 @@ describe('MysqlMarketRepository', () => {
     expect(await repo.removeInstall('default', 'brand-button', 1)).toBe(true)
     expect(marketInstallApi.deleteMany).toHaveBeenLastCalledWith({
       where: { tenantId: 'default', materialId: 'brand-button', revision: 1 },
+    })
+  })
+})
+
+describe('MysqlAuditRepository', () => {
+  it('写入映射与读回（可选字段缺省）', async () => {
+    const auditEvent = {
+      create: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: 'a1',
+          at: NOW,
+          type: 'login_failed',
+          username: 'alice',
+          ip: '127.0.0.1',
+          method: 'POST',
+          path: '/api/v1/auth/login',
+          status: 401,
+          code: 'INVALID_CREDENTIALS',
+          userAgent: 'vitest',
+        },
+        {
+          id: 'a2',
+          at: NOW,
+          type: 'forbidden',
+          username: null,
+          ip: '10.0.0.1',
+          method: 'GET',
+          path: '/api/v1/audit/events',
+          status: 403,
+          code: null,
+          userAgent: null,
+        },
+      ]),
+    }
+    const repo = new MysqlAuditRepository(fakePrisma({ auditEvent }))
+
+    await repo.append({
+      id: 'a1',
+      at: NOW.toISOString(),
+      type: 'login_failed',
+      username: 'alice',
+      ip: '127.0.0.1',
+      method: 'post',
+      path: '/api/v1/auth/login',
+      status: 401,
+      code: 'INVALID_CREDENTIALS',
+      userAgent: 'vitest',
+    })
+    expect(auditEvent.create).toHaveBeenCalledTimes(1)
+
+    const events = await repo.list()
+    expect(events[0]).toMatchObject({ id: 'a1', username: 'alice', at: NOW.toISOString() })
+    expect(events[1]).toEqual({
+      id: 'a2',
+      at: NOW.toISOString(),
+      type: 'forbidden',
+      ip: '10.0.0.1',
+      method: 'GET',
+      path: '/api/v1/audit/events',
+      status: 403,
     })
   })
 })
