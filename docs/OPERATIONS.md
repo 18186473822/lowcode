@@ -406,7 +406,7 @@ curl -s http://127.0.0.1:3000/api/v1/ready
 pnpm -F @lc/server import:json-to-mysql
 ```
 
-覆盖：页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据与内容、Webhook 订阅/投递/归档。
+覆盖：页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据与内容、Webhook 订阅/投递/归档、物料市场物料/版本/安装。
 
 > MySQL 模式**不会自动双读**旧 `files/` 目录；不导入会导致旧附件 404。
 
@@ -417,17 +417,19 @@ pnpm -F @lc/server import:json-to-mysql
 $url = (Select-String -Path apps/server/.env -Pattern '^DATABASE_URL=').Line.Split('=',2)[1].Trim('"') -replace '/lowcode(\?|$)','/lowcode_test$1'
 $env:LC_TEST_DATABASE_URL = $url
 $env:LC_SMOKE_DATABASE_URL = $url
-pnpm -F @lc/server test
+pnpm -F @lc/server prisma:migrate
+pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts
+pnpm -F @lc/server verify:market-import
 pnpm -F @lc/server smoke:mysql
 ```
 
-预期：`mysql.persistence.test.ts` 10/10 PASS；真启动冒烟 10 项 PASS。
+预期：`mysql.persistence.test.ts` 10/10 PASS；市场导入验证输出 `3/3/3` 且两次快照一致；真启动冒烟 10 项 PASS。
 
 ### 5.7 切换检查清单
 
 - [ ] 已备份 JSON 数据目录
 - [ ] `prisma migrate deploy` 成功，19 张表齐全
-- [ ] `import:json-to-mysql` 已执行，回读计数与源一致
+- [ ] `import:json-to-mysql` 已执行，回读计数与源一致（含市场三表）
 - [ ] `/ready` 返回 `database: ok`
 - [ ] 设计器可登录（MySQL 模式必须 `seed:mysql` 或已有用户）
 - [ ] 运行时能打开已发布页面

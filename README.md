@@ -235,9 +235,9 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，以及物料市场物料/版本/安装（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
-- **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。
+- **MySQL 集成测试与冒烟**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。远端 CI 的 `verify` job 已配置 MySQL 8 服务容器，自动执行迁移、仓储集成测试、`market.json` 导入幂等验证与真启动冒烟。
 - **MySQL 迁移必须纳入发布流程**：部署前执行 `prisma migrate deploy`，不要用 `db push` 代替生产迁移。Webhook 生产化迁移为 `20261023090000_webhook_hardening`（订阅/投递字段 + `webhook_delivery_archives`），已在本地 `lowcode` 与 `lowcode_test` 实跑。
-- **Webhook 多副本依赖 MySQL 行锁**：JSON 模式只能在单机内用文件锁保证互斥；跨主机多副本必须 `LC_STORAGE=mysql`。投递语义仍是至少一次，接收方必须按事件 id/投递 id 幂等。JSON→MySQL 导入脚本已覆盖订阅、投递、归档，并在真实 MySQL 上重复导入验证幂等。
+- **Webhook 多副本依赖 MySQL 行锁**：JSON 模式只能在单机内用文件锁保证互斥；跨主机多副本必须 `LC_STORAGE=mysql`。投递语义仍是至少一次，接收方必须按事件 id/投递 id 幂等。JSON→MySQL 导入脚本已覆盖订阅、投递、归档，并在真实 MySQL 上重复导入验证幂等；物料市场三表同样实测 3/3/3 且重复导入快照一致。
 - **乐观锁覆盖面**：页面保存/发布/回滚、记录更新/删除、流程审批已接 `revision`/CAS；设计器、标准详情页与标准列表页均携带 `If-Match`。业务记录编辑/删除需显式开启 `detail.editable/deletable` 或 `list.editable/deletable`（缺省只读）；列表行内编辑先拉最新单条再保存，批量删除逐条串行且每行一个 `If-Match`，`409 VERSION_CONFLICT` 不自动覆盖，保留草稿/选择并要求重新加载。批量删除不是原子事务，部分失败会保留未删行与选择，刷新后可用最新 revision 重试；行编辑/删除目前无独立权限点，仍由模型 RBAC + 服务端 403 兜底。流程审批物料会在同一动作重试时复用 `Idempotency-Key`；不带键的旧客户端仍可写，但重复审批只能收到 `FLOW_TASK_STALE` / `FLOW_NOT_RUNNING`。
 - **流程回写为至少一次**：审批结束后实例先落终态并写 `pendingPatch`，再回写记录；进程中断时由后续读/审批补偿，短暂窗口内可能出现「流程已通过、记录字段尚未更新」，`setField` 重复补偿无副作用。JSON 模式多副本无法保证并发安全，多实例部署必须用 MySQL。
 - **图表为纯 SVG 渲染**，**不跟随主题色**（暗色下网格线对比度过高，见 `docs/design-system.md` §10.2 #9）。

@@ -1,4 +1,4 @@
-# 远端 CI —— 与本地验证等价（typecheck → build → test → coverage 阈值 → 服务端冒烟 → 移动端编译）
+# 远端 CI —— 与本地验证等价（typecheck → build → test → coverage 阈值 → MySQL 8 集成/导入 → 服务端冒烟 → 移动端编译）
 # 触发分支同时覆盖 master（Gitee 默认）与 main（GitHub 默认），并保留手动触发。
 # 未引入 Turborepo（D-4）：用 pnpm -r 递归替代 `turbo build`。
 #
@@ -17,6 +17,23 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # MySQL 8 服务容器：真实仓储集成测试、market.json 导入幂等验证与 MySQL 真启动冒烟。
+    # 所有步骤只使用 lowcode_test 库，不触碰外部数据库。
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: lowcode_test
+          MYSQL_USER: lc_app
+          MYSQL_PASSWORD: lc_app_ci_pw
+        ports:
+          - "3306:3306"
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +91,27 @@ jobs:
       # lines/statements/functions ≥ 90（方案 9.2 硬指标）、branches ≥ 85（实测防退化）
       - name: Coverage (thresholds enforced)
         run: pnpm coverage
+
+      # 以下 4 步使用上面的 MySQL 8 服务容器，验证真实数据库路径。
+      - name: MySQL migrate
+        env:
+          DATABASE_URL: mysql://lc_app:lc_app_ci_pw@127.0.0.1:3306/lowcode_test
+        run: pnpm -F @lc/server prisma:migrate
+
+      - name: MySQL repository integration tests
+        env:
+          LC_TEST_DATABASE_URL: mysql://lc_app:lc_app_ci_pw@127.0.0.1:3306/lowcode_test
+        run: pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts
+
+      - name: MySQL market import (idempotent)
+        env:
+          LC_SMOKE_DATABASE_URL: mysql://lc_app:lc_app_ci_pw@127.0.0.1:3306/lowcode_test
+        run: pnpm -F @lc/server verify:market-import
+
+      - name: MySQL server smoke (real boot)
+        env:
+          LC_SMOKE_DATABASE_URL: mysql://lc_app:lc_app_ci_pw@127.0.0.1:3306/lowcode_test
+        run: pnpm -F @lc/server smoke:mysql
 
       # 服务端真实启动冒烟（B-15 教训：vitest 通过 ≠ 运行时可用）
       - name: Server smoke (real boot)

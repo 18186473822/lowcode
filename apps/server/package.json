@@ -16,6 +16,7 @@
     "seed:mysql": "node --env-file=.env scripts/seed-mysql.mjs",
     "import:json-to-mysql": "node --env-file=.env scripts/import-json-to-mysql.mjs",
     "smoke:mysql": "node scripts/smoke-mysql.mjs",
+    "verify:market-import": "node scripts/verify-market-import.mjs",
     "smoke:observability": "node scripts/smoke-observability.mjs"
   },
   "dependencies": {

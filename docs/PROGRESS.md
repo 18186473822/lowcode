@@ -30,12 +30,12 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
 | 远端 CI | **两个 job 全绿** | GitHub Actions run #11（`1e60966`）`verify` + `node20-core` |
 | 移动端编译 | **H5 / 微信小程序 / App 三端 DONE** | `build:h5` / `build:mp-weixin` / `build:app` |
-| MySQL 集成 | **10/10 PASS** | `mysql.persistence.test.ts`（需 `LC_TEST_DATABASE_URL`） |
-| JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读；本轮已扩展 `market.json` → 市场三表，未在真实 MySQL 实跑 |
+| MySQL 集成 | **10/10 PASS（本机 + CI）** | `mysql.persistence.test.ts`（`LC_TEST_DATABASE_URL`；CI 由 MySQL 8 服务容器提供） |
+| JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读；`market.json` → 3 物料/3 版本/3 安装，两次导入三表快照一致（本机 `lowcode_test` 实测；CI 已配置同脚本） |
 
 > CI 覆盖：Node 22 全量门禁（设计门禁 → build → typecheck → 三端编译 → test → coverage →
-> 服务端/安全/可观测性冒烟）+ Node 20 核心兼容（build → typecheck → test）。
-> CI 不启动真实 MySQL；MySQL 集成测试需本机实例，属已知边界。
+> MySQL 8 迁移/仓储集成/市场导入幂等/真启动冒烟 → 服务端/安全/可观测性冒烟）+
+> Node 20 核心兼容（build → typecheck → test）。
 
 ---
 
@@ -173,7 +173,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 微信小程序真机验证 | 本机无微信开发者工具 | `build:mp-weixin` 产物级验证通过（分包、`wx:if` 链、主包体积） |
 | Android APK / iOS IPA | 无 HBuilderX + 签名证书 | `build:app` 产出可导入资源 |
 | Gitee 托管 CI | Gitee Go Node 插件最高 15.12，项目需 ≥20 | Gitee 仅作代码镜像 |
-| MySQL 集成测试 / 冒烟 | 需本机 MySQL 实例 | 已在本机 `lowcode_test` 实测 10/10 |
+| 大体量 MySQL 压测 | 需独立压测环境与数据 | 功能级 MySQL 集成、市场导入幂等与真启动冒烟已纳入 CI；未做百万级数据量/长事务压测 |
 | 真机扫码 | 环境限制 | 以 H5 浏览器实测替代 |
 
 ---
@@ -226,6 +226,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-23 | 文档 | 新增 `OPERATIONS.md` 操作手册；CI run #6 全绿 |
 | 2026-10-27 | 文档整合 | 合并为 8 个文档并删除 23 个冗余文件；修 B-50 时间依赖测试；CI run #8 全绿 |
 | 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64；CI run #10/#11 全绿 |
+| 2026-10-27 | MySQL 导入实测 | `market.json` → 市场三表 3/3/3；重复执行快照一致；`MysqlMarketRepository` 回读字段一致 |
 
 ---
 
@@ -270,11 +271,15 @@ pnpm -F @lc/runtime build:mp-weixin
 pnpm -F @lc/runtime build:app
 ```
 
-MySQL 相关（需本机实例）：
+MySQL 相关（本机需实例；CI 已配置 MySQL 8 服务容器自动执行）：
 
 ```powershell
-pnpm -F @lc/server test          # 需 LC_TEST_DATABASE_URL
-pnpm -F @lc/server smoke:mysql   # 需 LC_SMOKE_DATABASE_URL
+$env:LC_TEST_DATABASE_URL = 'mysql://.../lowcode_test'
+$env:LC_SMOKE_DATABASE_URL = $env:LC_TEST_DATABASE_URL
+pnpm -F @lc/server prisma:migrate
+pnpm -F @lc/server exec vitest run test/mysql.persistence.test.ts
+pnpm -F @lc/server verify:market-import
+pnpm -F @lc/server smoke:mysql
 ```
 
 安全 / 可观测性冒烟（自起临时实例）：
