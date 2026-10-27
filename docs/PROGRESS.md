@@ -1,6 +1,6 @@
 # 项目状态与变更记录（PROGRESS）
 
-> 最后更新：2026-10-27 ｜ 状态基线：`35d6890`（CI run #9 全绿；本轮物料市场提交待 CI 验证）
+> 最后更新：2026-10-27 ｜ 状态基线：`d2aef26`（CI run #10 全绿）
 > 本文件合并了原 `STATUS.md` 与逐批台账（原文已删除，git 历史可追溯）。
 > 只写经过实际验证的结论；数字均来自本机或 GitHub Actions 实跑。
 > 操作与部署见 [`OPERATIONS.md`](OPERATIONS.md)，架构决策见 [`DECISIONS.md`](DECISIONS.md)，历史设计依据见 [`PLANS.md`](PLANS.md)。
@@ -28,7 +28,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 覆盖率 | **94.49 / 85.60 / 94.05 / 94.49**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
-| 远端 CI | **两个 job 全绿** | GitHub Actions run #9（`35d6890`）`verify` + `node20-core`；本轮市场提交待验证 |
+| 远端 CI | **两个 job 全绿** | GitHub Actions run #10（`d2aef26`）`verify` + `node20-core` |
 | 移动端编译 | **H5 / 微信小程序 / App 三端 DONE** | `build:h5` / `build:mp-weixin` / `build:app` |
 | MySQL 集成 | **10/10 PASS** | `mysql.persistence.test.ts`（需 `LC_TEST_DATABASE_URL`） |
 | JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读；本轮已扩展 `market.json` → 市场三表，未在真实 MySQL 实跑 |
@@ -225,7 +225,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-23 | 工程化 | GitHub Actions run #3/#4 双 job 全绿；修 B-48/B-49 |
 | 2026-10-23 | 文档 | 新增 `OPERATIONS.md` 操作手册；CI run #6 全绿 |
 | 2026-10-27 | 文档整合 | 合并为 8 个文档并删除 23 个冗余文件；修 B-50 时间依赖测试；CI run #8 全绿 |
-| 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64 |
+| 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64；CI run #10 全绿 |
 
 ---
 
