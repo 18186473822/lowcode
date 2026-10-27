@@ -105,6 +105,8 @@ export interface CorsConfig {
   credentials: boolean
   methods: string[]
   allowedHeaders: string[]
+  /** 浏览器跨域默认读不到 ETag/限流头，需显式暴露给设计器管理面。 */
+  exposedHeaders: string[]
   maxAge: number
 }
 
@@ -115,7 +117,15 @@ export function buildCorsOptions(env: NodeJS.ProcessEnv = process.env): CorsConf
     origin: origins.length > 0 ? origins : false,
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'If-Match'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'If-Match', 'X-LC-Tenant'],
+    exposedHeaders: [
+      'ETag',
+      'X-Request-Id',
+      'Retry-After',
+      'X-RateLimit-Limit',
+      'X-RateLimit-Remaining',
+      'X-RateLimit-Reset',
+    ],
     maxAge: 600,
   }
 }

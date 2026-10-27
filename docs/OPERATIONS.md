@@ -55,7 +55,7 @@ pnpm install --frozen-lockfile
 | 模式 | 启用方式 | 适用 | 数据位置 |
 |---|---|---|---|
 | JSON（默认） | 不设置 `LC_STORAGE` | 单测、演示、单机 | `apps/server/data/` |
-| MySQL | `LC_STORAGE=mysql` + `DATABASE_URL` | 生产、多实例 | MySQL 16 张表 |
+| MySQL | `LC_STORAGE=mysql` + `DATABASE_URL` | 生产、多实例 | MySQL 19 张表 |
 
 > 仓库**不提交** `apps/server/data/`。新克隆首次启动是空库，没有演示页面，需要在设计器里新建。
 
@@ -242,24 +242,49 @@ X-LC-Signature: t=<unix>,v1=<hex hmac>
 
 生产环境默认拒绝私网/本机 URL；内网联调需显式设置 `LC_WEBHOOK_ALLOW_PRIVATE=1`（仅限可信环境）。
 
-### 3.10 物料市场（远程物料）
+### 3.10 物料市场（服务端托管 + 设计器受信元数据）
 
-顶栏 **物料市场**。未配置时面板只展示指引，不发任何网络请求。启用需在设计器构建环境配置：
+服务端提供清单托管与签名、发布审核状态机、租户级安装状态；设计器拉取并验签清单，只插入宿主内置组件，**不下载/执行远程 JS**。
+
+服务端（生产建议配置签名私钥，否则清单接口 503）：
 
 ```bash
-VITE_LC_MATERIAL_MARKET_URL=https://market.example.com/manifest.json
-VITE_LC_MATERIAL_MARKET_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
-VITE_LC_MATERIAL_MARKET_ALLOWLIST=https://market.example.com,https://cdn.example.com
+LC_MATERIAL_MARKET_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+LC_MATERIAL_MARKET_KID=market-2026-10
+LC_MATERIAL_MARKET_NAME=低代码物料市场
 ```
 
-写入 `apps/designer-web/.env.local` 后重启 dev server。行为边界：
+设计器构建环境：
+
+```bash
+VITE_LC_MATERIAL_MARKET_URL=https://lc.example.com/api/v1/materials/manifest
+VITE_LC_MATERIAL_MARKET_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+VITE_LC_MATERIAL_MARKET_ALLOWLIST=https://lc.example.com
+```
+
+公钥从 `GET /api/v1/materials/manifest/key` 获取（公开）。写入 `apps/designer-web/.env.local` 后重启 dev server。
+
+发布流程：
+
+1. 管理员 `POST /materials` 创建草稿（`kind=component` 的 `component` 必须在宿主白名单）；
+2. `POST /materials/:id/submit` → `review`（可驳回并写理由）→ `publish`；
+3. 发布固化不可变版本快照，同一版本不可重复发布；`POST /materials/:id/unpublish` 下架后清单立即移除；
+4. 写操作均带 `ETag`/`If-Match`，`409` 不自动覆盖、不自动重试。
+
+租户安装：
+
+- `X-LC-Tenant` 由网关认证后注入（缺省 `default`），服务端只校验格式；
+- 只允许安装当前已发布版本，版本不一致返回 `409 MARKET_VERSION_MISMATCH`；
+- JSON 模式数据在 `<LC_DATA_DIR>/market.json`；MySQL 模式为 `market_materials` / `market_material_versions` / `market_installs` 三表。
+
+行为边界：
 
 - 只接受 **ECDSA P-256 签名**的元数据，并校验 origin allowlist。
 - 只允许插入**宿主内置组件白名单**里的物料，复用本地组件。
 - **不下载、不执行远程 JS**。
-- 安装状态与清单缓存在 Web Storage；刷新/卸载在面板内操作。
+- 设计器本地安装态与 Web Storage 缓存在面板内维护，暂不与服务端安装记录自动同步。
 
-> 服务端市场（清单托管、发布审核、租户级安装状态）尚未实现。
+完整契约与错误码见 [`material-market.md`](material-market.md)。
 
 ---
 
@@ -401,7 +426,7 @@ pnpm -F @lc/server smoke:mysql
 ### 5.7 切换检查清单
 
 - [ ] 已备份 JSON 数据目录
-- [ ] `prisma migrate deploy` 成功，16 张表齐全
+- [ ] `prisma migrate deploy` 成功，19 张表齐全
 - [ ] `import:json-to-mysql` 已执行，回读计数与源一致
 - [ ] `/ready` 返回 `database: ok`
 - [ ] 设计器可登录（MySQL 模式必须 `seed:mysql` 或已有用户）
@@ -437,7 +462,11 @@ LC_JWT_SECRET=<至少 32 字符随机值>
 LC_CORS_ORIGINS=https://lc.example.com
 LC_TRUST_PROXY=true
 LC_ACCESS_LOG=1
-LC_APP_VERSION=2026.10.23
+LC_APP_VERSION=2026.10.27
+# 物料市场签名（EC P-256 PKCS#8 PEM；单行可用 \n 转义）
+LC_MATERIAL_MARKET_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+LC_MATERIAL_MARKET_KID=market-2026-10
+LC_MATERIAL_MARKET_NAME=低代码物料市场
 ```
 
 | 变量 | 生产要求 |
@@ -448,8 +477,11 @@ LC_APP_VERSION=2026.10.23
 | `LC_RATE_LIMIT_MAX` | 普通接口每 IP 每窗口上限（默认 600） |
 | `LC_LOGIN_RATE_LIMIT_MAX` | 登录接口上限（默认 20） |
 | `LC_WEBHOOK_WORKER` | 默认开启；设为 `off` 可关闭投递 worker |
+| `LC_MATERIAL_MARKET_PRIVATE_KEY` | **生产建议必填**：EC P-256 PKCS#8 私钥；未配置时清单/公钥接口 503，非生产会生成临时密钥 |
+| `LC_MATERIAL_MARKET_KID` | 可选密钥标识，缺省等于公钥 `sha256:` 指纹 |
+| `LC_MATERIAL_MARKET_NAME` | 可选清单市场名称，缺省「低代码物料市场」 |
 
-生产未设置 `LC_JWT_SECRET`、密钥过短或等于开发值，服务会在监听端口前 **exit 1**。
+生产未设置 `LC_JWT_SECRET`、密钥过短或等于开发值，服务会在监听端口前 **exit 1**。显式配置了非法/非 P-256 的市场私钥同样启动失败。
 
 ### 6.3 systemd
 

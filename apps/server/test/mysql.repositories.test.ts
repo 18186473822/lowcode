@@ -20,6 +20,8 @@ import { MysqlModelRepository } from '../src/persistence/mysql/model.repository.
 import { MysqlOpsRepository } from '../src/persistence/mysql/ops.repository.js'
 import { MysqlRbacRepository } from '../src/persistence/mysql/rbac.repository.js'
 import { MysqlUserRepository } from '../src/persistence/mysql/user.repository.js'
+import { MysqlMarketRepository } from '../src/persistence/mysql/market.repository.js'
+import { Prisma } from '@prisma/client'
 import type { PageRecord } from '../src/page/page.types.js'
 import type { DataRecordEntity } from '../src/model/model.types.js'
 import type { FlowInstance } from '../src/flow/flow.types.js'
@@ -537,6 +539,310 @@ describe('MysqlUserRepository', () => {
       roles: ['viewer'],
       passwordHash: 'hash',
       status: 'disabled',
+    })
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 物料市场                                                            */
+/* ------------------------------------------------------------------ */
+
+function uniqueViolation(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  })
+}
+
+function marketRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'brand-button',
+    status: 'draft',
+    version: '1.0.0',
+    name: '品牌按钮',
+    description: null,
+    category: 'basic',
+    kind: 'component',
+    component: 'Button',
+    metaJson: { name: 'BrandButton', title: '品牌按钮' },
+    revision: 1,
+    createdBy: 'admin',
+    updatedBy: 'admin',
+    createdAt: NOW,
+    updatedAt: NOW,
+    submittedAt: null,
+    reviewedAt: null,
+    reviewedBy: null,
+    reviewDecision: null,
+    reviewNote: null,
+    publishedAt: null,
+    publishedBy: null,
+    publishedVersion: null,
+    ...overrides,
+  }
+}
+
+function marketMaterial(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'brand-button',
+    name: '品牌按钮',
+    version: '1.0.0',
+    category: 'basic' as const,
+    kind: 'component' as const,
+    component: 'Button',
+    meta: { name: 'BrandButton', title: '品牌按钮' } as never,
+    status: 'draft' as const,
+    revision: 1,
+    createdBy: 'admin',
+    updatedBy: 'admin',
+    createdAt: NOW.toISOString(),
+    updatedAt: NOW.toISOString(),
+    ...overrides,
+  }
+}
+
+function marketVersion(overrides: Record<string, unknown> = {}) {
+  return {
+    materialId: 'brand-button',
+    version: '1.0.0',
+    entry: {
+      id: 'brand-button',
+      name: '品牌按钮',
+      version: '1.0.0',
+      category: 'basic' as const,
+      kind: 'component' as const,
+      component: 'Button',
+      meta: { name: 'BrandButton', title: '品牌按钮' } as never,
+    },
+    publishedBy: 'admin',
+    publishedAt: NOW.toISOString(),
+    ...overrides,
+  }
+}
+
+function marketInstall(overrides: Record<string, unknown> = {}) {
+  return {
+    tenantId: 'default',
+    materialId: 'brand-button',
+    version: '1.0.0',
+    installedBy: 'designer',
+    installedAt: NOW.toISOString(),
+    updatedAt: NOW.toISOString(),
+    revision: 1,
+    ...overrides,
+  }
+}
+
+describe('MysqlMarketRepository', () => {
+  it('物料列表/详情映射可空字段（null 不进入对象）与完整字段', async () => {
+    const marketMaterialApi = {
+      findMany: vi.fn().mockResolvedValue([
+        marketRow(),
+        marketRow({
+          id: 'with-audit',
+          description: '有描述',
+          component: null,
+          kind: 'meta',
+          status: 'published',
+          revision: 5,
+          submittedAt: NOW,
+          reviewedAt: NOW,
+          reviewedBy: 'admin',
+          reviewDecision: 'approved',
+          reviewNote: 'OK',
+          publishedAt: NOW,
+          publishedBy: 'admin',
+          publishedVersion: '1.0.0',
+        }),
+      ]),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(marketRow()),
+    }
+    const repo = new MysqlMarketRepository(fakePrisma({ marketMaterial: marketMaterialApi }))
+
+    const rows = await repo.listMaterials()
+    expect(marketMaterialApi.findMany).toHaveBeenCalledWith({
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    })
+    expect(rows[0]).toEqual({
+      id: 'brand-button',
+      status: 'draft',
+      version: '1.0.0',
+      name: '品牌按钮',
+      category: 'basic',
+      kind: 'component',
+      component: 'Button',
+      meta: { name: 'BrandButton', title: '品牌按钮' },
+      revision: 1,
+      createdBy: 'admin',
+      updatedBy: 'admin',
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString(),
+    })
+    expect(rows[1]).toMatchObject({
+      description: '有描述',
+      kind: 'meta',
+      status: 'published',
+      reviewDecision: 'approved',
+      reviewNote: 'OK',
+      publishedVersion: '1.0.0',
+      submittedAt: NOW.toISOString(),
+    })
+    expect(rows[1]!.component).toBeUndefined()
+
+    expect(await repo.findMaterial('missing')).toBeNull()
+    expect((await repo.findMaterial('brand-button'))?.id).toBe('brand-button')
+  })
+
+  it('创建重复 id 捕获 P2002 返回 false，其它错误原样抛出', async () => {
+    const marketMaterialApi = {
+      create: vi
+        .fn()
+        .mockResolvedValueOnce({})
+        .mockRejectedValueOnce(uniqueViolation())
+        .mockRejectedValueOnce(new Error('boom')),
+    }
+    const repo = new MysqlMarketRepository(fakePrisma({ marketMaterial: marketMaterialApi }))
+
+    expect(await repo.createMaterial(marketMaterial() as never)).toBe(true)
+    expect(await repo.createMaterial(marketMaterial() as never)).toBe(false)
+    await expect(repo.createMaterial(marketMaterial() as never)).rejects.toThrow('boom')
+    expect(marketMaterialApi.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id: 'brand-button', revision: 1, submittedAt: null }),
+    })
+  })
+
+  it('更新走 revision CAS；发布事务返回 conflict/ok/version-exists', async () => {
+    const marketMaterialApi = {
+      updateMany: vi
+        .fn()
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 1 }),
+    }
+    const marketMaterialVersionApi = {
+      create: vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(uniqueViolation()),
+    }
+    const repo = new MysqlMarketRepository(
+      fakePrisma({
+        marketMaterial: marketMaterialApi,
+        marketMaterialVersion: marketMaterialVersionApi,
+      }),
+    )
+
+    expect(await repo.updateMaterial(marketMaterial() as never, 9)).toBe(false)
+    expect(marketMaterialApi.updateMany).toHaveBeenCalledWith({
+      where: { id: 'brand-button', revision: 9 },
+      data: expect.objectContaining({ revision: 1 }),
+    })
+    expect(await repo.updateMaterial(marketMaterial() as never, 1)).toBe(true)
+
+    expect(await repo.publishMaterial(marketMaterial() as never, marketVersion() as never, 9)).toBe(
+      'conflict',
+    )
+    expect(
+      await repo.publishMaterial(marketMaterial() as never, marketVersion() as never, 1),
+    ).toBe('ok')
+    expect(marketMaterialVersionApi.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ materialId: 'brand-button', version: '1.0.0', note: null }),
+    })
+    expect(
+      await repo.publishMaterial(
+        marketMaterial() as never,
+        marketVersion() as never,
+        1,
+      ),
+    ).toBe('version-exists')
+  })
+
+  it('版本列表/详情映射，note 为空时不输出', async () => {
+    const marketMaterialVersionApi = {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          materialId: 'brand-button',
+          version: '1.0.0',
+          entryJson: { id: 'brand-button' },
+          note: null,
+          publishedBy: 'admin',
+          publishedAt: NOW,
+        },
+        {
+          materialId: 'brand-button',
+          version: '0.9.0',
+          entryJson: { id: 'brand-button' },
+          note: '首发',
+          publishedBy: 'admin',
+          publishedAt: NOW,
+        },
+      ]),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+        materialId: 'brand-button',
+        version: '1.0.0',
+        entryJson: { id: 'brand-button' },
+        note: 'OK',
+        publishedBy: 'admin',
+        publishedAt: NOW,
+      }),
+    }
+    const repo = new MysqlMarketRepository(fakePrisma({ marketMaterialVersion: marketMaterialVersionApi }))
+
+    const items = await repo.listVersions('brand-button')
+    expect(items).toHaveLength(2)
+    expect(items[0]!.note).toBeUndefined()
+    expect(items[0]!.publishedAt).toBe(NOW.toISOString())
+    expect(items[1]!.note).toBe('首发')
+
+    expect(await repo.findVersion('brand-button', '9.9.9')).toBeNull()
+    expect((await repo.findVersion('brand-button', '1.0.0'))?.note).toBe('OK')
+    expect(marketMaterialVersionApi.findUnique).toHaveBeenCalledWith({
+      where: { materialId_version: { materialId: 'brand-button', version: '1.0.0' } },
+    })
+  })
+
+  it('安装记录：租户过滤、创建冲突、CAS 更新与删除', async () => {
+    const installRow = {
+      tenantId: 'default',
+      materialId: 'brand-button',
+      version: '1.0.0',
+      installedBy: 'designer',
+      installedAt: NOW,
+      updatedAt: NOW,
+      revision: 1,
+    }
+    const marketInstallApi = {
+      findMany: vi.fn().mockResolvedValue([installRow]),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(installRow),
+      create: vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(uniqueViolation()),
+      updateMany: vi.fn().mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 }),
+      deleteMany: vi.fn().mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 }),
+    }
+    const repo = new MysqlMarketRepository(fakePrisma({ marketInstall: marketInstallApi }))
+
+    const items = await repo.listInstalls('default')
+    expect(marketInstallApi.findMany).toHaveBeenCalledWith({
+      where: { tenantId: 'default' },
+      orderBy: [{ installedAt: 'asc' }, { materialId: 'asc' }],
+    })
+    expect(items[0]).toEqual(marketInstall())
+
+    expect(await repo.findInstall('default', 'missing')).toBeNull()
+    expect((await repo.findInstall('default', 'brand-button'))?.revision).toBe(1)
+
+    expect(await repo.createInstall(marketInstall() as never)).toBe(true)
+    expect(await repo.createInstall(marketInstall() as never)).toBe(false)
+
+    expect(await repo.updateInstall(marketInstall({ revision: 2 }) as never, 9)).toBe(false)
+    expect(await repo.updateInstall(marketInstall({ revision: 2 }) as never, 1)).toBe(true)
+    expect(marketInstallApi.updateMany).toHaveBeenLastCalledWith({
+      where: { tenantId: 'default', materialId: 'brand-button', revision: 1 },
+      data: expect.objectContaining({ revision: 2 }),
+    })
+
+    expect(await repo.removeInstall('default', 'brand-button', 9)).toBe(false)
+    expect(await repo.removeInstall('default', 'brand-button', 1)).toBe(true)
+    expect(marketInstallApi.deleteMany).toHaveBeenLastCalledWith({
+      where: { tenantId: 'default', materialId: 'brand-button', revision: 1 },
     })
   })
 })

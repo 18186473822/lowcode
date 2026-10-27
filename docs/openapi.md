@@ -1,4 +1,4 @@
-# OpenAPI 接口文档（Phase 4 · 开放集成第一 ~ 二批）
+# OpenAPI 接口文档（Phase 4 · 开放集成第一 ~ 三批）
 
 服务端在运行时直接输出 **OpenAPI 3.1.0** 文档，供外部系统、Swagger UI、Apifox、Postman、OpenAPI Generator 等工具导入。文档由代码中的显式声明生成，并通过路由反射测试与实际 Nest controller 逐条比对，避免“文档写了、接口没有”或“接口加了、文档没写”。
 
@@ -26,7 +26,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 
 > 本批只提供机器可读文档，不内置 Swagger UI 页面；生产环境建议用独立网关或文档站托管，避免把 UI 依赖塞进 API 服务。
 
-## 3. 覆盖范围（50 条路由）
+## 3. 覆盖范围（64 条路由）
 
 | 分组 | 方法 | 路径 | 鉴权 |
 |---|---|---|---|
@@ -80,8 +80,22 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Webhooks | POST | `/webhooks/deliveries/{deliveryId}/retry` | Bearer + `*` |
 | Webhooks | GET | `/webhooks/metrics` | Bearer + `*` |
 | Webhooks | POST | `/webhooks/maintenance/cleanup` | Bearer + `*` |
+| Market | GET | `/materials/manifest` | 公开 |
+| Market | GET | `/materials/manifest/key` | 公开 |
+| Market | GET | `/materials` | Bearer |
+| Market | POST | `/materials` | Bearer + `*` |
+| Market | GET | `/materials/{id}` | Bearer |
+| Market | PUT | `/materials/{id}` | Bearer + `*` |
+| Market | POST | `/materials/{id}/submit` | Bearer + `*` |
+| Market | POST | `/materials/{id}/review` | Bearer + `*` |
+| Market | POST | `/materials/{id}/publish` | Bearer + `*` |
+| Market | POST | `/materials/{id}/unpublish` | Bearer + `*` |
+| Market | GET | `/materials/{id}/versions` | Bearer + `*` |
+| Market | GET | `/materials/installs` | Bearer + `X-LC-Tenant` |
+| Market | PUT | `/materials/installs/{materialId}` | Bearer + `X-LC-Tenant` |
+| Market | DELETE | `/materials/installs/{materialId}` | Bearer + `X-LC-Tenant` |
 
-> “Bearer + `*`”表示接口内部还校验用户权限点包含 `'*'` 通配（超级角色）；“模型 create/read/update/delete”表示按 `ModelSchema.permissions[action]` 校验；“页面可见性”走 `RbacService.canSeePage`。Webhook 管理接口对非管理员返回 `403 ADMIN_REQUIRED`，不返回订阅 URL、密钥或投递体。
+> “Bearer + `*`”表示接口内部还校验用户权限点包含 `'*'` 通配（超级角色）；“模型 create/read/update/delete”表示按 `ModelSchema.permissions[action]` 校验；“页面可见性”走 `RbacService.canSeePage`。Webhook 与物料市场管理接口对非管理员返回 `403 ADMIN_REQUIRED`，不返回订阅 URL、密钥或审核备注。
 
 ## 4. 文档约定
 
@@ -100,6 +114,8 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | 流程实例 | `"flow:<instanceId>:<revision>"` | 审批不使用 `If-Match`，走 `Idempotency-Key`；GET/审批响应给 ETag |
 | Webhook 订阅 | `"webhook:<id>:<revision>"` | `PUT/DELETE /webhooks/{id}`、`POST /webhooks/{id}/rotate-secret` |
 | Webhook 投递 | `"webhook-delivery:<id>:<revision>"` | `POST /webhooks/deliveries/{deliveryId}/retry`；测试投递响应也给 ETag |
+| 市场物料 | `"material:<id>:<revision>"` | `PUT /materials/{id}`、`POST /materials/{id}/submit` / `review` / `publish` / `unpublish` |
+| 租户安装 | `"material-install:<tenantId>/<materialId>:<revision>"` | `PUT/DELETE /materials/installs/{materialId}` |
 
 版本不一致返回：
 
@@ -147,7 +163,7 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
   1. 反射全部 controller 的 `PATH_METADATA` / `METHOD_METADATA`，与文档路径/方法精确比对；
   2. 校验 `operationId` 唯一、路径参数声明完整、`$ref` 可解析、公共接口 `security: []`；
   3. 真实启动 Nest，请求 `GET /api/v1/openapi.json` 验证无需令牌可读。
-- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 50 条）。
+- **新增/删除路由时必须同步修改 `openapi.ts`**，否则测试直接失败（当前基线 64 条）。
 
 ## 6. Webhook 管理接口
 
@@ -159,8 +175,18 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 - 创建/轮换响应包含完整 `secret`，其余响应只含 `secretPreview`；删除订阅后投递日志仍可查询；
 - 事件推送本身是服务端出站 HTTP，不是 OpenAPI 描述的本服务入站路由。
 
-## 7. 本批未包含
+## 7. 物料市场接口
 
-- **服务端物料市场 API**（清单托管、发布审核、租户级安装状态）。当前远程物料为设计器/运行时侧的受信元数据闭环：ES256 清单验签、origin allowlist、Web Storage 缓存、安装状态、市场面板与受控组件插入，且只允许映射宿主内置组件，不下载/执行远程 JS。配置与清单格式见 [`material-market.md`](material-market.md)。
+市场共 14 条 `/materials*` 路由，完整状态机、签名、租户边界与存储说明见 [`material-market.md`](material-market.md)：
+
+- `GET /materials/manifest` 公开输出 ES256 签名清单，带 ETag，`If-None-Match` 命中返回 `304`；生产未配置签名私钥返回 `503 MARKET_SIGNING_UNCONFIGURED`；
+- `GET /materials/manifest/key` 公开返回 SPKI 公钥、`sha256:` 指纹与 `kid`（公钥不是秘密）；
+- 管理员维护草稿、提交、审核、发布、下架与查询发布历史；发布把条目固化为不可变版本快照，同版本重复发布返回 `409 MARKET_VERSION_EXISTS`；
+- 租户安装以 `X-LC-Tenant` 区分（缺省 `default`），只允许安装当前发布版本，版本不一致返回 `409 MARKET_VERSION_MISMATCH`；
+- 写接口统一 ETag/`If-Match`，冲突不自动覆盖、不自动重试。
+
+## 8. 本批未包含
+
+- 远程 JS 组件的下载、构建与执行。市场只处理受信元数据，客户端不下载、`eval` 或动态 `import` 远程代码。
 - Swagger UI 内置页面。
 - 第三方数据源连接器。

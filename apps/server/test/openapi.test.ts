@@ -5,7 +5,7 @@
  * 1. **文档自身质量**：OpenAPI 3.1 版本、operationId 唯一、路径参数声明完整、
  *    `$ref` 可解析、公共接口鉴权覆盖、JSON 可无损序列化；
  * 2. **文档与代码不漂移**：通过 Nest 的 `PATH_METADATA` / `METHOD_METADATA`
- *    反射全部 controller 的实际路由，与 `paths` 逐条比对（39 条）。
+ *    反射全部 controller 的实际路由，与 `paths` 逐条比对（64 条）。
  *
  * 最后一个 describe 真实启动 Nest 应用，确认 `GET /api/v1/openapi.json` 无需令牌即可读取。
  */
@@ -30,6 +30,7 @@ import { RbacController } from '../src/rbac/rbac.controller.js'
 import { OpsController } from '../src/ops/ops.controller.js'
 import { OpenController } from '../src/open/open.controller.js'
 import { WebhookController } from '../src/webhook/webhook.controller.js'
+import { MarketController, MarketManifestController } from '../src/market/market.controller.js'
 import { buildOpenApi } from '../src/open/openapi.js'
 
 /* ------------------------------------------------------------------ */
@@ -49,6 +50,8 @@ const CONTROLLERS: Type<unknown>[] = [
   OpsController,
   OpenController,
   WebhookController,
+  MarketManifestController,
+  MarketController,
 ]
 
 /** 把 `:id` 统一成 OpenAPI 的 `{id}`，并归一化多余斜杠。 */
@@ -147,10 +150,10 @@ describe('OpenAPI 文档结构', () => {
     })
   })
 
-  it('路径/方法与 Nest controller 实际路由逐条一致（50 条，防止文档漂移）', () => {
+  it('路径/方法与 Nest controller 实际路由逐条一致（64 条，防止文档漂移）', () => {
     const actualRoutes = collectActualRoutes()
     expect([...actualRoutes].sort()).toEqual([...documentedRoutes].sort())
-    expect(documentedRoutes.size).toBe(50)
+    expect(documentedRoutes.size).toBe(64)
   })
 
   it('operationId 全局唯一、summary/tags/responses 齐全', () => {
@@ -212,13 +215,15 @@ describe('OpenAPI 文档结构', () => {
     expect(roundTrip).toEqual(spec)
   })
 
-  it('只有 5 个公共接口显式 security: []，其余继承全局 Bearer', () => {
+  it('只有 7 个公共接口显式 security: []，其余继承全局 Bearer', () => {
     const expectedPublic = new Set([
       'get /health',
       'get /ready',
       'get /openapi.json',
       'post /auth/login',
       'get /files/{fileId}',
+      'get /materials/manifest',
+      'get /materials/manifest/key',
     ])
     const actualPublic = new Set<string>()
 
@@ -256,6 +261,19 @@ describe('OpenAPI 文档结构', () => {
 
     const upload = (spec.paths['/files/upload'] as any).post
     expect(upload.requestBody.content['multipart/form-data']).toBeTruthy()
+
+    const materialManifest = (spec.paths['/materials/manifest'] as any).get
+    expect(materialManifest.security).toEqual([])
+    expect(materialManifest.responses['304']).toBeTruthy()
+    expect(materialManifest.responses['200'].headers.ETag).toBeTruthy()
+
+    const materialPut = (spec.paths['/materials/{id}'] as any).put
+    expect(materialPut.parameters.some((p: any) => p.name === 'If-Match' && p.in === 'header')).toBe(true)
+    expect(materialPut.responses['409']).toBeTruthy()
+
+    const installPut = (spec.paths['/materials/installs/{materialId}'] as any).put
+    expect(installPut.parameters.some((p: any) => p.name === 'X-LC-Tenant' && p.in === 'header')).toBe(true)
+    expect(installPut.responses['409']).toBeTruthy()
   })
 })
 

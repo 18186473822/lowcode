@@ -13,6 +13,7 @@
  *   webhooks.json              → webhook_subscriptions
  *   webhook-deliveries.json    → webhook_deliveries
  *   webhook-delivery-archive.json → webhook_delivery_archives
+ *   market.json                → market_materials + market_material_versions + market_installs
  *   files/<id> + files-meta/<id>.json → files（字节 + 元信息）
  *
  * 用户/口令不走 JSON，执行前先 `pnpm -F @lc/server seed:mysql`。
@@ -439,6 +440,85 @@ async function importWebhookArchives() {
 /** 文件 id 白名单与服务端一致：防止把目录里的临时文件/异常名导入数据库 */
 const FILE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 
+async function importMarket() {
+  const file = path.join(dataDir, 'market.json')
+  let parsed
+  try {
+    parsed = await readJson(file)
+  } catch (error) {
+    if (error.code === 'ENOENT') return { materials: 0, versions: 0, installs: 0 }
+    throw error
+  }
+
+  const materials = Array.isArray(parsed.materials) ? parsed.materials : []
+  const versions = Array.isArray(parsed.versions) ? parsed.versions : []
+  const installs = Array.isArray(parsed.installs) ? parsed.installs : []
+
+  for (const item of materials) {
+    const data = {
+      status: item.status ?? 'draft',
+      version: item.version,
+      name: item.name,
+      description: item.description ?? null,
+      category: item.category,
+      kind: item.kind,
+      component: item.component ?? null,
+      metaJson: item.meta ?? {},
+      revision: Number.isInteger(item.revision) ? item.revision : 1,
+      createdBy: item.createdBy ?? 'system',
+      updatedBy: item.updatedBy ?? 'system',
+      createdAt: date(item.createdAt),
+      updatedAt: date(item.updatedAt),
+      submittedAt: optionalDate(item.submittedAt),
+      reviewedAt: optionalDate(item.reviewedAt),
+      reviewedBy: item.reviewedBy ?? null,
+      reviewDecision: item.reviewDecision ?? null,
+      reviewNote: item.reviewNote ?? null,
+      publishedAt: optionalDate(item.publishedAt),
+      publishedBy: item.publishedBy ?? null,
+      publishedVersion: item.publishedVersion ?? null,
+    }
+    await prisma.marketMaterial.upsert({
+      where: { id: item.id },
+      create: { id: item.id, ...data },
+      update: data,
+    })
+  }
+
+  for (const version of versions) {
+    const data = {
+      entryJson: version.entry ?? {},
+      note: version.note ?? null,
+      publishedBy: version.publishedBy ?? 'system',
+      publishedAt: date(version.publishedAt),
+    }
+    await prisma.marketMaterialVersion.upsert({
+      where: { materialId_version: { materialId: version.materialId, version: version.version } },
+      create: { materialId: version.materialId, version: version.version, ...data },
+      update: data,
+    })
+  }
+
+  for (const install of installs) {
+    const data = {
+      version: install.version,
+      installedBy: install.installedBy ?? 'system',
+      installedAt: date(install.installedAt),
+      updatedAt: date(install.updatedAt),
+      revision: Number.isInteger(install.revision) ? install.revision : 1,
+    }
+    await prisma.marketInstall.upsert({
+      where: {
+        tenantId_materialId: { tenantId: install.tenantId, materialId: install.materialId },
+      },
+      create: { tenantId: install.tenantId, materialId: install.materialId, ...data },
+      update: data,
+    })
+  }
+
+  return { materials: materials.length, versions: versions.length, installs: installs.length }
+}
+
 async function importFiles() {
   const dir = path.join(dataDir, 'files')
   let names
@@ -499,11 +579,13 @@ try {
   const webhooks = await importWebhooks()
   const webhookDeliveries = await importWebhookDeliveries()
   const webhookArchives = await importWebhookArchives()
+  const market = await importMarket()
   const files = await importFiles()
   console.log(
     `导入完成：pages=${pages}, models=${models}, records=${records}, rbac=${rbac ? 'yes' : 'skip'}, ` +
       `flows=${flows}, instances=${instances}, ops=${ops}, appConfig=${appConfig ? 'yes' : 'skip'}, ` +
-      `webhooks=${webhooks}, webhookDeliveries=${webhookDeliveries}, webhookArchives=${webhookArchives}, files=${files}`,
+      `webhooks=${webhooks}, webhookDeliveries=${webhookDeliveries}, webhookArchives=${webhookArchives}, ` +
+      `marketMaterials=${market.materials}, marketVersions=${market.versions}, marketInstalls=${market.installs}, files=${files}`,
   )
 } catch (error) {
   console.error('导入失败：', error)

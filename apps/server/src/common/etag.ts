@@ -13,7 +13,7 @@
  */
 import { BadRequestException } from '@nestjs/common'
 
-export type EtagKind = 'page' | 'record' | 'flow' | 'webhook' | 'webhook-delivery'
+export type EtagKind = 'page' | 'record' | 'flow' | 'webhook' | 'webhook-delivery' | 'material' | 'material-install'
 
 export function makeEtag(kind: EtagKind, id: string, revision: number): string {
   return `"${kind}:${id}:${revision}"`

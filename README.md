@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，共 16 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（50 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包；仍未开发：服务端市场托管/审核。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档、物料市场物料/版本/安装，共 19 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（64 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）、**服务端物料市场**（清单托管与 ES256 签名、发布审核状态机、不可变版本快照、租户级安装状态）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4/#9，Node 22 全量门禁 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包。
 > **当前能力与剩余工作**见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；上手与运维操作见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md)；架构决策见 [`docs/DECISIONS.md`](docs/DECISIONS.md)；历史设计依据见 [`docs/PLANS.md`](docs/PLANS.md)。
 
 ---
@@ -72,7 +72,7 @@ pnpm -F @lc/server import:json-to-mysql
 | `LC_DATA_DIR` | `<cwd>/data` | JSON 模式下列表数据与上传文件根目录；MySQL 模式仅保留历史兼容目录，文件已入 `files` 表 |
 
 > 服务端本身**不自动加载 `.env`**：`start:mysql` 用 Node `--env-file=.env`，生产请由 systemd/容器注入环境变量。Prisma CLI 会自动读取 `apps/server/.env`。
-> MySQL 表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives`（16 表）。流程定义删除不级联删除实例；文件元数据与 `LONGBLOB` 内容同行，上传/下载在同一事务边界内完成；删除 Webhook 订阅不级联删除投递日志，过期终态日志先归档到 `webhook_delivery_archives` 再删除。
+> MySQL 表：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives / market_materials / market_material_versions / market_installs`（19 表）。流程定义删除不级联删除实例；文件元数据与 `LONGBLOB` 内容同行，上传/下载在同一事务边界内完成；删除 Webhook 订阅不级联删除投递日志，过期终态日志先归档到 `webhook_delivery_archives` 再删除；市场版本快照不可变，安装按 `(tenantId, materialId)` 唯一。
 
 ### 安全配置（Phase 4）
 
@@ -115,7 +115,7 @@ export LC_CORS_ORIGINS="https://lc.example.com"     # 生产未设置=不放行�
 curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 ```
 
-- 标准 **OpenAPI 3.1.0**，`servers[0].url = /api/v1`，覆盖当前 **50 条**实际路由。
+- 标准 **OpenAPI 3.1.0**，`servers[0].url = /api/v1`，覆盖当前 **64 条**实际路由。
 - 可直接导入 Swagger UI / Apifox / Postman / OpenAPI Generator；文档内已标注 Bearer 鉴权、`If-Match` 乐观锁、审批 `Idempotency-Key`、错误体与 409/413/429/503。
 - 路径/方法由 `apps/server/test/openapi.test.ts` 反射 Nest 路由逐条比对，新增/删除接口未同步会直接测试失败。
 - 获取、导入、维护说明与未包含项见 [`docs/openapi.md`](docs/openapi.md)，接口约定见 [`docs/protocol.md`](docs/protocol.md) §10.7。
@@ -194,8 +194,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 6 道：令牌漂移 / 硬编码色值 / 间距令牌 / px→rpx 未替换 / rpx 生成同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（80 文件 / 1174 通过 + 10 跳过；注入 LC_TEST_DATABASE_URL 时 MySQL 仓储也执行）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 94.35/85.22/93.77/94.35）
+pnpm -r test         # 单元测试（83 文件 / 1205 通过 + 10 跳过；注入 LC_TEST_DATABASE_URL 时 MySQL 仓储也执行）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 94.49/85.60/94.05/94.49）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：
@@ -218,8 +218,8 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | **当前状态与变更记录**：能力清单、实测指标、剩余工作（按优先级）、环境阻塞、里程碑、缺陷教训 |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | **操作手册**：本地启动、设计器建页/发布、多端构建、MySQL 切换、部署备份、故障排查、安全/可观测性附录 |
 | [`docs/protocol.md`](docs/protocol.md) | **协议规范 v1.0** —— 对外契约（Expr / Page / Action / Material / Model / Flow / App + 错误码 + 服务端接口） |
-| [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、50 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
-| [`docs/material-market.md`](docs/material-market.md) | 远程物料市场：清单格式、ES256 验签、origin allowlist、受控组件白名单与配置 |
+| [`docs/openapi.md`](docs/openapi.md) | OpenAPI 3.1 文档：获取/导入、64 条路由、鉴权/乐观锁/幂等/错误体约定、防漂移维护 |
+| [`docs/material-market.md`](docs/material-market.md) | 物料市场：清单格式、ES256 验签/签名、服务端发布审核、租户级安装、origin allowlist 与受控组件白名单 |
 | [`docs/design-system.md`](docs/design-system.md) | 跨端 UI 设计系统（令牌三层、断点、图标规范）+ 实施台账与 6 道门禁 |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | 架构决策记录 ADR-001~011（静态注册/表达式/仓储/MySQL/乐观锁等） |
 | [`docs/PLANS.md`](docs/PLANS.md) | Phase 1~3 历史设计依据与关键决策（均已收口） |
@@ -229,8 +229,10 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
 - **CI 已实跑通过**：GitHub Actions（[run #8](https://github.com/18186473822/lowcode/actions/runs/40438832580) `b0c0e28`，此前 run #6 `ff07ff9` / run #4 `cf4fae1` / run #3 `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
 - **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
-- **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 50 条路由（含 11 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；服务端物料市场 API（清单托管、发布审核、租户级安装状态）未实现，设计器侧已有受信元数据闭环与市场面板。
-- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递/归档（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
+- **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 64 条路由（含 11 条 Webhook 管理接口与 14 条物料市场接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；物料市场只托管受信元数据，不下载/执行远程 JS。
+- **物料市场租户边界**：服务端只校验 `X-LC-Tenant` 格式，不维护成员关系；网关必须覆盖该头并完成认证，否则客户端可伪造租户。设计器当前仍按本地存储渲染安装状态，与服务端安装记录不自动同步。
+- **物料市场签名密钥**：生产必须注入 `LC_MATERIAL_MARKET_PRIVATE_KEY`（EC P-256 PKCS#8），未配置时清单/公钥接口返回 503；非生产会生成进程内临时密钥，重启后公钥变化。私钥轮换需同时更新设计器 `VITE_LC_MATERIAL_MARKET_PUBLIC_KEY`。
+- **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档，以及物料市场物料/版本/安装（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
 - **ops 事件并发裁剪**：MySQL 已改为事务内追加 + 按 `seq` 淘汰最旧，不再整表 delete + create；多实例同时裁剪仍可能瞬时略超 500 条，下一次上报会收敛。JSON 模式用单进程写队列，跨进程仍非原子。
 - **文件入库但不做对象存储**：MySQL 模式文件存 `files.content`（`LONGBLOB`，单文件 10MB），SQL 备份即可覆盖；大附件、CDN、Range 下载与独立对象存储仍属后续。JSON 模式继续写 `files/` + `files-meta/` 两个本地文件。存量切换必须先执行 `pnpm -F @lc/server import:json-to-mysql`，MySQL 模式不会自动双读旧磁盘文件；文件列表/删除/回收站、哈希去重、病毒扫描与下载鉴权也尚未实现。
 - **MySQL 集成测试与冒烟需本机实例**：普通 `pnpm test` 用 JSON 路径；设置 `LC_TEST_DATABASE_URL` 才跑 MySQL 仓储测试，设置 `LC_SMOKE_DATABASE_URL` 才跑真启动冒烟（脚本拒绝非 `*_test` 库）。

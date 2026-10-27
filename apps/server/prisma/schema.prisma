@@ -292,3 +292,65 @@ model WebhookDeliveryArchive {
   @@index([archivedAt])
   @@map("webhook_delivery_archives")
 }
+
+// 物料市场（Phase 4 开放集成第三批）：
+// - status 为发布审核状态机；revision 用于 If-Match 乐观锁；
+// - metaJson 保存 MaterialSchema 原始结构，避免把动态元数据拆成稀疏列；
+// - 发布时把条目快照写入 market_material_versions（主键 materialId+version，不可变）。
+model MarketMaterial {
+  id               String    @id @db.VarChar(64)
+  status           String    @db.VarChar(16)
+  version          String    @db.VarChar(32)
+  name             String    @db.VarChar(128)
+  description      String?   @db.VarChar(500)
+  category         String    @db.VarChar(32)
+  kind             String    @db.VarChar(16)
+  component        String?   @db.VarChar(64)
+  metaJson         Json
+  revision         Int       @default(0)
+  createdBy        String    @db.VarChar(64)
+  updatedBy        String    @db.VarChar(64)
+  createdAt        DateTime  @db.DateTime(3)
+  updatedAt        DateTime  @db.DateTime(3)
+  submittedAt      DateTime? @db.DateTime(3)
+  reviewedAt       DateTime? @db.DateTime(3)
+  reviewedBy       String?   @db.VarChar(64)
+  reviewDecision   String?   @db.VarChar(16)
+  reviewNote       String?   @db.VarChar(500)
+  publishedAt      DateTime? @db.DateTime(3)
+  publishedBy      String?   @db.VarChar(64)
+  publishedVersion String?   @db.VarChar(32)
+
+  @@index([status])
+  @@index([updatedAt])
+  @@map("market_materials")
+}
+
+// 发布版本快照：发布后不可修改，删除物料也不级联（审计保留）。
+model MarketMaterialVersion {
+  materialId  String   @db.VarChar(64)
+  version     String   @db.VarChar(32)
+  entryJson   Json
+  note        String?  @db.VarChar(500)
+  publishedBy String   @db.VarChar(64)
+  publishedAt DateTime @db.DateTime(3)
+
+  @@id([materialId, version])
+  @@index([publishedAt])
+  @@map("market_material_versions")
+}
+
+// 租户级安装状态：tenantId 来自网关注入的 X-LC-Tenant，缺省 default。
+model MarketInstall {
+  tenantId    String   @db.VarChar(64)
+  materialId  String   @db.VarChar(64)
+  version     String   @db.VarChar(32)
+  installedBy String   @db.VarChar(64)
+  installedAt DateTime @db.DateTime(3)
+  updatedAt   DateTime @db.DateTime(3)
+  revision    Int      @default(1)
+
+  @@id([tenantId, materialId])
+  @@index([materialId])
+  @@map("market_installs")
+}

@@ -11,46 +11,17 @@
  * 而不是在浏览器里执行市场返回的代码。
  */
 import type { MaterialSchema } from '@lc/schema'
+import { BUILTIN_COMPONENT_IDS } from '@lc/schema'
 
 export const REMOTE_MATERIAL_CACHE_KEY = 'lc.remote-materials.cache.v1'
 export const REMOTE_MATERIAL_INSTALLED_KEY = 'lc.remote-materials.installed.v1'
 
-/** 宿主已注册的 schema `componentName` 白名单（与 material-map / META_MAP 保持同步）。 */
-export const TRUSTED_COMPONENT_IDS: ReadonlySet<string> = new Set([
-  'Text',
-  'Input',
-  'Textarea',
-  'NumberInput',
-  'Radio',
-  'Select',
-  'Switch',
-  'Upload',
-  'Image',
-  'Divider',
-  'Button',
-  'DatePicker',
-  'DateTimePicker',
-  'MoneyInput',
-  'Checkbox',
-  'Picker',
-  'UserPicker',
-  'DeptPicker',
-  'Cascader',
-  'FileUpload',
-  'Rate',
-  'SearchBar',
-  'Detail',
-  'Cell',
-  'List',
-  'Tabs',
-  'Tag',
-  'Icon',
-  'Progress',
-  'ApprovalBar',
-  'Timeline',
-  'Chart',
-  'Statistic',
-])
+/**
+ * 宿主已注册的 schema `componentName` 白名单（与 material-map / META_MAP 保持同步）。
+ * 单一事实源在 `@lc/schema`，服务端发布校验使用同一集合。
+ */
+export const TRUSTED_COMPONENT_IDS: ReadonlySet<string> = BUILTIN_COMPONENT_IDS
+
 
 export interface RemoteMaterialEntry {
   id: string

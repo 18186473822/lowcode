@@ -1,6 +1,6 @@
 # 项目状态与变更记录（PROGRESS）
 
-> 最后更新：2026-10-27 ｜ 状态基线：`b0c0e28`（CI run #8 全绿）
+> 最后更新：2026-10-27 ｜ 状态基线：`35d6890`（CI run #9 全绿；本轮物料市场提交待 CI 验证）
 > 本文件合并了原 `STATUS.md` 与逐批台账（原文已删除，git 历史可追溯）。
 > 只写经过实际验证的结论；数字均来自本机或 GitHub Actions 实跑。
 > 操作与部署见 [`OPERATIONS.md`](OPERATIONS.md)，架构决策见 [`DECISIONS.md`](DECISIONS.md)，历史设计依据见 [`PLANS.md`](PLANS.md)。
@@ -10,7 +10,7 @@
 ## 1. 一句话结论
 
 移动端低代码平台的主链路（协议 → 设计器 → 运行时 → 服务端 → MySQL）与 Phase 0~3 已全部收口；
-Phase 4 的**安全加固、可观测性、MySQL 落库、并发控制、Webhook 生产化、远程物料（设计器侧）**已完成；
+Phase 4 的**安全加固、可观测性、MySQL 落库、并发控制、Webhook 生产化、远程物料（设计器侧）与服务端物料市场**已完成；
 GitHub Actions 远端 CI 已实跑全绿。
 
 **现有系统可直接支撑「单租户 + 单/少量服务实例」的内部业务应用落地**；
@@ -22,16 +22,16 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 指标 | 实测值 | 证据 |
 |---|---|---|
-| 数据库表 | **16 张** | `apps/server/prisma/schema.prisma` |
-| OpenAPI 路由 | **50 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
-| 测试 | **1174 passed + 10 skipped / 80 文件** | `pnpm test` |
-| 覆盖率 | **94.35 / 85.22 / 93.77 / 94.35**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
+| 数据库表 | **19 张** | `apps/server/prisma/schema.prisma` |
+| OpenAPI 路由 | **64 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
+| 测试 | **1205 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
+| 覆盖率 | **94.49 / 85.60 / 94.05 / 94.49**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
-| 远端 CI | **两个 job 全绿** | GitHub Actions run #8（`b0c0e28`）`verify` + `node20-core` |
+| 远端 CI | **两个 job 全绿** | GitHub Actions run #9（`35d6890`）`verify` + `node20-core`；本轮市场提交待验证 |
 | 移动端编译 | **H5 / 微信小程序 / App 三端 DONE** | `build:h5` / `build:mp-weixin` / `build:app` |
 | MySQL 集成 | **10/10 PASS** | `mysql.persistence.test.ts`（需 `LC_TEST_DATABASE_URL`） |
-| JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读 |
+| JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读；本轮已扩展 `market.json` → 市场三表，未在真实 MySQL 实跑 |
 
 > CI 覆盖：Node 22 全量门禁（设计门禁 → build → typecheck → 三端编译 → test → coverage →
 > 服务端/安全/可观测性冒烟）+ Node 20 核心兼容（build → typecheck → test）。
@@ -63,6 +63,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 保存/发布链路 | ✅ | 校验不过不发 PUT；ETag/If-Match 乐观锁；409 不覆盖 |
 | Webhook 管理 UI | ✅ | 订阅 CRUD、测试投递、日志过滤、指标告警、轮换、清理 |
 | 物料市场面板 | ✅ | 受信远程物料：刷新/验签/安装/卸载/受控插入画布 |
+| 服务端市场托管 | ✅ | 清单 ES256 签名、发布审核状态机、不可变版本快照、租户级安装状态 |
 
 ### 3.3 运行时
 
@@ -80,13 +81,13 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 能力 | 状态 | 要点 |
 |---|---|---|
-| NestJS API | ✅ | 50 条路由；JWT、RBAC、限流、CORS、请求 ID |
-| 动态 CRUD | ✅ | 模型/记录/文件/页面/RBAC/流程/运维/应用配置/Webhook |
+| NestJS API | ✅ | 64 条路由；JWT、RBAC、限流、CORS、请求 ID |
+| 动态 CRUD | ✅ | 模型/记录/文件/页面/RBAC/流程/运维/应用配置/Webhook/物料市场 |
 | JSON 仓储 | ✅ | 默认/测试路径；单进程 `KeyedLock`；原子写 |
-| MySQL 8 + Prisma | ✅ | 16 表；全部业务仓储双实现；迁移纳入发布流程 |
+| MySQL 8 + Prisma | ✅ | 19 表；全部业务仓储双实现；迁移纳入发布流程 |
 | 乐观锁 / 幂等 | ✅ | 页面、记录、流程实例 `revision` CAS；`If-Match`；审批幂等 + `pendingPatch` |
 | 文件 | ✅ | 10MB 上限；MySQL `LONGBLOB` 或本地双文件 |
-| 数据导入 | ✅ | `import:json-to-mysql` 覆盖页面/模型/记录/RBAC/流程/运维/配置/文件/Webhook 三表 |
+| 数据导入 | ✅ | `import:json-to-mysql` 覆盖页面/模型/记录/RBAC/流程/运维/配置/文件/Webhook 三表/市场三表 |
 
 ### 3.5 生产化
 
@@ -96,7 +97,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 可观测性 | ✅ | `/health`、`/ready`、`X-Request-Id`、结构化访问日志（附录 B） |
 | 部署与备份 | ✅ | systemd、MySQL/JSON 备份、日志采集指引 |
 | Webhook 生产化 | ✅ | 多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、签名时间窗/重放缓存、自定义头黑名单、轮换宽限期、指标告警、管理 UI |
-| 远程物料市场 | ✅（设计器侧） | ES256 验签、origin allowlist、本地缓存/安装状态、版本一致性、受控组件白名单 |
+| 远程物料市场 | ✅（设计器 + 服务端） | ES256 验签/签名、origin allowlist、本地缓存；服务端清单托管、审核、版本快照、租户安装；受控组件白名单 |
 | 工程化 / CI | ✅ | pnpm workspace、6 道设计门禁、覆盖率阈值、GitHub Actions 双 Node 版本实跑 |
 
 ### 3.6 流程与业务
@@ -130,7 +131,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | # | 事项 | 现状 |
 |---|---|---|
-| 7 | 服务端物料市场 | 只有设计器侧受信元数据；无清单托管、发布审核、租户级安装状态 |
+| 7 | 租户成员关系 / 配额 | 市场与安装状态仅按 `X-LC-Tenant` 隔离，成员校验由网关/身份提供方承担；无租户管理 API、配额与用量限制 |
 | 8 | Swagger UI / 客户端 SDK | 只有 `GET /openapi.json` |
 | 9 | 第三方数据源连接器 | 仅平台内置模型/记录数据源 |
 | 10 | 组织架构服务 | `dept` 降级 self；人员/部门为静态候选 |
@@ -224,6 +225,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-23 | 工程化 | GitHub Actions run #3/#4 双 job 全绿；修 B-48/B-49 |
 | 2026-10-23 | 文档 | 新增 `OPERATIONS.md` 操作手册；CI run #6 全绿 |
 | 2026-10-27 | 文档整合 | 合并为 8 个文档并删除 23 个冗余文件；修 B-50 时间依赖测试；CI run #8 全绿 |
+| 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64 |
 
 ---
 
@@ -261,8 +263,8 @@ pnpm install --frozen-lockfile
 pnpm design:check      # 6 道设计门禁
 pnpm build             # 必须先于 typecheck（workspace types 指向 dist）
 pnpm typecheck
-pnpm test              # 1174 passed + 10 skipped
-pnpm coverage          # 94.35 / 85.22 / 93.77 / 94.35
+pnpm test              # 1205 passed + 10 skipped / 83 文件
+pnpm coverage          # 94.49 / 85.60 / 94.05 / 94.49
 pnpm -F @lc/runtime build:h5
 pnpm -F @lc/runtime build:mp-weixin
 pnpm -F @lc/runtime build:app
@@ -293,8 +295,8 @@ pnpm smoke:observability
 | [`PROGRESS.md`](PROGRESS.md) | **本文件**：当前状态、能力总览、剩余工作、里程碑、缺陷教训 |
 | [`OPERATIONS.md`](OPERATIONS.md) | 操作与运维：启动、建页发布、多端构建、MySQL、部署备份、排障、安全/可观测性附录 |
 | [`protocol.md`](protocol.md) | 对外协议规范（Expr / Page / Action / Material / Model / Flow / App / 错误码 / 接口） |
-| [`openapi.md`](openapi.md) | OpenAPI 3.1：获取方式、50 条路由、鉴权/乐观锁/幂等约定 |
-| [`material-market.md`](material-market.md) | 远程物料清单格式、验签、白名单与配置 |
+| [`openapi.md`](openapi.md) | OpenAPI 3.1：获取方式、64 条路由、鉴权/乐观锁/幂等约定 |
+| [`material-market.md`](material-market.md) | 服务端市场（清单托管/审核/发布/租户安装）+ 设计器侧清单格式、验签、白名单与配置 |
 | [`design-system.md`](design-system.md) | 设计规范（§1~§8）+ 实施台账与 6 道门禁（§9~§10） |
 | [`DECISIONS.md`](DECISIONS.md) | 架构决策记录 ADR-001~011（追加式，不删改） |
 | [`PLANS.md`](PLANS.md) | Phase 1~3 的历史设计依据与决策摘要（均已收口） |

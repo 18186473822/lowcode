@@ -35,6 +35,8 @@ import { DiskFileRepository } from '../file/disk-file.repository.js'
 import { FILE_REPOSITORY } from '../file/file.types.js'
 import { FileWebhookRepository } from '../webhook/file-webhook.repository.js'
 import { WEBHOOK_REPOSITORY } from '../webhook/webhook.types.js'
+import { FileMarketRepository } from '../market/file-market.repository.js'
+import { MARKET_REPOSITORY } from '../market/market.types.js'
 import {
   JsonStorageHealth,
   MysqlStorageHealth,
@@ -52,6 +54,7 @@ import { MysqlOpsRepository } from '../persistence/mysql/ops.repository.js'
 import { MysqlAppConfigRepository } from '../persistence/mysql/app-config.repository.js'
 import { MysqlFileRepository } from '../persistence/mysql/file.repository.js'
 import { MysqlWebhookRepository } from '../persistence/mysql/webhook.repository.js'
+import { MysqlMarketRepository } from '../persistence/mysql/market.repository.js'
 
 /**
  * 返回 PrismaService 或 null。null 让 JSON 模式完全不触碰数据库驱动/连接；
@@ -131,6 +134,12 @@ function createPrisma(): PrismaService | null {
       inject: [PRISMA_SERVICE, DATA_DIR],
     },
     {
+      provide: MARKET_REPOSITORY,
+      useFactory: (prisma: PrismaService | null, dataDir: string) =>
+        prisma ? new MysqlMarketRepository(prisma) : new FileMarketRepository(dataDir),
+      inject: [PRISMA_SERVICE, DATA_DIR],
+    },
+    {
       provide: STORAGE_HEALTH,
       useFactory: (prisma: PrismaService | null, dataDir: string) =>
         prisma ? new MysqlStorageHealth(prisma, dataDir) : new JsonStorageHealth(dataDir),
@@ -150,6 +159,7 @@ function createPrisma(): PrismaService | null {
     APP_CONFIG_REPOSITORY,
     FILE_REPOSITORY,
     WEBHOOK_REPOSITORY,
+    MARKET_REPOSITORY,
     STORAGE_HEALTH,
   ],
 })

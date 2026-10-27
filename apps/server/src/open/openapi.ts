@@ -1073,6 +1073,191 @@ const webhookDeliveryListSchema: Json = {
   },
 }
 
+/* ------------------------------ 物料市场 ------------------------------ */
+
+const marketMaterialEntrySchema: Json = {
+  type: 'object',
+  required: ['id', 'name', 'version', 'category', 'kind', 'meta'],
+  properties: {
+    id: { type: 'string', examples: ['brand-button-2026'] },
+    name: { type: 'string', maxLength: 64 },
+    version: { type: 'string', description: 'semver，如 `1.0.0`', examples: ['1.0.0'] },
+    description: { type: 'string', maxLength: 500 },
+    category: { type: 'string', enum: ['basic', 'layout', 'form', 'data', 'nav', 'feedback', 'biz'] },
+    kind: { type: 'string', enum: ['meta', 'component'] },
+    component: {
+      type: 'string',
+      description: '`kind=component` 必填，且必须是宿主内置组件（`@lc/schema` 的 `BUILTIN_COMPONENT_IDS`）',
+      examples: ['Button'],
+    },
+    meta: { type: 'object', additionalProperties: true, description: '`MaterialSchema` 原始结构' },
+  },
+}
+
+const marketMaterialSchema: Json = {
+  allOf: [
+    ref('MarketMaterialEntry'),
+    {
+      type: 'object',
+      required: ['status', 'revision', 'createdBy', 'updatedBy', 'createdAt', 'updatedAt'],
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['draft', 'pending', 'approved', 'rejected', 'published', 'unpublished'],
+        },
+        revision: { type: 'integer', minimum: 1 },
+        createdBy: { type: 'string' },
+        updatedBy: { type: 'string' },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+        submittedAt: { type: 'string', format: 'date-time' },
+        reviewedAt: { type: 'string', format: 'date-time' },
+        reviewedBy: { type: 'string' },
+        reviewDecision: { type: 'string', enum: ['approved', 'rejected'] },
+        reviewNote: { type: 'string', maxLength: 500 },
+        publishedAt: { type: 'string', format: 'date-time' },
+        publishedBy: { type: 'string' },
+        publishedVersion: { type: 'string' },
+      },
+    },
+  ],
+}
+
+const marketMaterialListSchema: Json = {
+  type: 'object',
+  required: ['items'],
+  properties: { items: { type: 'array', items: ref('MarketMaterial') } },
+}
+
+const marketPublicMaterialListSchema: Json = {
+  type: 'object',
+  required: ['items'],
+  properties: { items: { type: 'array', items: ref('MarketMaterialEntry') } },
+}
+
+const marketManifestSchema: Json = {
+  type: 'object',
+  required: ['schemaVersion', 'name', 'generatedAt', 'materials'],
+  properties: {
+    schemaVersion: { const: 1 },
+    name: { type: 'string' },
+    generatedAt: {
+      type: 'string',
+      format: 'date-time',
+      description: '已发布物料的最大 `updatedAt`；空市场为 `1970-01-01T00:00:00.000Z`，保证缓存稳定',
+    },
+    materials: { type: 'array', items: ref('MarketMaterialEntry') },
+  },
+}
+
+const marketManifestEnvelopeSchema: Json = {
+  type: 'object',
+  required: ['alg', 'signature', 'manifest'],
+  properties: {
+    alg: { const: 'ES256' },
+    signature: { type: 'string', description: 'base64 编码的 raw r||s 签名（IEEE P1363）' },
+    manifest: ref('MarketManifest'),
+  },
+}
+
+const marketManifestKeySchema: Json = {
+  type: 'object',
+  required: ['alg', 'publicKey', 'fingerprint', 'kid'],
+  properties: {
+    alg: { const: 'ES256' },
+    publicKey: { type: 'string', description: 'SPKI PEM 公钥（非秘密），用于客户端验签' },
+    fingerprint: { type: 'string', description: '`sha256:` + SPKI DER 的 SHA-256 十六进制' },
+    kid: { type: 'string', description: '密钥标识；未配置 `LC_MATERIAL_MARKET_KID` 时等于指纹' },
+  },
+}
+
+const marketVersionSchema: Json = {
+  type: 'object',
+  required: ['materialId', 'version', 'entry', 'publishedBy', 'publishedAt'],
+  properties: {
+    materialId: { type: 'string' },
+    version: { type: 'string' },
+    entry: ref('MarketMaterialEntry'),
+    note: { type: 'string', maxLength: 500 },
+    publishedBy: { type: 'string' },
+    publishedAt: { type: 'string', format: 'date-time' },
+  },
+}
+
+const marketVersionListSchema: Json = {
+  type: 'object',
+  required: ['items'],
+  properties: { items: { type: 'array', items: ref('MarketVersion') } },
+}
+
+const marketInstallSchema: Json = {
+  type: 'object',
+  required: [
+    'tenantId', 'materialId', 'version', 'installedBy', 'installedAt', 'updatedAt', 'revision',
+  ],
+  properties: {
+    tenantId: { type: 'string', description: '来自 `X-LC-Tenant`，缺省 `default`' },
+    materialId: { type: 'string' },
+    version: { type: 'string' },
+    installedBy: { type: 'string' },
+    installedAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+    revision: { type: 'integer', minimum: 1 },
+  },
+}
+
+const marketInstallListSchema: Json = {
+  type: 'object',
+  required: ['items'],
+  properties: { items: { type: 'array', items: ref('MarketInstall') } },
+}
+
+const marketMaterialInputSchema: Json = {
+  type: 'object',
+  required: ['id', 'name', 'version', 'kind', 'meta'],
+  properties: {
+    id: {
+      type: 'string',
+      description: '小写字母开头，3~64 位，仅 `a-z0-9-`；更新时若携带必须与路径一致',
+      examples: ['brand-button-2026'],
+    },
+    name: { type: 'string', maxLength: 64 },
+    description: { type: 'string', maxLength: 500 },
+    version: { type: 'string', description: 'semver' },
+    category: { type: 'string', enum: ['basic', 'layout', 'form', 'data', 'nav', 'feedback', 'biz'] },
+    kind: { type: 'string', enum: ['meta', 'component'] },
+    component: { type: 'string' },
+    meta: { type: 'object', additionalProperties: true },
+  },
+}
+
+const marketReviewRequestSchema: Json = {
+  type: 'object',
+  required: ['decision'],
+  properties: {
+    decision: { type: 'string', enum: ['approve', 'reject'] },
+    note: { type: 'string', maxLength: 500, description: '`reject` 时必填' },
+  },
+}
+
+const marketInstallRequestSchema: Json = {
+  type: 'object',
+  required: ['version'],
+  properties: {
+    version: { type: 'string', description: '必须等于物料当前已发布版本，否则 409 `MARKET_VERSION_MISMATCH`' },
+  },
+}
+
+const marketUninstallResponseSchema: Json = {
+  type: 'object',
+  required: ['tenantId', 'materialId', 'removed'],
+  properties: {
+    tenantId: { type: 'string' },
+    materialId: { type: 'string' },
+    removed: { const: true },
+  },
+}
+
 const healthSchema: Json = {
   type: 'object',
   required: ['status', 'storage', 'version', 'uptimeSeconds', 'timestamp'],
@@ -1160,7 +1345,7 @@ const componentsResponses: Json = {
 
 const componentsHeaders: Json = {
   ETag: {
-    description: '资源版本（页面 `"page:<id>:<rev>"`、记录 `"record:<modelId>/<rid>:<rev>"`、流程 `"flow:<id>:<rev>"`、Webhook 订阅 `"webhook:<id>:<rev>"`、投递 `"webhook-delivery:<id>:<rev>"`）',
+    description: '资源版本（页面 `"page:<id>:<rev>"`、记录 `"record:<modelId>/<rid>:<rev>"`、流程 `"flow:<id>:<rev>"`、Webhook 订阅 `"webhook:<id>:<rev>"`、投递 `"webhook-delivery:<id>:<rev>"`、物料 `"material:<id>:<rev>"`、安装 `"material-install:<tenantId>/<materialId>:<rev>"`）',
     schema: { type: 'string' },
   },
   XRequestId: {
@@ -1762,6 +1947,203 @@ export function buildOpenApi(): OpenApiDocument {
       }),
     },
 
+    /* ------------------------------ 物料市场 ------------------------------ */
+    '/materials/manifest': {
+      get: publicOp('Market', 'getMaterialManifest', '获取物料市场签名清单（公开）', {
+        200: ok('ES256 签名清单信封', ref('MarketManifestEnvelope'), {
+          ETag: headerRef('ETag'),
+          'Cache-Control': { schema: { type: 'string' }, description: 'public, max-age=60' },
+        }),
+        304: { description: '`If-None-Match` 命中当前 ETag，清单未变化' },
+        503: responseRef('ServiceUnavailable'),
+      }, {
+        description: '只包含 `published` 物料，按 id 排序；`generatedAt` 取已发布物料最大 `updatedAt`，清单不变时 ETag 与签名稳定。生产未配置签名私钥返回 503 `MARKET_SIGNING_UNCONFIGURED`。',
+        parameters: [
+          headerParam('If-None-Match', '上次响应 ETag', { type: 'string' }, '"market-manifest:0123456789abcdef"'),
+        ],
+      }),
+    },
+    '/materials/manifest/key': {
+      get: publicOp('Market', 'getMaterialManifestKey', '获取清单验签公钥（公开）', {
+        200: ok('公钥、指纹与 kid；公钥不是秘密', ref('MarketManifestKey'), {
+          'Cache-Control': { schema: { type: 'string' }, description: 'public, max-age=300' },
+        }),
+        503: responseRef('ServiceUnavailable'),
+      }),
+    },
+    '/materials': {
+      get: op('Market', 'listMaterials', '物料目录', {
+        200: ok('物料列表；普通用户只返回已发布条目', ref('MarketMaterialList')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+      }, {
+        description: '管理员可按 `status` 筛选并看到审核字段；非管理员显式传 `status` 返回 403 `ADMIN_REQUIRED`，响应只含 `MarketMaterialEntry` 字段。',
+        parameters: [
+          queryParam('status', '状态筛选（仅管理员）', {
+            type: 'string',
+            enum: ['draft', 'pending', 'approved', 'rejected', 'published', 'unpublished'],
+          }, 'published'),
+          queryParam('category', '分类筛选', {
+            type: 'string',
+            enum: ['basic', 'layout', 'form', 'data', 'nav', 'feedback', 'biz'],
+          }, 'basic'),
+          queryParam('kind', '类型筛选', { type: 'string', enum: ['meta', 'component'] }, 'component'),
+          queryParam('q', '按 id / name / description 关键字过滤（≤64 字符）', { type: 'string', maxLength: 64 }, 'button'),
+        ],
+      }),
+      post: op('Market', 'createMaterial', '创建物料草稿（仅管理员）', {
+        200: okWithEtag('草稿创建成功', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '`kind=component` 的 `component` 必须命中宿主内置组件白名单；重复 id 返回 409 `MARKET_MATERIAL_EXISTS`。',
+        requestBody: body(ref('MarketMaterialInput')),
+      }),
+    },
+    '/materials/{id}': {
+      get: op('Market', 'getMaterial', '读取物料详情', {
+        200: ok('物料详情；管理员带 ETag 与审核字段', ref('MarketMaterial'), { ETag: headerRef('ETag') }),
+        401: responseRef('Unauthorized'),
+        404: responseRef('NotFound'),
+      }, {
+        parameters: [pathParam('id', '物料 id', 'brand-button-2026')],
+      }),
+      put: op('Market', 'updateMaterial', '编辑物料草稿（仅管理员）', {
+        200: okWithEtag('更新成功，状态回到 draft', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '仅 `draft / rejected / unpublished` 可编辑；`pending / approved / published` 返回 409 `MARKET_STATE_CONFLICT`。携带 `If-Match` 且版本不一致返回 409 `VERSION_CONFLICT`，不自动覆盖。',
+        parameters: [
+          pathParam('id', '物料 id', 'brand-button-2026'),
+          headerParam('If-Match', '物料 ETag，如 `"material:brand-button-2026:2"`', { type: 'string' }, '"material:brand-button-2026:2"'),
+        ],
+        requestBody: body(ref('MarketMaterialInput')),
+      }),
+    },
+    '/materials/{id}/submit': {
+      post: op('Market', 'submitMaterial', '提交物料审核（仅管理员）', {
+        200: okWithEtag('进入 pending', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        parameters: [
+          pathParam('id', '物料 id', 'brand-button-2026'),
+          headerParam('If-Match', '物料 ETag', { type: 'string' }, '"material:brand-button-2026:1"'),
+        ],
+      }),
+    },
+    '/materials/{id}/review': {
+      post: op('Market', 'reviewMaterial', '审核物料（仅管理员）', {
+        200: okWithEtag('approved 或 rejected', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '仅 `pending` 可审核；`reject` 必须填写 `note`。当前权限模型下提交人与审核人可以是同一管理员。',
+        parameters: [
+          pathParam('id', '物料 id', 'brand-button-2026'),
+          headerParam('If-Match', '物料 ETag', { type: 'string' }, '"material:brand-button-2026:2"'),
+        ],
+        requestBody: body(ref('MarketReviewRequest')),
+      }),
+    },
+    '/materials/{id}/publish': {
+      post: op('Market', 'publishMaterial', '发布物料（仅管理员）', {
+        200: okWithEtag('published；同时固化不可变版本快照', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '需 `approved`；同一 `id + version` 只能发布一次，重复发布返回 409 `MARKET_VERSION_EXISTS`，需提升版本后重新审核。',
+        parameters: [
+          pathParam('id', '物料 id', 'brand-button-2026'),
+          headerParam('If-Match', '物料 ETag', { type: 'string' }, '"material:brand-button-2026:3"'),
+        ],
+      }),
+    },
+    '/materials/{id}/unpublish': {
+      post: op('Market', 'unpublishMaterial', '下架物料（仅管理员）', {
+        200: okWithEtag('unpublished，清单立即移除', ref('MarketMaterial')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        parameters: [
+          pathParam('id', '物料 id', 'brand-button-2026'),
+          headerParam('If-Match', '物料 ETag', { type: 'string' }, '"material:brand-button-2026:5"'),
+        ],
+      }),
+    },
+    '/materials/{id}/versions': {
+      get: op('Market', 'listMaterialVersions', '查询物料发布历史（仅管理员）', {
+        200: ok('版本快照，`publishedAt` 倒序', ref('MarketVersionList')),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+      }, {
+        parameters: [pathParam('id', '物料 id', 'brand-button-2026')],
+      }),
+    },
+    '/materials/installs': {
+      get: op('Market', 'listMaterialInstalls', '查询租户安装状态', {
+        200: ok('当前租户的安装记录，按 materialId 排序', ref('MarketInstallList')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+      }, {
+        description: '租户标识来自 `X-LC-Tenant`（缺省 `default`）；服务端只校验格式，成员关系由网关/身份提供方保证。',
+        parameters: [
+          headerParam('X-LC-Tenant', '租户标识，1~64 位小写字母/数字/连字符', { type: 'string' }, 'tenant-a'),
+        ],
+      }),
+    },
+    '/materials/installs/{materialId}': {
+      put: op('Market', 'installMaterial', '安装/升级物料到当前发布版本', {
+        200: okWithEtag('安装状态（重复安装幂等）', ref('MarketInstall')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        description: '只允许安装当前已发布版本，版本不一致返回 409 `MARKET_VERSION_MISMATCH`（不允许静默升降级）；未发布返回 409 `MARKET_NOT_PUBLISHED`。',
+        parameters: [
+          pathParam('materialId', '物料 id', 'brand-button-2026'),
+          headerParam('X-LC-Tenant', '租户标识', { type: 'string' }, 'tenant-a'),
+          headerParam('If-Match', '安装记录 ETag，如 `"material-install:tenant-a/brand-button-2026:1"`', { type: 'string' }, '"material-install:tenant-a/brand-button-2026:1"'),
+        ],
+        requestBody: body(ref('MarketInstallRequest')),
+      }),
+      delete: op('Market', 'uninstallMaterial', '卸载物料', {
+        200: ok('卸载结果', ref('MarketUninstallResponse')),
+        400: responseRef('BadRequest'),
+        401: responseRef('Unauthorized'),
+        404: responseRef('NotFound'),
+        409: responseRef('Conflict'),
+      }, {
+        parameters: [
+          pathParam('materialId', '物料 id', 'brand-button-2026'),
+          headerParam('X-LC-Tenant', '租户标识', { type: 'string' }, 'tenant-a'),
+          headerParam('If-Match', '安装记录 ETag', { type: 'string' }, '"material-install:tenant-a/brand-button-2026:1"'),
+        ],
+      }),
+    },
+
     /* ------------------------------ 运维事件 ------------------------------ */
     '/ops/events': {
       post: op('Ops', 'ingestOpsEvents', '上报运维事件（登录即可）', {
@@ -1825,6 +2207,9 @@ export function buildOpenApi(): OpenApiDocument {
         '**限流**：普通接口默认 600 次/分钟/IP，登录 20 次/分钟/IP；超限 `429 RATE_LIMITED` 并带 `Retry-After`。',
         '',
         'Webhook 管理接口位于 `/webhooks`，仅 `*` 管理员可用；投递签名与重试规则见 `docs/protocol.md` §10.8。',
+        '',
+        '物料市场公开接口位于 `/materials/manifest`，受保护接口使用 `Authorization` 与 `X-LC-Tenant`（缺省 `default`）；',
+        '清单只含受信元数据，客户端不会下载、`eval` 或动态 `import` 远程 JS。',
       ].join('\n'),
       license: { name: 'UNLICENSED' },
     },
@@ -1843,6 +2228,7 @@ export function buildOpenApi(): OpenApiDocument {
       { name: 'RBAC', description: '角色与页面授权' },
       { name: 'Ops', description: '埋点/错误/性能事件' },
       { name: 'Webhooks', description: 'Webhook 订阅、投递日志与重投' },
+      { name: 'Market', description: '物料市场：签名清单、发布审核与租户级安装' },
     ],
     security: [{ bearerAuth: [] }],
     paths,
@@ -1917,6 +2303,21 @@ export function buildOpenApi(): OpenApiDocument {
         WebhookDeliveryList: webhookDeliveryListSchema,
         WebhookMetrics: webhookMetricsSchema,
         WebhookCleanupResponse: webhookCleanupResponseSchema,
+        MarketMaterialEntry: marketMaterialEntrySchema,
+        MarketMaterial: marketMaterialSchema,
+        MarketMaterialList: marketMaterialListSchema,
+        MarketPublicMaterialList: marketPublicMaterialListSchema,
+        MarketManifest: marketManifestSchema,
+        MarketManifestEnvelope: marketManifestEnvelopeSchema,
+        MarketManifestKey: marketManifestKeySchema,
+        MarketVersion: marketVersionSchema,
+        MarketVersionList: marketVersionListSchema,
+        MarketInstall: marketInstallSchema,
+        MarketInstallList: marketInstallListSchema,
+        MarketMaterialInput: marketMaterialInputSchema,
+        MarketReviewRequest: marketReviewRequestSchema,
+        MarketInstallRequest: marketInstallRequestSchema,
+        MarketUninstallResponse: marketUninstallResponseSchema,
         Health: healthSchema,
         Ready: readySchema,
         OpenApiDocument: openApiDocumentSchema,

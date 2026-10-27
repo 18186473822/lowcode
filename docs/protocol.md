@@ -1,6 +1,6 @@
 # 低代码平台协议规范（protocol.md）
 
-> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 2/10 章修订：2026-10-22**（Phase 4 乐观锁与记录编辑：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；`DetailPageConfig` 新增可选 `editable`/`deletable`；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**可选字段新增，向后兼容，不升 `schemaVersion`**，ADR-011）
+> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 10 章修订：2026-10-22**（Phase 4 乐观锁与记录编辑：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；`DetailPageConfig` 新增可选 `editable`/`deletable`；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**可选字段新增，向后兼容，不升 `schemaVersion`**，ADR-011）｜ **第 10 章修订：2026-10-27**（Phase 4 物料市场：清单签名、发布审核状态机、租户级安装；新增 `MARKET_*` / `TENANT_INVALID` 错误码；**纯服务端接口，协议结构未变，不升 `schemaVersion`**）
 >
 > **事实源（唯一权威）**：`lowcode/packages/schema/src/types/*.ts`（结构）+ `lowcode/packages/schema/src/validate/index.ts`（校验规则）+ `lowcode/packages/expression/src/`（表达式语义）+ `lowcode/apps/server/src/`（第 10 章接口）。
 > 本文件是面向**协议使用者（设计器 / 运行时 / 服务端 / 第三方集成方）**的规范说明，字段结构以 TS 类型为准，语义与约束以本文件为准。
@@ -624,7 +624,7 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 400 | `SCHEMA_INVALID` | **Schema 校验未通过，附完整 `errors`/`warnings`** |
 | 400 | `INVALID_MODEL_ID` / `INVALID_RECORD_ID` | 模型 id / 记录 id 不符合白名单（防路径穿越，与页面 id 同规则） |
 | 400 | `MODEL_INVALID` | **模型定义校验未通过，附 `errors`/`warnings`**（与 `SCHEMA_INVALID` 形状对齐） |
-| 400 | `INVALID_QUERY` | `filter`/`sort`/`page`/`size` 非法（未知字段、坏 JSON、方向错、`size` 超 100 等） |
+| 400 | `INVALID_QUERY` | `filter`/`sort`/`page`/`size` 非法（未知字段、坏 JSON、方向错、`size` 超 100 等）；物料市场（批 40）`status`/`category`/`kind`/`q` 非法 |
 | 400 | `RECORD_INVALID` | **记录校验未通过，附 `errors`**（sanitize → 类型 → 规则三步） |
 | 400 | `INVALID_FLOW` | **流程定义（批 1）**：`validateFlow` 未通过（附 `issues`/`warnings`）或路径 `flowId` 与 `body.flowId` 不一致 |
 | 400 | `FLOW_NOT_RUNNING` | 对已终态（approved/rejected）实例执行审批动作 |
@@ -632,22 +632,32 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 | 400 | `APP_CONFIG_INVALID` | **应用配置写入（批 3）**：`PUT /apps/config` theme 校验未通过（附 issues 拼接 message：非法 hex / 非 px 串 / 非布尔 / 未知配置项 / theme 非对象） |
 | 400 | `OPS_INVALID` | **运维事件（批 5）**：`POST /ops/events` 批量结构非法（条数 1~50、`type`/`name`/`pageId`/`pageVersion`/`source`/`detail` 形状、`perf` 缺 `durationMs`、`error` 缺 `message`）或 `GET /ops/events` 的 `type`/`since`/`limit` 非法；message 带 `events[i]` 定位（**数据超长不触发本码，走截断**） |
 | 400 | `WEBHOOK_INVALID` | **Webhook 配置（批 39）**：`POST/PUT /webhooks` 入参校验失败（未知字段、name/url/events/secret/active/maxAttempts/timeoutMs 非法、`events` 为空或 `'*'` 与其他事件混用、URL 非 http(s)/含账号口令/生产指向内网）；`errors[]` 汇总全部问题 |
+| 400 | `MARKET_MATERIAL_INVALID` | **物料市场（批 40）**：创建/编辑/审核/安装入参校验失败（未知字段、id/name/version/kind/category/component/meta 非法、`kind=meta` 带 `component`、驳回未填 note、安装版本非 semver）；`errors[]` 逐项定位 |
+| 400 | `TENANT_INVALID` | `X-LC-Tenant` 不是 1~64 位小写字母/数字/连字符，或首字符非字母数字 |
 | 401 | `UNAUTHORIZED` | 无/坏/过期令牌、Authorization 头格式错 |
 | 401 | `INVALID_CREDENTIALS` | 用户不存在或口令错（**同一错误码防枚举**） |
 | 403 | `PAGE_FORBIDDEN` | **页面可见性守卫（批 6）**：`GET /pages/:id/schema` 用户角色不在该页授权（`pages` 有条目且未命中、也无 `'*'`）；无条目 = 全员可见不触发 |
 | 403 | `PERMISSION_DENIED` | **模型 CRUD 守卫（批 6）**：`ModelSchema.permissions[action]` 已声明且用户角色不在交集（无 `'*'`）；records 四接口按 create/read/update/delete 分别强制；**应用配置写入（批 3）**：`PUT /apps/config` 用户 perms 不含 `'*'`；**运维事件读取（批 5）**：`GET /ops/events` / `GET /ops/summary` 用户 perms 不含 `'*'` |
-| 403 | `ADMIN_REQUIRED` | **Webhook 管理（批 39）**：9 个 `/webhooks*` 接口均要求用户 perms 含 `'*'`；普通登录用户（如 designer）访问管理面时返回本码，不返回配置或密钥 |
+| 403 | `ADMIN_REQUIRED` | **Webhook 管理（批 39）**：9 个 `/webhooks*` 接口均要求用户 perms 含 `'*'`；普通登录用户（如 designer）访问管理面时返回本码，不返回配置或密钥。**物料市场（批 40）**：物料创建/编辑/提交/审核/发布/下架/版本历史均要求 `'*'`；普通用户显式按 `status` 筛选目录也返回本码 |
 | 403 | `TASK_FORBIDDEN` | **流程审批动作（批 1）**：当前用户非任务 assignee（role 未命中且无 `'*'`、非发起人、dept 降级不可命中） |
 | 404 | `PAGE_NOT_FOUND` / `DRAFT_NOT_FOUND` / `VERSION_NOT_FOUND` | 页面/草稿/版本不存在 |
 | 404 | `MODEL_NOT_FOUND` / `RECORD_NOT_FOUND` / `FILE_NOT_FOUND` | 模型未建档 / 记录不存在或已软删 / 文件不存在 |
 | 404 | `FLOW_NOT_FOUND` / `FLOW_INSTANCE_NOT_FOUND` / `FLOW_TASK_NOT_FOUND` | 流程定义 / 实例 / 任务不存在（批 1） |
 | 404 | `WEBHOOK_NOT_FOUND` / `WEBHOOK_DELIVERY_NOT_FOUND` | Webhook 订阅 / 投递记录不存在（批 39）；删除订阅后投递日志仍保留在存储中，但当前投递日志接口仍要求订阅存在，需运维直接查库或后续补管理入口 |
+| 404 | `MARKET_MATERIAL_NOT_FOUND` | 物料不存在；或草稿/待审/驳回/下架物料对普通用户不可见（批 40） |
+| 404 | `MARKET_INSTALL_NOT_FOUND` | 卸载时该租户未安装该物料（批 40） |
 | 409 | `NOT_PUBLISHED` | 取 `published` 但从未发布 |
 | 409 | `NO_DRAFT` | 发布时没有草稿 |
 | 409 | `VERSION_CONFLICT` | **乐观锁冲突**：页面保存/发布/回滚或记录更新/删除时，`If-Match` 或服务端读到的 `revision` 已过期；响应含 `expectedRevision` / `currentRevision`（记录另含 `modelId`） |
 | 409 | `FLOW_CONFLICT` | **流程实例并发冲突**：审批推进时实例 `revision` CAS 失败（另一请求已先推进），客户端应重新 GET 实例后再决定 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | **审批幂等键复用**：同一 `Idempotency-Key` 已用于同实例的其他任务，或同一任务但动作/意见/审批人不同；相同内容的重放返回 `200` 当前实例，不报此错 |
 | 409 | `DELIVERY_PENDING` | **Webhook 手动重投（批 39）**：投递仍为 `pending` 且 `nextAttemptAt` 在当前时间之后，说明自动重试尚未到期；响应带 `nextAttemptAt`，客户端应稍后再试 |
+| 409 | `MARKET_MATERIAL_EXISTS` | 创建物料时 id 已存在（批 40） |
+| 409 | `MARKET_STATE_CONFLICT` | 物料当前状态不允许该动作（如编辑 pending、发布 draft、审核 draft），响应带 `currentStatus`（批 40） |
+| 409 | `MARKET_VERSION_EXISTS` | 同一 `materialId + version` 已发布过；需提升 `version` 后重新提交审核（批 40） |
+| 409 | `MARKET_NOT_PUBLISHED` | 安装非 `published` 物料，响应带 `currentStatus`（批 40） |
+| 409 | `MARKET_VERSION_MISMATCH` | 安装/升级请求版本不等于当前发布版本，响应带 `publishedVersion`；不允许静默升降级（批 40） |
+| 503 | `MARKET_SIGNING_UNCONFIGURED` | 生产环境未配置 `LC_MATERIAL_MARKET_PRIVATE_KEY`，清单与公钥接口不可用（批 40） |
 | 413 | （multer `LIMIT_FILE_SIZE`） | 文件超 10MB；Nest 包装为 413，**无业务 `code`** |
 
 **记录/模型校验的 `errors[]` Issue 码**（由服务端产生，与页面校验共用同一 `Issue` 形状；页面侧全集见第 7 章）：
@@ -700,8 +710,8 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 
 | `LC_STORAGE` | 数据位置 | 适用 |
 |---|---|---|
-| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
-| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives`（16 表） | 本地联调、生产；需 `DATABASE_URL` |
+| `json`（默认） | `<LC_DATA_DIR>/pages / models / data / rbac.json / flows.json / flow-instances.json / ops/events.json / apps.json / files/ / webhooks.json / webhook-deliveries.json / market.json` + 内存用户种子 | 单测、无 MySQL 的 CI、本地快速演示 |
+| `mysql` | MySQL 8：`users / roles / user_roles / pages / page_versions / models / data_records / rbac_page_grants / flow_definitions / flow_instances / ops_events / app_config / files / webhook_subscriptions / webhook_deliveries / webhook_delivery_archives / market_materials / market_material_versions / market_installs`（19 表） | 本地联调、生产；需 `DATABASE_URL` |
 
 - `mysql` 模式启动期校验连接串；`/ready` 额外检查数据库。开发用户由 `seed:mysql` 写入，JSON 数据可由 `import:json-to-mysql` 幂等导入。
 - **所有业务仓储均有 JSON / MySQL 双实现**（含流程、运维事件、应用配置、文件）；跨仓储仍无分布式事务，流程 setField 用 `pendingPatch` 补偿（10.6）。详见 [ADR-008](DECISIONS.md#adr-008) / [ADR-009](DECISIONS.md#adr-009) / [ADR-010](DECISIONS.md#adr-010) / [ADR-011](DECISIONS.md#adr-011)。
@@ -750,8 +760,8 @@ HTTP 状态 + 业务 `code`（错误体形如 `{ code, message, errors? }`）：
 |---|---|
 | 端点 | `GET /api/v1/openapi.json`（公开只读，无需 JWT；仍计入普通限流） |
 | 版本 | OpenAPI **3.1.0**；`servers = [{ url: '/api/v1' }]`，`paths` 不含全局前缀 |
-| 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId}） |
-| 覆盖 | 当前 **50 条**实际路由；含页面/记录/流程/Webhook `If-Match`、审批 `Idempotency-Key`、错误体与 409/413/429/503 响应 |
+| 鉴权声明 | 顶层 `security: [{ bearerAuth: [] }]`；公共接口显式 `security: []`（health / ready / openapi.json / auth/login / files/{fileId} / materials/manifest / materials/manifest/key） |
+| 覆盖 | 当前 **64 条**实际路由；含页面/记录/流程/Webhook/物料 `If-Match`、审批 `Idempotency-Key`、错误体与 304/409/413/429/503 响应 |
 | 缓存 | `Cache-Control: public, max-age=300` |
 | 实现 | `apps/server/src/open/openapi.ts`（构建器）+ `open.controller.ts` / `open.module.ts` |
 | 防漂移 | `apps/server/test/openapi.test.ts` 反射 Nest 路由元数据，路径/方法少一条或多一条即失败；并校验 `operationId` 唯一、路径参数完整、`$ref` 可解析、公共接口鉴权 |
@@ -886,6 +896,35 @@ if (replay.checkAndRemember(req.headers['x-lc-delivery'] as string)) return res.
 - JSON 模式：`<LC_DATA_DIR>/webhooks.json`（订阅）、`webhook-deliveries.json`（投递）、`webhook-delivery-archive.json`（归档），均临时文件 + rename 原子写，`KeyedLock` 串行化；多进程 worker 通过文件锁互斥。
 - MySQL 模式：`webhook_subscriptions` / `webhook_deliveries` / `webhook_delivery_archives`（迁移 `20261023090000_webhook_hardening`）；订阅写操作走 `revision` CAS，投递按 `nextAttemptAt + createdAt` 扫描并用 `FOR UPDATE SKIP LOCKED` 领取。
 - 删除订阅不级联删除投递日志；`GET /webhooks/:id/deliveries` 不再校验订阅是否存在，删除后仍可按订阅 id 查历史日志。密钥、投递体、响应摘要属敏感数据：管理接口只对 `'*'` 开放，日志查询不返回密钥；归档文件/表需按数据保留策略单独授权。
+
+### 10.9 物料市场（Phase 4 开放集成第三批）
+
+| 方法 | 路径 | 鉴权 | 契约 |
+|---|---|---|---|
+| GET | `/materials/manifest` | 公开 | `200 { alg, signature, manifest }`，`ETag` + `Cache-Control: public, max-age=60`；`If-None-Match` 命中 `304`；未配置签名私钥 `503 MARKET_SIGNING_UNCONFIGURED` |
+| GET | `/materials/manifest/key` | 公开 | `200 { alg, publicKey, fingerprint, kid }`；公钥非秘密 |
+| GET | `/materials` | Bearer | `200 { items }`；普通用户只见 `published`，管理员可按 `status/category/kind/q` 筛选 |
+| POST | `/materials` | Bearer + `*` | `200 MarketMaterial` + `ETag`；重复 id `409 MARKET_MATERIAL_EXISTS` |
+| GET | `/materials/:id` | Bearer | `200`；未发布物料对普通用户 `404 MARKET_MATERIAL_NOT_FOUND` |
+| PUT | `/materials/:id` | Bearer + `*`，可选 `If-Match` | 仅 `draft/rejected/unpublished`；编辑后回到 `draft` 并清空审核结论 |
+| POST | `/materials/:id/submit` | Bearer + `*`，可选 `If-Match` | `draft/rejected/unpublished → pending` |
+| POST | `/materials/:id/review` | Bearer + `*`，可选 `If-Match` | `{ decision: 'approve' \| 'reject', note? }`；`reject` 必须填 `note` |
+| POST | `/materials/:id/publish` | Bearer + `*`，可选 `If-Match` | 仅 `approved → published`；固化版本快照，重复版本 `409 MARKET_VERSION_EXISTS` |
+| POST | `/materials/:id/unpublish` | Bearer + `*`，可选 `If-Match` | `published → unpublished`，清单立即移除 |
+| GET | `/materials/:id/versions` | Bearer + `*` | `200 { items }`，发布快照倒序 |
+| GET | `/materials/installs` | Bearer + `X-LC-Tenant` | `200 { items }`，只返回当前租户 |
+| PUT | `/materials/installs/:materialId` | Bearer + `X-LC-Tenant`，可选 `If-Match` | `{ version }` 必须等于当前发布版本；未发布 `409 MARKET_NOT_PUBLISHED`，版本不一致 `409 MARKET_VERSION_MISMATCH` |
+| DELETE | `/materials/installs/:materialId` | Bearer + `X-LC-Tenant`，可选 `If-Match` | `200 { tenantId, materialId, removed: true }`；未安装 `404 MARKET_INSTALL_NOT_FOUND` |
+
+状态机：`draft → pending → approved/rejected → published → unpublished`；`rejected/unpublished` 可重新编辑回 `draft`。
+
+- **签名**：ES256（P-256/SHA-256），签名原文 `canonicalJson(manifest)`；Node 输出 `dsaEncoding: 'ieee-p1363'` 的 raw `r||s`，base64 放入 `signature`；
+- **清单稳定性**：只含 `published` 物料，按 id 升序；`generatedAt = max(updatedAt)`（空市场 `1970-01-01T00:00:00.000Z`），内容不变时 ETag/签名稳定；
+- **组件白名单**：`kind=component` 的 `component` 必须命中 `@lc/schema` 的 `BUILTIN_COMPONENT_IDS`；`kind=meta` 禁止带 `component`；
+- **租户**：`X-LC-Tenant` 必须匹配 `^[a-z0-9][a-z0-9-]{0,63}$`（缺省 `default`）；服务端只校验格式，成员关系由网关/身份提供方保证；
+- **乐观锁**：物料 `"material:<id>:<rev>"`，安装 `"material-install:<tenantId>/<materialId>:<rev>"`；`If-Match` 不匹配 `409 VERSION_CONFLICT`，不自动覆盖；
+- **存储**：JSON `<LC_DATA_DIR>/market.json`（`{ materials, versions, installs }`）；MySQL `market_materials` / `market_material_versions` / `market_installs`，发布在事务内完成 CAS + 快照插入；
+- **安全边界**：服务端只托管元数据，不接收、不构建、不分发远程 JS；客户端依旧不下载、`eval`、动态 `import` 远程代码。
 
 ## 11. 生命周期受信 API（`app.*`）
 

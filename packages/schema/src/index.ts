@@ -10,6 +10,7 @@
  * 本包零运行时依赖，可被设计器（Web）、运行时（uni-app）、服务端（Node）三端共用。
  */
 export * from './version.js'
+export * from './components.js'
 export * from './types/index.js'
 export * from './validate/index.js'
 export * from './migrate/index.js'
