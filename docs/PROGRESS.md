@@ -24,8 +24,8 @@ GitHub Actions 远端 CI 已实跑全绿。
 |---|---|---|
 | 数据库表 | **19 张** | `apps/server/prisma/schema.prisma` |
 | OpenAPI 路由 | **64 条** | `apps/server/test/openapi.test.ts` 断言 + [`openapi.md`](openapi.md) |
-| 测试 | **1205 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
-| 覆盖率 | **94.49 / 85.60 / 94.05 / 94.49**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
+| 测试 | **1206 passed + 10 skipped / 83 文件** | `pnpm test`（2026-10-27 实测） |
+| 覆盖率 | **94.48 / 85.60 / 94.06 / 94.48**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
 | 远端 CI | **两个 job 全绿** | GitHub Actions run #12（`e966a09`）`verify` + `node20-core` |
@@ -227,6 +227,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-27 | 文档整合 | 合并为 8 个文档并删除 23 个冗余文件；修 B-50 时间依赖测试；CI run #8 全绿 |
 | 2026-10-27 | 服务端物料市场 | 清单 ES256 签名 + `If-None-Match`、审核/发布状态机、不可变版本快照、租户级安装；3 表 + 5 条 MySQL 仓储用例；路由 50→64；CI run #10/#11 全绿 |
 | 2026-10-27 | MySQL 导入实测 | `market.json` → 市场三表 3/3/3；重复执行快照一致；`MysqlMarketRepository` 回读字段一致；CI run #12 全绿 |
+| 2026-10-27 | 安全修复 | RBAC 三个管理接口补管理员校验（权限点 `*`），封堵任意登录用户自提权；补 403 回归测试、OpenAPI 403 与协议文档 |
 
 ---
 
@@ -253,6 +254,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | B-48 | rpx 令牌在 CI 静默失效 | CRLF 换行导致生成/比对不一致 | 生成脚本按 LF 归一 + CI 校验 |
 | B-49 | CI typecheck 找不到 workspace 类型 | `types` 指向 `dist` | **必须先 `build` 再 `typecheck`** |
 | B-50 | Webhook 指标测试在 2026-10-23 之后必红 | fixture 用固定 `createdAt = 2026-10-22`，而 metrics 按真实「最近 24 小时」统计 | 时间窗口断言一律用相对当前时间；固定时间只用于纯逻辑用例 |
+| B-51 | 任意登录用户可 `PUT /rbac/roles/designer` 给自己角色加 `*` | RBAC 三个接口只挂 `AuthGuard`，漏了管理面鉴权；`perms` 实时读取使提权立即生效 | 管理面接口统一 `permsOf(user).includes('*')` 判定；新增 403 回归测试锁定 |
 
 ---
 
@@ -264,8 +266,8 @@ pnpm install --frozen-lockfile
 pnpm design:check      # 6 道设计门禁
 pnpm build             # 必须先于 typecheck（workspace types 指向 dist）
 pnpm typecheck
-pnpm test              # 1205 passed + 10 skipped / 83 文件
-pnpm coverage          # 94.49 / 85.60 / 94.05 / 94.49
+pnpm test              # 1206 passed + 10 skipped / 83 文件
+pnpm coverage          # 94.48 / 85.60 / 94.06 / 94.48
 pnpm -F @lc/runtime build:h5
 pnpm -F @lc/runtime build:mp-weixin
 pnpm -F @lc/runtime build:app

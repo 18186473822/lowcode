@@ -543,7 +543,7 @@
 | PUT | `/rbac/roles/:key` | `{ name, perms }`（upsert：不存在即建） | `200 { key, name, perms }`；`perms` 逐项须匹配权限点格式（`[a-z][a-z0-9_]*`，或通配 `'*'`），非法项 `400 INVALID_REQUEST` |
 | PUT | `/rbac/pages/:pageId` | `{ roles: string[] }`（upsert） | `200 { pageId, roles }`；**空数组 = 删除该页授权条目 → 恢复全员可见**；`pageId` 不符白名单 `400 INVALID_PAGE_ID` |
 
-- 鉴权沿全局约定（Bearer）；三接口**无管理员角色细分**（登录即可调，管理面鉴权细分属后续批次）。
+- 鉴权沿全局约定（Bearer），且三接口**要求管理员**（权限点含 `*`）；普通账号返回 `403 ADMIN_REQUIRED`。
 - **判定落点**（单一事实源 `RbacService`）：页面级 = `GET /pages/:id/schema` 403 + bootstrap 菜单过滤；按钮级 = 节点 `perm` 字段与会话 `perms` 匹配，不匹配**整节点不渲染**（渲染层语义，见 12.1）；模型 CRUD = `ModelSchema.permissions[action]` 声明则角色交集否则 `403 PERMISSION_DENIED`（records 四接口）；行级 = `ModelSchema.dataScope`（records 查询链强制，`'*'` 豁免）。
 - **存储**：JSON 模式为 `<LC_DATA_DIR>/rbac.json` 单文件（原子写）；MySQL 模式为 `roles` + `rbac_page_grants`（用户→角色在 `user_roles`）。两种实现共用种子配置：`roles = [{ key:'admin', name:'平台管理员', perms:['*'] }, { key:'designer', name:'设计器用户', perms:[] }]`、`pages = {}`（MySQL 空库读取时兜底，持久化由 `seed:mysql` 或首次 `save` 完成）。
 - **用户→角色映射**：Phase 1 内存种子不变（admin→`['admin']`、designer→`['designer']`），用户管理 UI 不在本批（D-P2-12 裁剪项）。

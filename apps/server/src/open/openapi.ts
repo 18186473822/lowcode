@@ -1770,20 +1770,22 @@ export function buildOpenApi(): OpenApiDocument {
 
     /* ------------------------------ RBAC ------------------------------ */
     '/rbac/roles': {
-      get: op('RBAC', 'listRbacConfig', '读取 RBAC 全量配置', {
+      get: op('RBAC', 'listRbacConfig', '读取 RBAC 全量配置（仅管理员）', {
         200: ok('角色列表 + 页面授权映射', ref('RbacConfig')),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
       }, {
-        description: '当前三个 RBAC 接口只要求登录，管理面细分鉴权属后续批次。',
+        description: '仅权限点含 `*` 的管理员可读；普通账号返回 403 `ADMIN_REQUIRED`。',
       }),
     },
     '/rbac/roles/{key}': {
-      put: op('RBAC', 'upsertRbacRole', '新增/更新角色', {
+      put: op('RBAC', 'upsertRbacRole', '新增/更新角色（仅管理员）', {
         200: ok('保存成功', ref('RbacRoleUpsertResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
       }, {
-        description: '`perms` 每项须匹配权限点格式，或为通配 `*`；非法返回 400 `INVALID_REQUEST`。',
+        description: '仅管理员可写；`perms` 每项须匹配权限点格式，或为通配 `*`；非法返回 400 `INVALID_REQUEST`。',
         parameters: [pathParam('key', '角色 key', 'designer')],
         requestBody: body({
           type: 'object',
@@ -1796,10 +1798,11 @@ export function buildOpenApi(): OpenApiDocument {
       }),
     },
     '/rbac/pages/{pageId}': {
-      put: op('RBAC', 'upsertRbacPageAuth', '设置页面可见角色', {
+      put: op('RBAC', 'upsertRbacPageAuth', '设置页面可见角色（仅管理员）', {
         200: ok('保存成功', ref('RbacPageAuthResponse')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
+        403: responseRef('Forbidden'),
       }, {
         description: '`roles` 为空数组 = 删除该页授权条目，恢复全员可见。',
         parameters: [pathParam('pageId', '页面 id', 'p_demo')],

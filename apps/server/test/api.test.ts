@@ -561,6 +561,32 @@ describe('批 6：RBAC 配置接口 + bootstrap 权限 + 页面可见性守卫',
     expect(r.status).toBe(200)
   })
 
+  it('RBAC 管理面仅管理员：designer 读/写均 403，且无法给自己提权', async () => {
+    const read = await call('GET', '/api/v1/rbac/roles', { token: dToken })
+    expect(read.status).toBe(403)
+    expect(read.body.code).toBe('ADMIN_REQUIRED')
+
+    // 关键回归：普通账号不能把自己的角色改成 '*'（否则等同全权限管理员）
+    const escalate = await call('PUT', '/api/v1/rbac/roles/designer', {
+      body: { name: '设计器用户', perms: ['*'] },
+      token: dToken,
+    })
+    expect(escalate.status).toBe(403)
+    expect(escalate.body.code).toBe('ADMIN_REQUIRED')
+
+    const grant = await call('PUT', '/api/v1/rbac/pages/bs_menu', {
+      body: { roles: ['designer'] },
+      token: dToken,
+    })
+    expect(grant.status).toBe(403)
+
+    // 提权未发生：重新登录后权限点仍不含 '*'
+    const relogin = await call('POST', '/api/v1/auth/login', {
+      body: { username: 'designer', password: 'designer123' },
+    })
+    expect(relogin.body.perms).not.toContain('*')
+  })
+
   it('RBAC 接口需令牌：无令牌 401', async () => {
     const r = await call('GET', '/api/v1/rbac/roles')
     expect(r.status).toBe(401)

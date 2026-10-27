@@ -1,5 +1,5 @@
 /**
- * RBAC 接口（批 6，全部需 Bearer 令牌）：
+ * RBAC 接口（批 6，全部需 Bearer + 管理员）：
  *
  * ```
  * GET  /api/v1/rbac/roles          RBAC 全量配置 {roles:[{key,name,perms}], pages:{pageId:[roleKey]}}
@@ -8,20 +8,28 @@
  * PUT  /api/v1/rbac/pages/:pageId  upsert 页面授权（body {roles: string[]}；空数组 = 删条目恢复全员可见）
  * ```
  *
+ * 三个接口均要求管理员（权限点含 `*`）：RBAC 配置本身就是提权入口，
+ * 只校验登录会让任意账号给自己角色加 `*`（2026-10-27 修复）。
+ * 与 Webhook / 物料市场管理面使用同一判定口径（`permsOf` 含 `*`）。
+ *
  * PUT 显式 `@HttpCode(200)` —— 固化契约，避免 Nest 默认 201（B-16 教训）。
  */
 import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Inject,
   Param,
   Put,
+  Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
-import { AuthGuard } from '../common/auth.guard.js'
+import { AuthGuard, type AuthedRequest } from '../common/auth.guard.js'
+import type { AuthUser } from '../common/jwt.service.js'
 import { RbacService, PERM_RE, ROLE_KEY_RE, WILDCARD } from './rbac.service.js'
 import type { RbacConfig } from './rbac.types.js'
 
@@ -40,13 +48,19 @@ export class RbacController {
   constructor(@Inject(RbacService) private readonly svc: RbacService) {}
 
   @Get('roles')
-  async listRoles(): Promise<RbacConfig> {
+  async listRoles(@Req() req: AuthedRequest): Promise<RbacConfig> {
+    await this.assertAdmin(req.user)
     return this.svc.config()
   }
 
   @Put('roles/:key')
   @HttpCode(200)
-  async upsertRole(@Param('key') key: string, @Body() body: UpsertRoleBody | undefined) {
+  async upsertRole(
+    @Param('key') key: string,
+    @Body() body: UpsertRoleBody | undefined,
+    @Req() req: AuthedRequest,
+  ) {
+    await this.assertAdmin(req.user)
     if (!ROLE_KEY_RE.test(key)) {
       throw new BadRequestException({
         code: 'INVALID_REQUEST',
@@ -73,7 +87,12 @@ export class RbacController {
 
   @Put('pages/:pageId')
   @HttpCode(200)
-  async upsertPageAuth(@Param('pageId') pageId: string, @Body() body: UpsertPageAuthBody | undefined) {
+  async upsertPageAuth(
+    @Param('pageId') pageId: string,
+    @Body() body: UpsertPageAuthBody | undefined,
+    @Req() req: AuthedRequest,
+  ) {
+    await this.assertAdmin(req.user)
     const { roles } = body ?? {}
     if (!Array.isArray(roles) || roles.some((r) => typeof r !== 'string' || !ROLE_KEY_RE.test(r))) {
       throw new BadRequestException({
@@ -83,5 +102,20 @@ export class RbacController {
     }
     await this.svc.upsertPageAuth(pageId, roles as string[])
     return { pageId, roles, saved: true }
+  }
+
+  /**
+   * 管理面判定：权限点含 `*` 才放行。
+   * 与 `WebhookService.assertCanManage` / `MarketService.assertAdmin` 同一口径；
+   * RBAC 权限点每次请求实时读取，因此这里不信任 JWT 内的 roles，而是查仓储。
+   */
+  private async assertAdmin(user: AuthUser | undefined): Promise<void> {
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: '缺少登录态' })
+    }
+    const perms = await this.svc.permsOf(user)
+    if (!perms.includes(WILDCARD)) {
+      throw new ForbiddenException({ code: 'ADMIN_REQUIRED', message: '仅管理员可维护 RBAC 配置' })
+    }
   }
 }

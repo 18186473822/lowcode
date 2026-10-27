@@ -194,8 +194,8 @@ scripts/        设计一致性门禁脚本（tokens / 色值 / 对比度 / 图�
 pnpm design:check    # 设计一致性 6 道：令牌漂移 / 硬编码色值 / 间距令牌 / px→rpx 未替换 / rpx 生成同步 / WCAG 对比度
 pnpm -r typecheck    # 7 个包类型检查
 pnpm -r build        # 构建（runtime 刻意不进此链，见 ADR-006）
-pnpm -r test         # 单元测试（83 文件 / 1205 通过 + 10 跳过；注入 LC_TEST_DATABASE_URL 时 MySQL 仓储也执行）
-pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 94.49/85.60/94.05/94.49）
+pnpm -r test         # 单元测试（83 文件 / 1206 通过 + 10 跳过；注入 LC_TEST_DATABASE_URL 时 MySQL 仓储也执行）
+pnpm coverage        # 覆盖率聚合，阈值 90/85/90/90（实测 94.48/85.60/94.06/94.48）
 ```
 
 服务端冒烟脚本（前 5 个需先起服务；安全/可观测性脚本会自起临时实例）：

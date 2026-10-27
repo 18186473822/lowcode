@@ -63,9 +63,9 @@ curl -s http://localhost:3000/api/v1/openapi.json > openapi.json
 | Flows | PUT | `/flows/{flowId}` | Bearer |
 | Flows | DELETE | `/flows/{flowId}` | Bearer |
 | Flows | POST | `/flows/instances/{instanceId}/tasks/{taskId}` | Bearer + assignee |
-| RBAC | GET | `/rbac/roles` | Bearer |
-| RBAC | PUT | `/rbac/roles/{key}` | Bearer |
-| RBAC | PUT | `/rbac/pages/{pageId}` | Bearer |
+| RBAC | GET | `/rbac/roles` | Bearer + `*` |
+| RBAC | PUT | `/rbac/roles/{key}` | Bearer + `*` |
+| RBAC | PUT | `/rbac/pages/{pageId}` | Bearer + `*` |
 | Ops | POST | `/ops/events` | Bearer |
 | Ops | GET | `/ops/events` | Bearer + `*` |
 | Ops | GET | `/ops/summary` | Bearer + `*` |
