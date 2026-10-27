@@ -1,7 +1,7 @@
 <!--
   Textarea 物料 —— 多行文本。归位于 `packages/materials`（Phase 1 第 1 批）。
   接口对齐 lc-node：`<lc-textarea v-bind="model.props" :error="model.error" @update="onChange" />`
-   - emit('update', { name, value }) → controller.setField（契约见 packages/materials/README.md）
+   - emit('update', { name, value }) → controller.setField（契约见 docs/protocol.md 第 4 章）
 -->
 <template>
   <view class="lc-textarea">

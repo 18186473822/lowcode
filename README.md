@@ -227,7 +227,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
-- **CI 已实跑通过**：GitHub Actions（[run #6](https://github.com/18186473822/lowcode/actions/runs/39903958427) `ff07ff9`，此前 run #3 `f5fb6f0` / run #4 `cf4fae1`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
+- **CI 已实跑通过**：GitHub Actions（[run #8](https://github.com/18186473822/lowcode/actions/runs/40438832580) `b0c0e28`，此前 run #6 `ff07ff9` / run #4 `cf4fae1` / run #3 `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
 - **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
 - **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 50 条路由（含 11 条 Webhook 管理接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；服务端物料市场 API（清单托管、发布审核、租户级安装状态）未实现，设计器侧已有受信元数据闭环与市场面板。
 - **存储双轨**：`LC_STORAGE=json`（默认，单测/CI/无数据库）无事务、整文件读写，用户为内存种子，**并发写只靠单进程 `KeyedLock`**；`LC_STORAGE=mysql` 已覆盖用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容，以及 Webhook 订阅/投递/归档（ADR-008 / ADR-009 / ADR-010），并用行级 `revision` CAS 支持多实例并发写（ADR-011）。
