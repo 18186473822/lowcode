@@ -2,7 +2,7 @@
 
 uni-app + Vue 3 全端低代码平台。业务人员在 Web 设计器拖拽建页 → 发布 Schema → 移动端（H5 / 微信小程序）按 Schema 动态渲染，含模型建模、列表/详情标准页、RBAC、版本回滚、审批流程、门户看板。
 
-> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档、物料市场物料/版本/安装，共 19 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（64 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）、**服务端物料市场**（清单托管与 ES256 签名、发布审核状态机、不可变版本快照、租户级安装状态）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4/#10/#11/#12，Node 22 全量门禁 + MySQL 8 集成/导入 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包。
+> **状态**：Phase 0 / 1 / 2 / 3 全部收口（出口判据均达成）；Phase 4 主体完成，安全加固、可观测性、**MySQL 数据库**（用户/角色、页面/版本、模型/记录、RBAC、流程定义/实例、运维事件、应用配置、文件元数据/内容、Webhook 订阅/投递/归档、物料市场物料/版本/安装，共 19 表）、**页面/记录/流程实例乐观锁 + 审批幂等**（ADR-011）、**详情页记录编辑/删除**、**列表页行内编辑/批量删除**、**OpenAPI 3.1 文档（64 条路由）**、**Webhook 生产化**（多副本租约、订阅限流、TTL 归档、DNS 级 SSRF、轮换宽限期、管理 UI/指标）、**服务端物料市场**（清单托管与 ES256 签名、发布审核状态机、不可变版本快照、租户级安装状态）与**远程物料受信元数据闭环 + 物料市场面板**完成；**GitHub Actions 远端 CI 已实跑通过**（run #3/#4/#10/#11/#12/#13，Node 22 全量门禁 + MySQL 8 集成/导入 + H5/小程序/App 编译 + Node 20 核心兼容两个 job 全绿）。当前能力与剩余工作见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；仍受环境限制未完成：微信小程序真机验证、Android/iOS 安装包。
 > **当前能力与剩余工作**见 [`docs/PROGRESS.md`](docs/PROGRESS.md)；上手与运维操作见 [`docs/OPERATIONS.md`](docs/OPERATIONS.md)；架构决策见 [`docs/DECISIONS.md`](docs/DECISIONS.md)；历史设计依据见 [`docs/PLANS.md`](docs/PLANS.md)。
 
 ---
@@ -227,7 +227,7 @@ pnpm -F @lc/server smoke:mysql            # MySQL 真启动 10 项（需 *_test 
 ## 已知限制
 
 - **小程序真机未验证**：只有 `build:mp-weixin` 产物级检查，环境无微信开发者工具。
-- **CI 已实跑通过**：GitHub Actions（[run #12](https://github.com/18186473822/lowcode/actions/runs/40447645078) `e966a09`，此前 run #11 `1e60966` / run #10 `d2aef26` / run #9 `35d6890` / run #8 `b0c0e28` / run #6 `ff07ff9` / run #4 `cf4fae1` / run #3 `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → MySQL 8 迁移/仓储集成/市场导入幂等/真启动冒烟 → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
+- **CI 已实跑通过**：GitHub Actions（[run #13](https://github.com/18186473822/lowcode/actions/runs/40460022366) `e86ce7f`，此前 run #12 `e966a09` / run #11 `1e60966` / run #10 `d2aef26` / run #9 `35d6890` / run #8 `b0c0e28` / run #6 `ff07ff9` / run #4 `cf4fae1` / run #3 `f5fb6f0`）`verify`（Node 22：设计门禁 → build → typecheck → H5/小程序/App 编译 → test → coverage → MySQL 8 迁移/仓储集成/市场导入幂等/真启动冒烟 → 服务端/安全/可观测性冒烟）与 `node20-core`（Node 20：build → typecheck → test）两个 job 全部步骤 success。Gitee 托管 CI 不支持 Node 22，只能作镜像。详见 [`docs/PROGRESS.md`](docs/PROGRESS.md) §2。
 - **移动端产物有限制**：H5、微信小程序、App 资源均已本地与远端 CI 编译通过；但未做微信真机验证，也未生成 Android APK/iOS IPA，需要本机 HBuilderX/开发者工具与签名证书。
 - **OpenAPI 只提供机器可读文档**：`GET /api/v1/openapi.json` 覆盖 64 条路由（含 11 条 Webhook 管理接口与 14 条物料市场接口），但未内置 Swagger UI 页面，也未生成客户端 SDK；物料市场只托管受信元数据，不下载/执行远程 JS。
 - **物料市场租户边界**：服务端只校验 `X-LC-Tenant` 格式，不维护成员关系；网关必须覆盖该头并完成认证，否则客户端可伪造租户。设计器当前仍按本地存储渲染安装状态，与服务端安装记录不自动同步。
