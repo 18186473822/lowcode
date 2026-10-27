@@ -1,6 +1,6 @@
 # 项目状态与变更记录（PROGRESS）
 
-> 最后更新：2026-10-27 ｜ 状态基线：`f600a86`（CI run #14 全绿）
+> 最后更新：2026-10-27 ｜ 状态基线：`509b9d2`（CI run #15 全绿）
 > 本文件合并了原 `STATUS.md` 与逐批台账（原文已删除，git 历史可追溯）。
 > 只写经过实际验证的结论；数字均来自本机或 GitHub Actions 实跑。
 > 操作与部署见 [`OPERATIONS.md`](OPERATIONS.md)，架构决策见 [`DECISIONS.md`](DECISIONS.md)，历史设计依据见 [`PLANS.md`](PLANS.md)。
@@ -28,7 +28,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 覆盖率 | **94.56 / 85.65 / 94.21 / 94.56**（stmts/branch/funcs/lines） | `pnpm coverage`，阈值 90/85/90/90 |
 | 类型检查 / 构建 | **7 包 typecheck / 5 包 build 全过** | `pnpm typecheck` / `pnpm build` |
 | 设计门禁 | **6 道全过** | `pnpm design:check` |
-| 远端 CI | **两个 job 全绿** | GitHub Actions run #14（`f600a86`）`verify` + `node20-core` |
+| 远端 CI | **两个 job 全绿** | GitHub Actions run #15（`509b9d2`）`verify` + `node20-core` |
 | 移动端编译 | **H5 / 微信小程序 / App 三端 DONE** | `build:h5` / `build:mp-weixin` / `build:app` |
 | MySQL 集成 | **10/10 PASS（本机 + CI）** | `mysql.persistence.test.ts`（`LC_TEST_DATABASE_URL`；CI 由 MySQL 8 服务容器提供） |
 | JSON→MySQL 导入 | **幂等**（重复两次结果一致） | `webhooks=1, deliveries=1, archives=1` 回读；`market.json` → 3 物料/3 版本/3 安装，两次导入三表快照一致（本机 `lowcode_test` + CI 实测） |
@@ -231,7 +231,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-27 | MySQL 导入实测 | `market.json` → 市场三表 3/3/3；重复执行快照一致；`MysqlMarketRepository` 回读字段一致；CI run #12 全绿 |
 | 2026-10-27 | 安全修复 | RBAC 三个管理接口补管理员校验（权限点 `*`），封堵任意登录用户自提权；补 403 回归测试、OpenAPI 403 与协议文档；CI run #13 全绿 |
 | 2026-10-27 | 安全修复 | 页面/模型写权限收敛为「创建者或管理员」：页面新增 `createdBy` 列 + 迁移；保存草稿/发布/回滚/PUT 模型统一 403 判定；补 4 条 e2e 与 MySQL 映射用例；CI run #14 全绿 |
-| 2026-10-27 | 安全审计 | 拒绝类事件落库：登录失败 / 401 / 403 / 429；`AuditMiddleware` 旁路记录 + 登录 401 去重；`GET /audit/events` 仅管理员；JSON 环形 2000 条 / MySQL `audit_events` 持久；补 6 条单测 + 5 条中间件单测 + 4 条 e2e + MySQL 映射 |
+| 2026-10-27 | 安全审计 | 拒绝类事件落库：登录失败 / 401 / 403 / 429；`AuditMiddleware` 旁路记录 + 登录 401 去重；`GET /audit/events` 仅管理员；JSON 环形 2000 条 / MySQL `audit_events` 持久；补 6 条单测 + 5 条中间件单测 + 4 条 e2e + MySQL 映射；CI run #15 全绿 |
 
 ---
 
