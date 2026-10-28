@@ -1,6 +1,6 @@
 # 低代码平台协议规范（protocol.md）
 
-> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 10 章修订：2026-10-22**（Phase 4 乐观锁与记录编辑：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；`DetailPageConfig` 新增可选 `editable`/`deletable`；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**可选字段新增，向后兼容，不升 `schemaVersion`**，ADR-011）｜ **第 10 章修订：2026-10-27**（Phase 4 物料市场：清单签名、发布审核状态机、租户级安装；新增 `MARKET_*` / `TENANT_INVALID` 错误码；**纯服务端接口，协议结构未变，不升 `schemaVersion`**）
+> 版本：**v1.0** ｜ 对应 `schemaVersion`: **1.0.0** ｜ 编写日期：2026-09-29 ｜ **第 10 章修订：2026-10-10**（补方案 8.3 动态 CRUD 9 个接口、记录查询语义 10.4、服务端错误码 11 → 19；**协议结构 0~9 章未变，故不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-14**（Phase 2 批 2 新增 `PageSchema.detail?: DetailPageConfig` + 2.7 节 + 2.6 实现状态注记；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P2-2）｜ **第 2 章修订：2026-10-20**（Phase 3 批 4 新增 `PageSchema.portal?: PortalPageConfig` + 2.9 节；**可选字段新增，向后兼容，不升 `schemaVersion`**，D-P3-11）｜ **第 10 章修订：2026-10-20**（Phase 3 批 5 新增 `POST/GET /ops/events` + `GET /ops/summary` + `OPS_INVALID`；**纯服务端接口，协议结构未变，不升 `schemaVersion`**，D-P3-12）｜ **第 10 章修订：2026-10-22**（Phase 4 乐观锁与记录编辑：页面/记录/流程实例 `revision`、`ETag`/`If-Match`、`Idempotency-Key`、`pendingPatch` outbox；`DetailPageConfig` 新增可选 `editable`/`deletable`；新增 `INVALID_IF_MATCH` / `VERSION_CONFLICT` / `FLOW_CONFLICT` / `IDEMPOTENCY_KEY_REUSED`；**可选字段新增，向后兼容，不升 `schemaVersion`**，ADR-011）｜ **第 10 章修订：2026-10-27**（Phase 4 物料市场：清单签名、发布审核状态机、租户级安装；新增 `MARKET_*` / `TENANT_INVALID` 错误码；**纯服务端接口，协议结构未变，不升 `schemaVersion`**）｜ **第 2 章修订：2026-10-28**（移动门户清单：`PortalPageConfig` 新增可选 `order` / `remark`（仅设计器运营用，运行时不读）；**可选字段新增，向后兼容，不升 `schemaVersion`**）
 >
 > **事实源（唯一权威）**：`lowcode/packages/schema/src/types/*.ts`（结构）+ `lowcode/packages/schema/src/validate/index.ts`（校验规则）+ `lowcode/packages/expression/src/`（表达式语义）+ `lowcode/apps/server/src/`（第 10 章接口）。
 > 本文件是面向**协议使用者（设计器 / 运行时 / 服务端 / 第三方集成方）**的规范说明，字段结构以 TS 类型为准，语义与约束以本文件为准。
@@ -296,13 +296,15 @@
 
 ### 2.9 门户页（`PortalPageConfig`，`type=portal` 可选）
 
-`{ title?, columns?, cards }` —— **卡片导航（配置化）+ 拖拽区（`root` 树）共存**：卡片区在上、`root` 树在下，一次配置即可拼出「首页导航 + 数据看板」。
+`{ title?, columns?, cards, order?, remark? }` —— **卡片导航（配置化）+ 拖拽区（`root` 树）共存**：卡片区在上、`root` 树在下，一次配置即可拼出「首页导航 + 数据看板」。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `title` | `string` | — | 门户标题；缺省用页面 `name` |
-| `columns` | `number` | — | 卡片列数，缺省 `2`；运行时收敛到 1~4（避免脏值撑破布局） |
+| `columns` | `number` | — | 卡片列数，缺省 `2`；运行时收敛到 1~6（避免脏值撑破布局；门户清单新建的页面默认 `4` 列宫格） |
 | `cards` | `PortalCard[]` | ✅ | 导航卡片；**可空数组**（= 纯拖拽门户，合法） |
+| `order` | `number` | — | 门户清单排序，小的在前；缺省 = 排在已设置的后面。**纯运营元数据，运行时不读**（2026-10-28 新增，可选字段，不升 `schemaVersion`） |
+| `remark` | `string` | — | 门户清单备注（运营说明）。**运行时不读**（2026-10-28 新增，可选字段，不升 `schemaVersion`） |
 
 `PortalCard`：
 
@@ -322,6 +324,8 @@
 - 两者都缺 → 卡片仅展示、不可点（不报错，允许「占位卡」）。
 
 > **实现状态（Phase 3 批 4 新增，2026-10-20，D-P3-11）**：`packages/renderer/src/uni/lc-portal-page.vue` 已兑现三字段 + 卡片事件；`packages/runtime/src/pages/view/index.vue` 按 `schema.type === 'portal'` 分发到门户页并接 `onOpenUrl`；设计器属性面板「门户」区（`data-testid=portal-config / portal-title / portal-columns / portal-card-i`）可增删改卡片、切换页型为「门户」；`PageType` 增加 `portal`，但 **`isStdPage` 仍只含 list/detail**（门户的 `root` 树要渲染，不占位）。服务端冒烟：`node apps/server/scripts/smoke-p3b4.mjs`（13 项断言：落库回读 + 非法卡片 400 `SCHEMA_INVALID`）。**未做**：卡片拖拽排序 / 卡片内自定义物料 / 门户级数据源（卡片角标自动取数）——见 [`PLANS.md`](PLANS.md) §3。
+>
+> **2026-10-28 补充（移动门户管理面，可选字段）**：新增 `order` / `remark` 两个运营字段（只给设计器门户清单用，运行时不读），`schemaVersion` 不变。设计器新增 **门户设计** 视图（`packages/designer/src/panel/PortalPanel.vue`）：`type=portal` 页面清单 + 查询 / 新增 / 编辑 / 删除 / 分页；新增走 `buildPortalPage`（`columns=4`、`cards=[]`）后直接 `PUT schema`，编码重复时**拒绝**（不 upsert 覆盖）；编辑先 `GET schema` 取 revision，再带 `If-Match` 写入，`409` 不自动覆盖。卡片区改为**四宫格图标块**（`.lc-card__tile--0..3`，四组令牌色按序号轮换）；`LcCanvas` 在 `type=portal` 时直接复用 `lc-portal-page` 的 `mode="design"`，画布与运行时同构（设计态点卡不跳转）。
 
 ---
 

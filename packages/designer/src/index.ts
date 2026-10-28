@@ -11,6 +11,7 @@ export { default as PanelState } from './components/PanelState.vue'
 export { default as MaterialPanel } from './panel/MaterialPanel.vue'
 export { default as PropsPanel } from './panel/PropsPanel.vue'
 export { default as ModelPanel } from './panel/ModelPanel.vue'
+export { default as PortalPanel } from './panel/PortalPanel.vue'
 export { default as OutlineTree } from './panel/OutlineTree.vue'
 export { default as HistoryDialog } from './panel/HistoryDialog.vue'
 export { default as RbacPanel } from './panel/RbacPanel.vue'
@@ -35,6 +36,7 @@ export type {
   DesignerApi,
   SaveState,
   PageListItem,
+  PortalListItem,
   ModelSummary,
   VersionSummary,
   VersionList,

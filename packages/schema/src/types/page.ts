@@ -104,10 +104,17 @@ export interface PortalCard {
 export interface PortalPageConfig {
   /** 门户标题（缺省用页面 name） */
   title?: string
-  /** 卡片列数（缺省 2） */
+  /** 卡片列数（缺省 2；门户清单新建的页面默认 4 列宫格） */
   columns?: number
   /** 导航卡片（可空 = 纯拖拽门户） */
   cards: PortalCard[]
+  /**
+   * 门户清单排序（2026-10-28）：小的在前，缺省排在已设置之后。
+   * 只是运营元数据，运行时不读。
+   */
+  order?: number
+  /** 门户清单备注（运营说明，运行时不读） */
+  remark?: string
 }
 
 /** 路由参数声明。 */

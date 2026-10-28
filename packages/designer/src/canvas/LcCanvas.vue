@@ -22,7 +22,16 @@
              选 zoom 而不是 transform：zoom **参与布局**，外壳高度会自己跟着涨，
              不需要（也不可能可靠地）手工量高度补偿 —— 那条路已实测失败过，见台账 §10.2 #15。 -->
         <div class="lc-canvas__page" :style="pageStyle">
+          <lc-portal-page
+            v-if="schema.type === 'portal'"
+            :schema="schema"
+            :options="options"
+            mode="design"
+            :selected-id="selectedId"
+            @select="onSelect"
+          />
           <lc-renderer
+            v-else
             :schema="schema"
             :options="options"
             mode="design"
@@ -56,6 +65,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { PageSchema } from '@lc/schema'
 import { countNodes, type PageControllerOptions } from '@lc/renderer'
 import LcRenderer from '@lc/renderer/uni/lc-renderer.vue'
+import LcPortalPage from '@lc/renderer/uni/lc-portal-page.vue'
 import { META_MAP } from '@lc/materials'
 import { installEnhancer } from '../shim/enhance'
 import { findNode } from '../core/schema-ops'

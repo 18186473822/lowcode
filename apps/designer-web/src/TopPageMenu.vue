@@ -173,9 +173,10 @@ const draftId = ref(store.pageId)
 const deleteArmed = ref(false)
 let deleteTimer: number | undefined
 
-/** 工作区入口（原「工作台」菜单）：页面画布 + 五个管理视图 */
+/** 工作区入口（原「工作台」菜单）：门户清单 + 页面画布 + 五个管理视图 */
 const VIEWS = [
   { value: 'page', label: '页面画布', testid: 'toggle-page' },
+  { value: 'portal', label: '门户设计', testid: 'toggle-portal' },
   { value: 'model', label: '数据模型', testid: 'toggle-models' },
   { value: 'rbac', label: '权限管理', testid: 'toggle-rbac' },
   { value: 'theme', label: '主题配置', testid: 'toggle-theme-panel' },

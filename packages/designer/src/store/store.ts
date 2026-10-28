@@ -56,6 +56,7 @@ import type { DragSource } from '../core/dnd'
 import {
   buildModelModule,
   buildModelPage,
+  buildPortalPage,
   MODEL_PAGE_TYPE_LABEL,
   MODEL_PAGE_TYPES,
   moduleBase,
@@ -137,6 +138,21 @@ export interface PageListItem {
   updatedAt?: string
   /** 页面绑定的数据模型（表单取提交模型，列表/详情取各自配置） */
   modelId?: string
+}
+
+/**
+ * 门户清单项（2026-10-28）：页面摘要 + 从 schema 读出的运营字段。
+ *
+ * 排序 / 备注存在 `schema.portal` 里（不新增表），所以清单加载时按页面逐份取 schema；
+ * 门户页通常只有个位数，这点请求量换来「不改服务端协议」。
+ */
+export interface PortalListItem extends PageListItem {
+  /** `portal.title`（可能与 name 不同） */
+  title?: string
+  /** 清单排序，小的在前；未设置 = 排在已设置的后面 */
+  order?: number
+  /** 运营备注 */
+  remark?: string
 }
 
 /** 版本元数据（服务端 `GET :id/versions` 投影；designer 侧独立类型，沿 ModelSummary 先例） */
@@ -773,6 +789,172 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     return true
   }
 
+  /* ---------------- 2026-10-28：门户清单（移动门户） ---------------- */
+
+  /** 页面编码规则（与服务端 `PAGE_ID_RE` 一致） */
+  const PORTAL_ID_RE = /^[A-Za-z_][\w-]{0,63}$/
+
+  const portalPages = ref<PortalListItem[]>([])
+  const portalLoading = ref(false)
+  const portalError = ref('')
+
+  /**
+   * 加载门户清单：页面列表里 `type=portal` 的行 + 各自的排序 / 备注。
+   *
+   * 排序 / 备注放在 `schema.portal` 而非页面行上（不动服务端协议），所以这里
+   * 逐页 `getSchema` 取运营字段；单页失败**不拖垮整张表**，该行降级为未设置。
+   */
+  async function loadPortalPages(): Promise<boolean> {
+    if (!api) {
+      portalError.value = '未配置服务端 API'
+      return false
+    }
+    portalLoading.value = true
+    try {
+      // 清单要反映别处新建 / 删除的结果，跳过「已加载」缓存
+      await loadPages(true)
+      if (pagesError.value && !pages.value.length) {
+        portalError.value = pagesError.value
+        return false
+      }
+      const rows = pages.value.filter((p) => p.type === 'portal')
+      type PortalMeta = Pick<PortalListItem, 'id' | 'title' | 'order' | 'remark'>
+      const metas = await Promise.all(
+        rows.map(async (p): Promise<PortalMeta> => {
+          try {
+            const { schema } = await api!.getSchema(p.id)
+            return {
+              id: p.id,
+              title: schema.portal?.title,
+              order: schema.portal?.order,
+              remark: schema.portal?.remark,
+            }
+          } catch {
+            // 单页读取失败（如并发删除）不阻塞清单：当未设置处理
+            return { id: p.id }
+          }
+        }),
+      )
+      const byId = new Map(metas.map((m) => [m.id, m]))
+      portalPages.value = rows
+        .map((p) => ({ ...p, ...(byId.get(p.id) ?? {}) }))
+        .sort((a, b) => {
+          const ao = a.order
+          const bo = b.order
+          if (ao !== undefined && bo !== undefined) return ao - bo || a.name.localeCompare(b.name)
+          if (ao !== undefined) return -1
+          if (bo !== undefined) return 1
+          return a.name.localeCompare(b.name, 'zh-Hans-CN')
+        })
+      portalError.value = ''
+      return true
+    } catch (e) {
+      portalError.value = `门户清单加载失败：${errMsg(e)}`
+      return false
+    } finally {
+      portalLoading.value = false
+    }
+  }
+
+  /**
+   * 新建门户页（清单里的「新增」）：建骨架后**直接落盘**。
+   *
+   * 与 `newPage`（本地草稿）不同，门户清单是个列表，留本地草稿会让「清单」与
+   * 「页面」两处都不一样；这里先刷新列表查重，**编码已存在就拒绝**（saveSchema 是 upsert）。
+   */
+  async function createPortalPage(input: {
+    id: string
+    name?: string
+    order?: number
+    remark?: string
+  }): Promise<boolean> {
+    if (!api) {
+      statusText.value = '未配置服务端 API'
+      return false
+    }
+    const id = input.id.trim()
+    if (!PORTAL_ID_RE.test(id)) {
+      statusText.value = '页面编码不合法：字母或下划线开头，仅限字母、数字、下划线、短横线，最长 64 位'
+      return false
+    }
+    try {
+      await loadPages(true)
+      if (pages.value.some((p) => p.id === id)) {
+        statusText.value = `页面编码已存在：${id}，请换一个`
+        return false
+      }
+      const fresh = buildPortalPage({
+        pageId: id,
+        name: input.name,
+        order: input.order,
+        remark: input.remark,
+      })
+      const v = validatePage(fresh)
+      if (!v.valid) {
+        statusText.value = `门户页校验失败（${v.errors.length} 项），未创建`
+        return false
+      }
+      await api.saveSchema(id, fresh, 0)
+      await loadPortalPages()
+      statusText.value = `已创建门户页 ${id}`
+      return true
+    } catch (e) {
+      statusText.value = `创建门户页失败：${errMsg(e)}`
+      return false
+    }
+  }
+
+  /**
+   * 更新门户页的名称 / 排序 / 备注（清单里的「编辑」）。
+   *
+   * 先 `getSchema` 拿 revision 再写，走 If-Match —— 409 只提示、不自动覆盖；
+   * `order` / `remark` 传 `null` 表示清空（键直接删掉，避免空值进协议）。
+   */
+  async function updatePortalMeta(
+    id: string,
+    patch: { name?: string; order?: number | null; remark?: string | null },
+  ): Promise<boolean> {
+    if (!api) {
+      statusText.value = '未配置服务端 API'
+      return false
+    }
+    try {
+      const { schema: current, revision } = await api.getSchema(id)
+      const next: PageSchema = { ...current }
+      if (patch.name !== undefined) {
+        const name = patch.name.trim()
+        if (!name) {
+          statusText.value = '门户页名称不能为空'
+          return false
+        }
+        next.name = name
+      }
+      const portal: PortalPageConfig = { ...(next.portal ?? { cards: [] }) }
+      if (patch.order !== undefined) {
+        if (patch.order === null) delete portal.order
+        else portal.order = patch.order
+      }
+      if (patch.remark !== undefined) {
+        const remark = (patch.remark ?? '').trim()
+        if (!remark) delete portal.remark
+        else portal.remark = remark
+      }
+      next.portal = portal
+      const v = validatePage(next)
+      if (!v.valid) {
+        statusText.value = `门户页校验失败（${v.errors.length} 项），未保存`
+        return false
+      }
+      await api.saveSchema(id, next, revision)
+      await loadPortalPages()
+      statusText.value = `已更新门户页 ${id}`
+      return true
+    } catch (e) {
+      statusText.value = `更新门户页失败：${errMsg(e)}`
+      return false
+    }
+  }
+
   /* ---------------- 2026-10-20：页面列表 / 删除 ---------------- */
 
   /**
@@ -1014,8 +1196,11 @@ export const useDesignerStore = defineStore('lc-designer', () => {
 
   /* ---------------- Phase 2 批 1：模型可视化建模（D-P2-1） ---------------- */
 
-  /** 设计器视图：`page` 画布（默认）| `model` 数据模型管理 | `rbac` 权限管理 | `theme` 主题配置 | `webhook` 开放集成 | `market` 物料市场 */
-  const view = ref<'page' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'>('page')
+  /**
+   * 设计器视图：`page` 画布（默认）| `portal` 移动门户清单 | `model` 数据模型管理 |
+   * `rbac` 权限管理 | `theme` 主题配置 | `webhook` 开放集成 | `market` 物料市场
+   */
+  const view = ref<'page' | 'portal' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'>('page')
   /** 当前编辑的模型（null = 列表视图） */
   const editingModel = ref<ModelSchema | null>(null)
   /** 模型编辑脏态 / 保存中 */
@@ -1024,8 +1209,10 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   /** 模型保存门禁错误（**不静默**：面板红字列表，与 modelError 分工 —— 这里是编辑态校验，那边是加载态） */
   const modelErrors = ref<string[]>([])
 
-  /** 切换视图（切到 model/rbac 时刷新对应列表；已在目标视图 no-op；theme/webhook 面板自持读写无需预载） */
-  async function switchView(v: 'page' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'): Promise<void> {
+  /** 切换视图（切到 model/rbac/portal 时刷新对应列表；已在目标视图 no-op；theme/webhook 面板自持读写无需预载） */
+  async function switchView(
+    v: 'page' | 'portal' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market',
+  ): Promise<void> {
     if (view.value === v) return
     view.value = v
     if (v === 'model') {
@@ -1035,6 +1222,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       void loadRoles() // permissions 勾选需要角色源（不阻塞主加载）
     } else if (v === 'rbac') {
       await loadRbac()
+    } else if (v === 'portal') {
+      await loadPortalPages()
     }
   }
 
@@ -1336,6 +1525,13 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     pagesLoaded,
     loadPages,
     deletePage,
+    /* 2026-10-28：移动门户清单 */
+    portalPages,
+    portalLoading,
+    portalError,
+    loadPortalPages,
+    createPortalPage,
+    updatePortalMeta,
     /* 批 5：Profiler 采样（schema 加载 / 画布渲染） */
     perf,
     perfText,

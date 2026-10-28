@@ -161,7 +161,10 @@
     </header>
 
     <!-- Phase 2 批 1 / D-P2-1：数据模型管理视图（视图切换，与画布互斥） -->
-    <div v-if="store.view === 'model'" class="designer__models">
+    <div v-if="store.view === 'portal'" class="designer__models">
+      <portal-panel />
+    </div>
+    <div v-else-if="store.view === 'model'" class="designer__models">
       <model-panel />
     </div>
     <!-- Phase 2 批 6 / D-P2-12：权限管理视图（角色 + 页面授权矩阵，与画布互斥） -->
@@ -218,10 +221,10 @@
           <strong>{{ store.schema.type === 'list' ? '列表页' : '详情页' }}</strong>
           由右侧配置驱动（运行时按配置查询渲染）；下方画布为根容器占位，其节点在标准页运行时忽略。
         </div>
-        <!-- Phase 3 批 4：门户页提示 —— 卡片由右侧配置、下方画布为拖拽区（图表/指标卡） -->
+        <!-- Phase 3 批 4：门户页提示 —— 画布直接复用门户渲染器，卡片与右侧配置实时联动 -->
         <div v-if="isPortalPage" class="std-hint" data-testid="portal-hint">
           <strong>门户页</strong>
-          导航卡片由右侧配置（运行时渲染卡片区）；下方画布为拖拽区，可拖入图表 / 指标卡等物料，运行时渲染在卡片区下方。
+          上方卡片区与右侧「导航卡片」实时联动（点卡在设计态不跳转）；下方为拖拽区，可拖入图表 / 指标卡等物料，运行时渲染在卡片区下方。
         </div>
         <!-- 画布工具条（§7.1）：高 40 · 白底 · 左设备切换 / 右缩放与标尺 -->
         <div class="canvas-bar">
@@ -357,6 +360,7 @@ import {
   MaterialPanel,
   ModelPanel,
   OutlineTree,
+  PortalPanel,
   PropsPanel,
   RbacPanel,
   ThemePanel,

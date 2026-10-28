@@ -19,18 +19,24 @@
           :style="{ width: cardWidth }"
           @tap="onCard(card)"
         >
-          <view class="lc-card__head">
-            <text v-if="glyph(card.icon)" class="lc-card__icon">{{ glyph(card.icon) }}</text>
-            <text class="lc-card__title">{{ card.title }}</text>
-            <text v-if="card.badge" class="lc-card__badge">{{ card.badge }}</text>
+          <view class="lc-card__tile" :class="`lc-card__tile--${i % 4}`">
+            <text v-if="glyph(card.icon)" class="lc-card__glyph">{{ glyph(card.icon) }}</text>
           </view>
+          <text class="lc-card__title">{{ card.title }}</text>
           <text v-if="card.desc" class="lc-card__desc">{{ card.desc }}</text>
+          <text v-if="card.badge" class="lc-card__badge">{{ card.badge }}</text>
         </view>
       </view>
     </view>
 
     <!-- 自由拖拽区：图表 / 指标卡 / 任意物料树（portal 页运行时渲染 root 树） -->
-    <lc-renderer :schema="schema" :options="options" />
+    <lc-renderer
+      :schema="schema"
+      :options="options"
+      :mode="mode"
+      :selected-id="selectedId"
+      @select="emit('select', $event)"
+    />
   </view>
 </template>
 
@@ -43,6 +49,10 @@ import LcRenderer from './lc-renderer.vue'
 const props = defineProps<{
   schema: PageSchema
   options: PageControllerOptions
+  /** design = 设计画布复用本组件（卡片区可见 + 下方拖拽区可选中）；缺省运行时 */
+  mode?: 'runtime' | 'design'
+  /** design 态选中节点（与 lc-renderer 同口径） */
+  selectedId?: string
 }>()
 
 const emit = defineEmits<{
@@ -50,6 +60,8 @@ const emit = defineEmits<{
   navigate: [target: { pageId: string; params: Record<string, unknown> }]
   /** 点卡打开外部地址（卡配 url 时；壳层负责端能力） */
   'open-url': [url: string]
+  /** design 态：选中拖拽区节点（透传内层 lc-renderer） */
+  select: [id: string]
 }>()
 
 const cfg = computed(() => props.schema.portal)
@@ -83,6 +95,8 @@ function glyph(name?: string): string {
 }
 
 function onCard(card: PortalCard): void {
+  // 设计态点卡不跳转：此时用户是在摆卡片，误触跳走会丢当前编辑上下文
+  if (props.mode === 'design') return
   if (card.url) {
     emit('open-url', card.url)
     return
@@ -115,33 +129,56 @@ function onCard(card: PortalCard): void {
   margin: calc(var(--lc-space-1) * -1);
 }
 .lc-card {
+  position: relative;
   box-sizing: border-box;
-  padding: var(--lc-space-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--lc-space-2) var(--lc-space-1);
 }
-.lc-card__head {
+/* 图标块：四色轮换（与云程「常用流程」宫格一致），配色全部走令牌 */
+.lc-card__tile {
   display: flex;
   align-items: center;
-  gap: var(--lc-space-1);
-  padding: 22rpx var(--lc-space-3);
-  border: 1rpx solid var(--lc-border-default);
+  justify-content: center;
+  width: 84rpx;
+  height: 84rpx;
   border-radius: var(--lc-radius-md);
-  background: var(--lc-bg-surface);
 }
-.lc-card:active .lc-card__head {
-  background: var(--lc-bg-subtle);
+.lc-card__tile--0 {
+  color: var(--lc-status-danger);
+  background: var(--lc-status-danger-bg);
 }
-.lc-card__icon {
+.lc-card__tile--1 {
+  color: var(--lc-status-warning);
+  background: var(--lc-status-warning-bg);
+}
+.lc-card__tile--2 {
+  color: var(--lc-action-primary);
+  background: var(--lc-status-info-bg);
+}
+.lc-card__tile--3 {
+  color: var(--lc-status-success);
+  background: var(--lc-status-success-bg);
+}
+.lc-card:active .lc-card__tile {
+  opacity: 0.8;
+}
+.lc-card__glyph {
   font-size: var(--lc-font-h2);
   line-height: var(--lc-leading-label);
 }
 .lc-card__title {
-  flex: 1;
-  font-size: var(--lc-font-body);
-  color: var(--lc-text-primary);
+  margin-top: var(--lc-space-1);
+  font-size: var(--lc-font-caption);
   font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+  text-align: center;
 }
 .lc-card__badge {
-  flex-shrink: 0;
+  position: absolute;
+  top: var(--lc-space-1);
+  right: var(--lc-space-2);
   min-width: 32rpx;
   padding: 0 var(--lc-space-1);
   border-radius: 999rpx;
@@ -152,8 +189,9 @@ function onCard(card: PortalCard): void {
 }
 .lc-card__desc {
   display: block;
-  padding: 6rpx var(--lc-space-3) 0;
-  font-size: var(--lc-font-caption);
+  margin-top: var(--lc-space-0-5);
+  font-size: var(--lc-font-micro);
   color: var(--lc-text-secondary);
+  text-align: center;
 }
 </style>

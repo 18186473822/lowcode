@@ -15,9 +15,19 @@
  * 只生成其中几页时不写悬空跳转。页面落盘与模型 `listPageId` / `formPageId`
  * 回写由 store 的 `createModelModule` 负责。
  *
+ * **门户页**不依赖模型：`buildPortalPage` 只生成 `type=portal` 的空骨架
+ * （`portal.cards = []` + 排序 / 备注），卡片与拖拽区由设计器里再配。
+ *
  * 纯函数、无副作用，store 只负责取模型与替换当前 schema —— 生成规则可单测。
  */
-import type { FieldSchema, FieldType, ModelSchema, NodeSchema, PageSchema } from '@lc/schema'
+import type {
+  FieldSchema,
+  FieldType,
+  ModelSchema,
+  NodeSchema,
+  PageSchema,
+  PortalPageConfig,
+} from '@lc/schema'
 import { SUBMIT_DS_ID } from './schema-ops'
 
 /** 允许从模型生成的页面类型（门户 / 自定义页不依赖模型，不在本流程内） */
@@ -236,4 +246,43 @@ export function buildModelPage(input: BuildModelPageInput): PageSchema {
     schema.detail = { modelId: model.id, fields: keys }
   }
   return schema
+}
+
+/* ---------------- 门户页：清单里新建的 portal 页骨架（2026-10-28） ---------------- */
+
+export interface BuildPortalPageInput {
+  pageId: string
+  /** 展示名（空则退回 pageId） */
+  name?: string
+  /** 清单排序（小的在前） */
+  order?: number
+  /** 清单备注（运营说明） */
+  remark?: string
+  /** 卡片列数，缺省 4（对齐云程「常用流程」四宫格） */
+  columns?: number
+}
+
+/**
+ * 门户页骨架：只建一份**空门户**（无卡片、无节点），由设计器里再拖 / 配。
+ *
+ * 为什么不复用 `buildModelPage`：门户不绑定数据模型，卡片是运营配置；
+ * 这里只保证 `type=portal` + `portal.cards` 存在，过 `validatePage` 即可保存。
+ */
+export function buildPortalPage(input: BuildPortalPageInput): PageSchema {
+  const name = input.name?.trim() || input.pageId
+  const portal: PortalPageConfig = {
+    title: name,
+    columns: input.columns ?? 4,
+    cards: [],
+  }
+  if (input.order !== undefined) portal.order = input.order
+  if (input.remark?.trim()) portal.remark = input.remark.trim()
+  return {
+    schemaVersion: '1.0.0',
+    id: input.pageId,
+    name,
+    type: 'portal',
+    root: { id: 'root', componentName: 'Page', children: [] },
+    portal,
+  }
 }
