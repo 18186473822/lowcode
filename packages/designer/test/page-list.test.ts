@@ -191,3 +191,71 @@ describe('2026-10-20：页面列表 / 删除（store actions）', () => {
     expect(store.statusText).toBe('未配置服务端 API')
   })
 })
+
+describe('2026-10-28：先选模型再建页面（store action）', () => {
+  const leaveModel: ModelSchema = {
+    schemaVersion: '1.0.0',
+    id: 'm_leave',
+    name: '请假单',
+    code: 'leave',
+    fields: [
+      { key: 'title', name: '事由', type: 'string', required: true },
+      { key: 'days', name: '天数', type: 'number' },
+    ],
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('createPageFromModel：生成表单页、写入提交绑定并缓存模型字段', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    api.getModel.mockResolvedValue(leaveModel)
+    store.setApi(api)
+
+    expect(await store.createPageFromModel(' p_leave ', 'm_leave', 'form')).toBe(true)
+
+    expect(api.getModel).toHaveBeenCalledWith('m_leave')
+    expect(store.pageId).toBe('p_leave')
+    expect(store.schema.id).toBe('p_leave')
+    expect(store.schema.type).toBe('form')
+    expect(store.submitModelId).toBe('m_leave')
+    expect(store.schema.root.children?.map((n) => n.componentName)).toEqual([
+      'Input',
+      'NumberInput',
+      'Button',
+    ])
+    expect(store.modelFields.map((f) => f.key)).toEqual(['title', 'days'])
+    expect(store.statusText).toContain('表单页')
+    expect(store.statusText).toContain('点保存建档')
+  })
+
+  it('createPageFromModel：列表页写入 list.modelId', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    api.getModel.mockResolvedValue(leaveModel)
+    store.setApi(api)
+
+    expect(await store.createPageFromModel('p_leave_list', 'm_leave', 'list')).toBe(true)
+    expect(store.schema.list).toEqual({ modelId: 'm_leave', columns: ['title', 'days'] })
+  })
+
+  it('createPageFromModel：缺页面 id / 缺模型 / 拉模型失败都不落草稿', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    store.setApi(api)
+    store.pageId = 'keep_me'
+
+    expect(await store.createPageFromModel('   ', 'm_leave', 'form')).toBe(false)
+    expect(store.statusText).toBe('请先填写页面 ID')
+
+    expect(await store.createPageFromModel('p_x', '', 'form')).toBe(false)
+    expect(store.statusText).toBe('请先选择数据模型')
+
+    api.getModel.mockRejectedValueOnce(new Error('404 模型不存在'))
+    expect(await store.createPageFromModel('p_x', 'm_missing', 'form')).toBe(false)
+    expect(store.statusText).toContain('新建失败')
+    expect(store.pageId).toBe('keep_me')
+  })
+})

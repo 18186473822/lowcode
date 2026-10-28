@@ -271,6 +271,10 @@ const pageSummarySchema: Json = {
     currentVersion: { type: 'integer', minimum: 0, description: '已发布的最新版本；从未发布为 0' },
     revision: { type: 'integer', minimum: 0 },
     versionCount: { type: 'integer', minimum: 0 },
+    modelId: {
+      type: 'string',
+      description: '页面绑定的数据模型（表单取提交模型，列表/详情取各自配置）；未绑定时缺省',
+    },
     updatedAt: { type: 'string', format: 'date-time' },
     createdAt: { type: 'string', format: 'date-time' },
   },

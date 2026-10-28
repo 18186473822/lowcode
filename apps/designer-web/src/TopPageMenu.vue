@@ -4,7 +4,11 @@
   背景：原先顶栏把「页面下拉 + pageId 输入 + 打开 + 新建 + 删除」五个控件平铺，
   1076px 窗口下 actions 被 flex 压缩，下拉与删除按钮互相重叠。这里合并成一个菜单：
 
-    [页面 ▾]  → 输入 pageId 打开 / 新建空白页 / 页面列表 / 删除当前页
+    [页面 ▾]  → 打开 / 新建（先选模型）/ 页面列表 / 删除当前页
+                + 工作区入口（画布 / 模型 / 权限 / 主题 / Webhook / 物料市场）
+
+  2026-10-28 调整：原「工作台」菜单取消，六个管理视图并入本菜单 —— 它们都服务于
+  「在模型基础上设计页面」，放在页面菜单里比再开一个一级菜单更符合操作顺序。
 
   交互沿用 TopMoreMenu：fixed + 视口坐标（顶栏不能再被滚动容器裁切）、
   点外部 / Esc / 滚动 / 改窗口尺寸都会关闭。
@@ -17,10 +21,11 @@
       data-testid="page-select"
       aria-haspopup="dialog"
       :aria-expanded="open"
-      :title="store.pageId ? `当前页面：${store.pageId}` : '选择或新建页面'"
+      :title="triggerTitle"
       @click="toggle"
     >
       <span class="top-page__title">{{ currentName }}</span>
+      <span class="top-page__type">{{ currentTypeLabel }}</span>
       <span class="top-page__state">{{ store.currentVersion > 0 ? `v${store.currentVersion}` : '草稿' }}</span>
       <span class="top-page__caret" aria-hidden="true">▾</span>
     </button>
@@ -48,7 +53,7 @@
           v-model="draftId"
           class="top-page__input"
           type="text"
-          placeholder="输入 pageId 打开或新建"
+          placeholder="输入 pageId 打开"
           aria-label="页面 ID"
           spellcheck="false"
           @keydown.enter.prevent="openById(undefined, true)"
@@ -64,13 +69,12 @@
 
       <div class="top-page__ops">
         <button
-          class="top-btn"
+          class="top-btn top-btn--primary"
           type="button"
           data-testid="new-page"
-          :disabled="!draftId.trim()"
-          title="以输入框中的 pageId 新建空白页（保存后建档）"
-          @click="createNew"
-        >新建空白页</button>
+          title="先选数据模型，再按表单 / 列表 / 详情生成页面"
+          @click="openNewPage"
+        >新建页面</button>
         <button
           class="top-btn top-btn--danger"
           type="button"
@@ -83,13 +87,37 @@
 
       <div class="top-page__divider" aria-hidden="true" />
 
+      <!-- 工作区入口：原「工作台」菜单的六项，当前视图带 ✓ -->
+      <div class="top-page__group" role="group" aria-label="工作区">
+        <span class="top-page__group-label">工作区</span>
+        <button
+          v-for="v in VIEWS"
+          :key="v.value"
+          class="top-page__nav"
+          :class="{ 'top-page__nav--on': store.view === v.value }"
+          type="button"
+          :data-testid="v.testid"
+          :aria-current="store.view === v.value ? 'page' : undefined"
+          @click="switchView(v.value)"
+        >
+          <span>{{ v.label }}</span>
+          <span v-if="store.view === v.value" class="top-page__check" aria-hidden="true">✓</span>
+        </button>
+      </div>
+
+      <div class="top-page__divider" aria-hidden="true" />
+
+      <div class="top-page__group-head">
+        <span class="top-page__group-label">已保存的页面</span>
+        <span class="top-page__count">{{ store.pages.length }}</span>
+      </div>
       <p v-if="store.pagesError" class="top-page__hint top-page__hint--error">
         {{ store.pagesError }}
       </p>
       <p v-else-if="store.pagesLoading" class="top-page__hint">加载中…</p>
       <div v-else-if="!store.pages.length" class="top-page__empty">
         <strong>还没有已保存的页面</strong>
-        <span>输入 pageId 后点「新建空白页」，保存即建档；也可以直接打开一个已有 ID。</span>
+        <span>点「新建页面」先选模型再生成表单 / 列表 / 详情，保存后即建档。</span>
       </div>
       <div v-else class="top-page__list" role="listbox" aria-label="页面列表">
         <button
@@ -100,13 +128,17 @@
           type="button"
           role="option"
           :aria-selected="p.id === store.pageId"
-          :title="`${p.name}（${p.id}）`"
+          :title="`${p.name}（${p.id}）${p.modelId ? ` · 模型 ${p.modelId}` : ' · 未绑定模型'}`"
           @click="openById(p.id)"
         >
           <span class="top-page__item-main">
             <span class="top-page__item-name">{{ p.name }}</span>
             <span class="top-page__item-id">{{ p.id }}</span>
           </span>
+          <span
+            class="top-page__item-model"
+            :class="{ 'top-page__item-model--none': !p.modelId }"
+          >{{ p.modelId ? `模型 ${p.modelId}` : '未绑定模型' }}</span>
           <span class="top-page__item-meta">
             {{ p.currentVersion ? `v${p.currentVersion}` : '草稿' }}
           </span>
@@ -114,16 +146,22 @@
         </button>
       </div>
     </div>
+
+    <!-- 新建页面：模型优先（选模型 → 页面 ID → 表单/列表/详情） -->
+    <new-page-dialog v-if="newOpen" @close="newOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDesignerStore } from '@lc/designer'
+import NewPageDialog from './NewPageDialog.vue'
 
 const store = useDesignerStore()
 
 const open = ref(false)
+/** 模型优先的新建页面弹层 */
+const newOpen = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const panelStyle = ref<Record<string, string>>({})
 const draftId = ref(store.pageId)
@@ -131,9 +169,39 @@ const draftId = ref(store.pageId)
 const deleteArmed = ref(false)
 let deleteTimer: number | undefined
 
+/** 工作区入口（原「工作台」菜单）：页面画布 + 五个管理视图 */
+const VIEWS = [
+  { value: 'page', label: '页面画布', testid: 'toggle-page' },
+  { value: 'model', label: '数据模型', testid: 'toggle-models' },
+  { value: 'rbac', label: '权限管理', testid: 'toggle-rbac' },
+  { value: 'theme', label: '主题配置', testid: 'toggle-theme-panel' },
+  { value: 'webhook', label: 'Webhook 集成', testid: 'toggle-webhook' },
+  { value: 'market', label: '物料市场', testid: 'toggle-market' },
+] as const
+
+const TYPE_LABEL: Record<string, string> = {
+  form: '表单',
+  list: '列表',
+  detail: '详情',
+  portal: '门户',
+  custom: '自定义',
+}
+
 const currentName = computed(() => {
   const hit = store.pages.find((p) => p.id === store.pageId)
   return hit?.name ?? (store.pageId || '选择页面')
+})
+const currentTypeLabel = computed(() => TYPE_LABEL[store.schema.type] ?? '页面')
+/** 当前页绑定的模型：表单取提交模型，列表 / 详情取各自配置 */
+const currentModelId = computed(() => {
+  const s = store.schema
+  if (s.type === 'list') return s.list?.modelId || ''
+  if (s.type === 'detail') return s.detail?.modelId || ''
+  return store.submitModelId ?? ''
+})
+const triggerTitle = computed(() => {
+  if (!store.pageId) return '选择或新建页面'
+  return `当前页面：${store.pageId} · ${currentTypeLabel.value}${currentModelId.value ? ` · 模型 ${currentModelId.value}` : ' · 未绑定模型'}`
 })
 const canDelete = computed(
   () => !store.pagesLoading && store.pages.some((p) => p.id === store.pageId),
@@ -146,7 +214,7 @@ function place(): void {
   const r = el.getBoundingClientRect()
   const bar = rootRef.value?.closest('.designer__top') as HTMLElement | null
   const top = Math.max(r.bottom + 4, (bar?.getBoundingClientRect().bottom ?? 0) + 4)
-  const width = 348
+  const width = 380
   const right = Math.max(
     8,
     Math.min(window.innerWidth - r.right, window.innerWidth - width - 8),
@@ -198,11 +266,16 @@ async function openById(id?: string, force = false): Promise<void> {
   if (ok) close()
 }
 
-/** 新建：只换本地草稿，建档由随后的「保存」完成（与 store.newPage 语义一致） */
-function createNew(): void {
-  const target = draftId.value.trim()
-  if (!target) return
-  if (store.newPage(target)) close()
+/** 新建页面：关闭菜单并打开「先选模型」弹层（不允许无模型建页） */
+function openNewPage(): void {
+  close()
+  newOpen.value = true
+}
+
+/** 切换工作区视图（原「工作台」菜单的六个入口） */
+function switchView(v: (typeof VIEWS)[number]['value']): void {
+  close()
+  void store.switchView(v)
 }
 
 /** 删除当前页：两步确认；删除后刷新列表（store 会自动切到剩余页 / 新草稿） */
@@ -260,7 +333,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--lc-space-1-5);
-  max-width: 230px;
+  max-width: 300px;
 }
 .top-page__title {
   max-width: 116px;
@@ -268,6 +341,11 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: var(--lc-weight-medium);
+}
+.top-page__type {
+  flex-shrink: 0;
+  font-size: var(--lc-font-micro);
+  color: var(--lc-topbar-text-muted);
 }
 .top-page__state {
   font-family: var(--lc-font-mono);
@@ -284,7 +362,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--lc-space-2);
-  width: 348px;
+  width: 380px;
   max-width: calc(100vw - var(--lc-space-4));
   padding: var(--lc-space-3);
   overflow: hidden;
@@ -368,6 +446,59 @@ onUnmounted(() => {
   background: var(--lc-topbar-sep);
 }
 
+/* 工作区入口：整行左对齐，当前视图高亮 + ✓ */
+.top-page__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-0-5);
+}
+.top-page__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-2);
+}
+.top-page__group-label {
+  padding: 0 var(--lc-space-2);
+  font-size: var(--lc-font-micro);
+  font-weight: var(--lc-weight-semibold);
+  letter-spacing: 0.04em;
+  color: var(--lc-topbar-text-muted);
+}
+.top-page__count {
+  padding-right: var(--lc-space-2);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-topbar-text-muted);
+}
+.top-page__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--lc-space-1-5) var(--lc-space-2);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  text-align: left;
+  color: var(--lc-topbar-btn-text);
+  background: none;
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+}
+.top-page__nav:hover {
+  background: var(--lc-topbar-input-bg);
+  border-color: var(--lc-topbar-btn-border);
+}
+.top-page__nav--on {
+  background: var(--lc-topbar-input-bg);
+  border-color: var(--lc-action-primary);
+}
+.top-page__nav:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+
 .top-page__hint {
   padding: var(--lc-space-2) 0;
   font-size: var(--lc-font-caption);
@@ -447,6 +578,25 @@ onUnmounted(() => {
   font-family: var(--lc-font-mono);
   font-size: var(--lc-font-micro);
   color: var(--lc-topbar-text-muted);
+}
+/* 列表里的模型绑定徽标：已绑定用品牌色，未绑定弱化提示 */
+.top-page__item-model {
+  flex-shrink: 0;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--lc-space-1);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-brand-300);
+  background: var(--lc-topbar-input-bg);
+  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
+  border-radius: var(--lc-radius-xs);
+}
+.top-page__item-model--none {
+  color: var(--lc-topbar-text-muted);
+  border-style: dashed;
 }
 .top-page__check {
   flex-shrink: 0;

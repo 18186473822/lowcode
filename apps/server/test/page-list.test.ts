@@ -130,6 +130,32 @@ describe('GET /pages', () => {
     expect(a.root).toBeUndefined()
   })
 
+  it('摘要投影绑定模型 modelId：表单取提交模型、列表取 list.modelId，未绑定时缺省', async () => {
+    const form = schema('p_model_form')
+    form.dataSources = [
+      { id: 'ds_submit', name: '提交', type: 'model', method: 'POST', modelId: 'm_leave' },
+    ]
+    form.submit = { dataSourceId: 'ds_submit' }
+    await call('PUT', '/api/v1/pages/p_model_form/schema', {
+      token: adminToken,
+      body: { schema: form },
+    })
+
+    const list = schema('p_model_list')
+    list.type = 'list'
+    list.list = { modelId: 'm_leave', columns: ['id'] }
+    await call('PUT', '/api/v1/pages/p_model_list/schema', {
+      token: adminToken,
+      body: { schema: list },
+    })
+
+    const r = await call('GET', '/api/v1/pages', { token: adminToken })
+    expect(r.body.find((p: any) => p.id === 'p_model_form').modelId).toBe('m_leave')
+    expect(r.body.find((p: any) => p.id === 'p_model_list').modelId).toBe('m_leave')
+    // p_list_a 未配置提交模型 → 摘要不带 modelId
+    expect(r.body.find((p: any) => p.id === 'p_list_a').modelId).toBeUndefined()
+  })
+
   it('按 updatedAt 倒序（最近编辑的在前）', async () => {
     const r = await call('GET', '/api/v1/pages', { token: adminToken })
     const ids = r.body.map((p: any) => p.id)

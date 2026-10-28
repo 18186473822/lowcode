@@ -68,24 +68,8 @@
             @click="store.redo()"
           >重做</button>
         </div>
-        <!-- 工作台：画布之外的管理视图（原 5 个平铺按钮 → 分组下拉，当前项带勾选） -->
-        <span class="top-sep" aria-hidden="true" />
-        <top-more-menu label="工作台" testid="top-workspace">
-          <div class="top-menu__group">
-            <span class="top-menu__label">视图</span>
-            <button
-              v-for="v in VIEWS"
-              :key="v.value"
-              class="top-btn"
-              :class="{ 'top-btn--primary': store.view === v.value }"
-              type="button"
-              :data-testid="v.testid"
-              @click="onSwitchView(v.value)"
-            >
-              {{ v.label }}<span v-if="store.view === v.value" class="top-menu__check" aria-hidden="true">✓</span>
-            </button>
-          </div>
-        </top-more-menu>
+        <!-- 工作区（画布 / 模型 / 权限 / 主题 / Webhook / 物料市场）已并入「页面」菜单，
+             顶栏不再单开「工作台」一级菜单。 -->
 
         <!-- 更多：编辑动作 + 帮助 / 资源。窄屏隐藏的撤销、重做、主题也在这里保底可达。 -->
         <top-more-menu label="更多" testid="top-more">
@@ -424,20 +408,6 @@ function toggleDrawer(side: 'left' | 'right'): void {
 watch(bp, (next) => {
   if (!isDrawerLayout(next)) drawer.value = 'none'
 })
-
-/** 工作台视图（顶栏「工作台」下拉）：页面画布 + 五种管理视图 */
-const VIEWS = [
-  { value: 'page', label: '页面画布', testid: 'toggle-page' },
-  { value: 'model', label: '数据模型', testid: 'toggle-models' },
-  { value: 'rbac', label: '权限管理', testid: 'toggle-rbac' },
-  { value: 'theme', label: '主题配置', testid: 'toggle-theme-panel' },
-  { value: 'webhook', label: 'Webhook 集成', testid: 'toggle-webhook' },
-  { value: 'market', label: '物料市场', testid: 'toggle-market' },
-] as const
-
-function onSwitchView(view: (typeof VIEWS)[number]['value']): void {
-  void store.switchView(view)
-}
 
 /** 保存成功后刷新列表（新建页首次保存才会出现在「页面」菜单里） */
 async function onSave(): Promise<void> {

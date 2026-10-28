@@ -105,6 +105,11 @@ export interface PageSummary {
   revision: number
   /** 从未发布过为 0 */
   versionCount: number
+  /**
+   * 页面绑定的数据模型（2026-10-28）：表单取提交目标，列表 / 详情取各自配置。
+   * 未绑定（如自定义页）时缺省 —— 设计器据此提示「未绑定模型」。
+   */
+  modelId?: string
   updatedAt: string
   createdAt: string
 }
@@ -399,18 +404,22 @@ export class PageService {
   async listPages(): Promise<PageSummary[]> {
     const records = await this.repo.list()
     return records
-      .map((r) => ({
-        id: r.id,
-        appId: r.appId,
-        name: r.name,
-        type: r.type,
-        status: r.status,
-        currentVersion: r.currentVersion,
-        revision: r.revision ?? 0,
-        versionCount: r.versions.length,
-        updatedAt: r.updatedAt,
-        createdAt: r.createdAt,
-      }))
+      .map((r) => {
+        const modelId = pageModelId(r)
+        return {
+          id: r.id,
+          appId: r.appId,
+          name: r.name,
+          type: r.type,
+          status: r.status,
+          currentVersion: r.currentVersion,
+          revision: r.revision ?? 0,
+          versionCount: r.versions.length,
+          ...(modelId ? { modelId } : {}),
+          updatedAt: r.updatedAt,
+          createdAt: r.createdAt,
+        }
+      })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id))
   }
 
@@ -520,4 +529,31 @@ function parseNote(note: unknown): string | undefined {
     throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'note 必须是 ≤ 500 字的字符串' })
   }
   return note
+}
+
+/**
+ * 从页面草稿 / 已发布版本里推导绑定的模型（2026-10-28）。
+ *
+ * 摘要里不返回 schema 全文，但可以安全地投影出**一个** modelId：
+ * - 列表页 → `list.modelId`
+ * - 详情页 → `detail.modelId`
+ * - 其余（表单 / 自定义） → `submit.dataSourceId` 指向的 model 数据源
+ */
+function pageModelId(record: PageRecord): string | undefined {
+  const schema = pickSchema(record)
+  if (!schema) return undefined
+  if (schema.type === 'list') return schema.list?.modelId || undefined
+  if (schema.type === 'detail') return schema.detail?.modelId || undefined
+  const dsId = schema.submit?.dataSourceId
+  if (!dsId) return undefined
+  const ds = (schema.dataSources ?? []).find((d) => d.id === dsId && d.type === 'model')
+  return ds?.modelId || undefined
+}
+
+/** 优先草稿；无草稿时取当前发布版本，再次取最新历史版本 */
+function pickSchema(record: PageRecord): PageSchema | undefined {
+  if (record.draft) return record.draft
+  const published = record.versions.find((v) => v.version === record.currentVersion)
+  if (published) return published.schema
+  return record.versions[record.versions.length - 1]?.schema
 }

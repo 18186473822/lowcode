@@ -1,0 +1,160 @@
+/**
+ * page-builder.test.ts —— 基于数据模型生成页面（2026-10-28）
+ *
+ * 覆盖：表单页字段/组件映射、提交绑定与初始值；列表/详情页的 modelId 与字段投影；
+ * 主键与 auto 列排除；生成结果必须通过 validatePage。
+ */
+import { describe, it, expect } from 'vitest'
+import type { ModelSchema } from '@lc/schema'
+import { validatePage } from '@lc/schema'
+import { buildModelPage } from '../src/core/page-builder'
+
+function model(): ModelSchema {
+  return {
+    schemaVersion: '1.0.0',
+    id: 'm_leave',
+    name: '请假单',
+    code: 'leave',
+    fields: [
+      { key: 'id', name: 'ID', type: 'id' },
+      { key: 'title', name: '事由', type: 'string', required: true, placeholder: '请输入事由' },
+      { key: 'reason', name: '说明', type: 'text' },
+      { key: 'days', name: '天数', type: 'number' },
+      { key: 'amount', name: '金额', type: 'money' },
+      { key: 'urgent', name: '加急', type: 'boolean' },
+      {
+        key: 'kind',
+        name: '类型',
+        type: 'enum',
+        options: [
+          { label: '事假', value: 'personal' },
+          { label: '病假', value: 'sick' },
+        ],
+      },
+      { key: 'attachment', name: '附件', type: 'file', maxCount: 3 },
+      { key: 'createdAt', name: '创建时间', type: 'datetime', auto: 'now' },
+    ],
+  }
+}
+
+describe('buildModelPage：表单页', () => {
+  it('按模型字段生成控件，排除主键与 auto 列，并写入提交绑定', () => {
+    const schema = buildModelPage({ pageId: 'p_leave_form', type: 'form', model: model() })
+
+    expect(schema.type).toBe('form')
+    expect(schema.id).toBe('p_leave_form')
+    expect(schema.name).toBe('p_leave_form')
+
+    const children = schema.root.children ?? []
+    const fieldNodes = children.filter((n) => n.componentName !== 'Button')
+    expect(fieldNodes.map((n) => n.props?.name)).toEqual([
+      'title',
+      'reason',
+      'days',
+      'amount',
+      'urgent',
+      'kind',
+      'attachment',
+    ])
+    expect(fieldNodes.map((n) => n.componentName)).toEqual([
+      'Input',
+      'Textarea',
+      'NumberInput',
+      'MoneyInput',
+      'Switch',
+      'Select',
+      'FileUpload',
+    ])
+
+    const title = fieldNodes.find((n) => n.props?.name === 'title')
+    expect(title?.props).toMatchObject({
+      label: '事由',
+      required: true,
+      placeholder: '请输入事由',
+      value: '$expr: formData.title',
+    })
+    const kind = fieldNodes.find((n) => n.props?.name === 'kind')
+    expect(kind?.props?.options).toEqual([
+      { label: '事假', value: 'personal' },
+      { label: '病假', value: 'sick' },
+    ])
+
+    // 提交按钮 + 提交绑定
+    expect(children[children.length - 1]).toMatchObject({
+      componentName: 'Button',
+      props: { text: '提交', type: 'primary' },
+      actions: [{ event: 'click', type: 'submit' }],
+    })
+    expect(schema.dataSources).toEqual([
+      { id: 'ds_submit', name: '提交', type: 'model', method: 'POST', modelId: 'm_leave' },
+    ])
+    expect(schema.submit).toEqual({ dataSourceId: 'ds_submit' })
+
+    // 初始值：布尔 false、文件 []，其余空串
+    expect(schema.defaultFormData).toEqual({
+      title: '',
+      reason: '',
+      days: '',
+      amount: '',
+      urgent: false,
+      kind: '',
+      attachment: [],
+    })
+  })
+
+  it('生成结果通过协议校验', () => {
+    const schema = buildModelPage({ pageId: 'p_leave_form', type: 'form', model: model() })
+    const r = validatePage(schema)
+    expect(r.errors).toEqual([])
+    expect(r.valid).toBe(true)
+  })
+
+  it('模型没有可编辑字段时仍生成可提交的空表单', () => {
+    const schema = buildModelPage({
+      pageId: 'p_empty',
+      type: 'form',
+      model: { ...model(), fields: [{ key: 'id', name: 'ID', type: 'id' }] },
+    })
+    expect(schema.root.children).toHaveLength(1)
+    expect(schema.root.children?.[0].componentName).toBe('Button')
+    expect(schema.defaultFormData).toEqual({})
+  })
+})
+
+describe('buildModelPage：列表 / 详情页', () => {
+  it('列表页写入 list.modelId 与展示字段（保留主键、排除 auto）', () => {
+    const schema = buildModelPage({ pageId: 'p_leave_list', type: 'list', model: model() })
+    expect(schema.type).toBe('list')
+    expect(schema.list).toEqual({
+      modelId: 'm_leave',
+      columns: ['id', 'title', 'reason', 'days', 'amount', 'urgent', 'kind', 'attachment'],
+    })
+    expect(schema.root.children).toEqual([])
+    expect(validatePage(schema).errors).toEqual([])
+  })
+
+  it('详情页写入 detail.modelId 与展示字段', () => {
+    const schema = buildModelPage({ pageId: 'p_leave_detail', type: 'detail', model: model() })
+    expect(schema.type).toBe('detail')
+    expect(schema.detail?.modelId).toBe('m_leave')
+    expect(schema.detail?.fields).toEqual([
+      'id',
+      'title',
+      'reason',
+      'days',
+      'amount',
+      'urgent',
+      'kind',
+      'attachment',
+    ])
+    expect(validatePage(schema).errors).toEqual([])
+  })
+
+  it('列表 / 详情不修改 model 入参（纯函数）', () => {
+    const m = model()
+    const before = JSON.stringify(m)
+    buildModelPage({ pageId: 'p_x', type: 'list', model: m })
+    buildModelPage({ pageId: 'p_y', type: 'detail', model: m })
+    expect(JSON.stringify(m)).toBe(before)
+  })
+})

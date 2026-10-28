@@ -53,6 +53,7 @@ import {
   updateField as updateFieldOp,
 } from '../core/model-ops'
 import type { DragSource } from '../core/dnd'
+import { buildModelPage, MODEL_PAGE_TYPE_LABEL, type ModelPageType } from '../core/page-builder'
 import { demoPage } from '../fixtures/demo-page'
 
 export type { DragSource }
@@ -126,6 +127,8 @@ export interface PageListItem {
   /** 最近一次发布版本号；0 = 从未发布 */
   currentVersion?: number
   updatedAt?: string
+  /** 页面绑定的数据模型（表单取提交模型，列表/详情取各自配置） */
+  modelId?: string
 }
 
 /** 版本元数据（服务端 `GET :id/versions` 投影；designer 侧独立类型，沿 ModelSummary 先例） */
@@ -619,6 +622,49 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     replaceSchema(fresh) // touch → dirty
     statusText.value = `新建 ${target}（未保存，点保存建档）`
     return true
+  }
+
+  /**
+   * 基于数据模型新建页面（2026-10-28 产品口径：先模型、后页面）。
+   *
+   * 与 `newPage`（demo 模板）不同：这里生成**只含当前模型字段**的干净页面，
+   * 并直接写入提交 / list / detail 绑定，避免用户建完页再手工找模型。
+   * 建档仍由随后的保存完成（首次 PUT schema 时服务端 upsert）。
+   */
+  async function createPageFromModel(
+    pageIdInput: string,
+    modelId: string,
+    type: ModelPageType,
+  ): Promise<boolean> {
+    const target = pageIdInput.trim()
+    if (!target) {
+      statusText.value = '请先填写页面 ID'
+      return false
+    }
+    if (!modelId) {
+      statusText.value = '请先选择数据模型'
+      return false
+    }
+    if (!api) {
+      statusText.value = '未配置服务端 API'
+      return false
+    }
+    try {
+      const model = await api.getModel(modelId)
+      const fresh = buildModelPage({ pageId: target, type, model })
+      pageId.value = target
+      pageRevision.value = 0
+      replaceSchema(fresh)
+      // 同步字段缓存：新建后右栏「绑定字段」立即可用，无需再拉一次模型
+      modelFields.value = model.fields ?? []
+      fieldsModelId.value = modelId
+      modelError.value = ''
+      statusText.value = `新建 ${target}（${MODEL_PAGE_TYPE_LABEL[type]} · 模型 ${modelId}，未保存，点保存建档）`
+      return true
+    } catch (e) {
+      statusText.value = `新建失败：${errMsg(e)}`
+      return false
+    }
   }
 
   /* ---------------- 2026-10-20：页面列表 / 删除 ---------------- */
@@ -1214,6 +1260,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     save,
     publish,
     newPage,
+    createPageFromModel,
     loadModels,
     loadModelFields,
     setSubmitModel,
