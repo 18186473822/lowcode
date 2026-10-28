@@ -41,47 +41,33 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--lc-space-3);
-  padding: 0 var(--lc-space-4);
+  gap: var(--lc-space-2);
+  padding: 0 var(--lc-space-3);
   background: var(--lc-topbar-bg);
   color: var(--lc-topbar-text);
   flex-shrink: 0;
-  /* 窄窗时**横向滚动**而不是把中文压成竖排（每行一个字）。
-     完整方案见 §3.2：<1180px 把次级操作收进「更多」菜单 —— 尚未实现。 */
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.designer__top::-webkit-scrollbar {
-  display: none;
+  /* 2026-10-28：控件已按优先级折叠到「页面 / 工作台 / 更多」三个菜单，
+     不再用 overflow-x: auto 兜底 —— 隐藏滚动条的横向滚动等于「控件悄悄消失」。 */
+  overflow: hidden;
 }
 .designer__brand {
   display: flex;
   align-items: center;
   gap: var(--lc-space-3);
   min-width: 0;
+  overflow: hidden;
 }
 .designer__logo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--lc-font-body-lg);
   font-weight: var(--lc-weight-semibold);
-  white-space: nowrap;
 }
-/* 页面标识：当前 pageId + 发布状态（design-system.md §7.1 顶栏） */
-.designer__page {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lc-space-1);
-  padding: 3px var(--lc-space-2);
-  border-radius: var(--lc-radius-xs);
-  background: var(--lc-topbar-btn-bg);
-  font-size: var(--lc-font-micro);
-  white-space: nowrap;
-}
-.designer__page-id {
-  font-family: var(--lc-font-mono);
-  color: var(--lc-topbar-btn-text);
-}
-.designer__page-state {
+/* 「· 设计器」是辅助后缀：窄档优先舍弃，省下的宽度留给操作区 */
+.designer__logo-sub {
   color: var(--lc-topbar-text-muted);
+  font-weight: var(--lc-weight-regular);
 }
 /* 批 5 Profiler 徽标：等宽字体 + 弱化底色，悬浮 title 看 JSON */
 .designer__perf {
@@ -101,44 +87,27 @@ body {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
+  flex: 0 0 auto;
 }
-
-/* 页面 ID 输入 */
-.pid-input {
-  width: 150px;
-  padding: 5px var(--lc-space-2);
-  font-family: var(--lc-font-mono);
-  font-size: var(--lc-font-caption);
-  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-topbar-input-bg);
-  color: var(--lc-topbar-text);
-  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
+/* 顶栏控件一律不参与收缩：中文按钮被压扁会变成两行，输入框被压到 0 就会互相重叠 */
+.designer__actions > .top-btn,
+.designer__actions > .top-page,
+.designer__actions > .top-more,
+.designer__actions > .designer__history,
+.designer__actions > .save-badge {
+  flex-shrink: 0;
 }
-.pid-input:focus {
-  outline: none;
-  border-color: var(--lc-border-focus);
+.designer__history {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
 }
-
-/* 页面列表下拉（2026-10-20）：与 pid-input 同款深色 chrome 控件 */
-.page-select {
-  min-width: 130px;
-  max-width: 190px;
-  padding: 5px var(--lc-space-2);
-  font-family: var(--lc-font-mono);
-  font-size: var(--lc-font-caption);
-  border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-topbar-input-bg);
-  color: var(--lc-topbar-text);
-}
-.page-select:focus {
-  outline: none;
-  border-color: var(--lc-border-focus);
-}
-.page-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* 菜单里的链接型入口（API 文档）复用按钮视觉 */
+a.top-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 /* 删除两步确认的第二态：危险色 chip（令牌随亮暗主题切换） */
@@ -194,9 +163,7 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.top-btn:focus-visible,
-.pid-input:focus-visible,
-.page-select:focus-visible {
+.top-btn:focus-visible {
   outline: var(--lc-focus-ring);
   outline-offset: 1px;
 }
@@ -497,19 +464,47 @@ body {
 
 /* ---------------- 响应式（design-system.md §6） ----------------
  * 栅格用 min-width 递进（移动优先）；抽屉形态是「窄屏才需要」的降级，
- * 故用 max-width 表达，与递进策略不冲突。 */
+ * 故用 max-width 表达，与递进策略不冲突。
+ *
+ * 顶栏折叠顺序（2026-10-28 重构）：
+ *   ≥1280 品牌 + 页面 + 撤销/重做 + 保存/发布 + 工作台 + 更多 + 主题 + 状态
+ *   <1280 隐藏性能徽标（信息重复，悬浮 title 仍在）
+ *   <1200 隐藏撤销/重做（「更多 → 编辑」里保底可达）
+ *   < 900 隐藏品牌与顶栏主题按钮（主题在「更多 → 界面」里保底可达）
+ * 每个被隐藏的入口都必须在「更多」菜单里有等价项，不允许单纯消失。
+ */
 
 .designer__body {
   position: relative;
 }
 
-/* Tablet 及以下（< 1024）：左右栏折叠为抽屉，浮在画布之上，不挤压画布宽度 */
-@media (max-width: 1023px) {
-  /* 顶栏进入抽屉形态后控件已很多：页面/性能徽标与「页面下拉」信息重复，优先让位 */
-  .designer__page,
+@media (max-width: 1279px) {
   .designer__perf {
     display: none;
   }
+}
+
+@media (max-width: 1199px) {
+  .designer__sep--history,
+  .designer__history,
+  .designer__logo-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .designer__brand,
+  .designer__sep--theme,
+  .designer__theme-top {
+    display: none;
+  }
+  .designer__top {
+    padding: 0 var(--lc-space-2);
+  }
+}
+
+/* Tablet 及以下（< 1024）：左右栏折叠为抽屉，浮在画布之上，不挤压画布宽度 */
+@media (max-width: 1023px) {
   .designer__aside--drawer {
     position: absolute;
     top: 0;

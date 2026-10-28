@@ -23,9 +23,10 @@
       type="button"
       aria-haspopup="menu"
       :aria-expanded="open"
-      data-testid="top-more"
+      :aria-label="label"
+      :data-testid="testid"
       @click="toggle"
-    >{{ label }}</button>
+    >{{ label }}<span class="top-more__caret" aria-hidden="true">▾</span></button>
 
     <div v-if="open" class="top-more__menu" role="menu" :style="menuStyle" @click="close">
       <slot />
@@ -36,7 +37,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 
-withDefaults(defineProps<{ inline: boolean; label?: string }>(), { label: '更多' })
+withDefaults(defineProps<{ inline: boolean; label?: string; testid?: string }>(), {
+  label: '更多',
+  testid: 'top-more',
+})
 
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
@@ -47,9 +51,11 @@ function place(): void {
   const el = rootRef.value?.querySelector('.top-more__trigger')
   if (!(el instanceof HTMLElement) || typeof window === 'undefined') return
   const r = el.getBoundingClientRect()
+  const bar = rootRef.value?.closest('.designer__top') as HTMLElement | null
+  const top = Math.max(r.bottom + 4, (bar?.getBoundingClientRect().bottom ?? 0) + 4)
   menuStyle.value = {
     position: 'fixed',
-    top: `${Math.round(r.bottom + 4)}px`,
+    top: `${Math.round(top)}px`,
     right: `${Math.round(window.innerWidth - r.right)}px`,
   }
 }
@@ -69,19 +75,21 @@ function onDocDown(e: MouseEvent): void {
 function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape') close()
 }
+/** 窗口尺寸变化只重新定位，不关闭（用户拉窗口时菜单不应凭空消失） */
+function onResize(): void {
+  if (open.value) place()
+}
 
 onMounted(() => {
   document.addEventListener('mousedown', onDocDown)
   document.addEventListener('keydown', onKey)
-  // fixed 定位不随顶栏滚动 → 滚了就关（capture 才能收到顶栏内部滚动）
-  window.addEventListener('scroll', close, true)
-  window.addEventListener('resize', close)
+  // 顶栏已改为不滚动（控件按优先级折叠）；页面主体滚动不影响 fixed 菜单，无需监听 scroll。
+  window.addEventListener('resize', onResize)
 })
 onUnmounted(() => {
   document.removeEventListener('mousedown', onDocDown)
   document.removeEventListener('keydown', onKey)
-  window.removeEventListener('scroll', close, true)
-  window.removeEventListener('resize', close)
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -90,15 +98,30 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
 }
 .top-more--inline {
   gap: var(--lc-space-2);
+}
+.top-more__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+}
+.top-more__caret {
+  font-size: 10px;
+  line-height: var(--lc-leading-label);
+  color: var(--lc-topbar-text-muted);
 }
 .top-more__menu {
   display: flex;
   flex-direction: column;
   gap: var(--lc-space-0-5);
-  min-width: 148px;
+  min-width: 196px;
+  max-width: 288px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--lc-space-1);
   border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
   border-radius: var(--lc-radius-md);
@@ -110,16 +133,48 @@ onUnmounted(() => {
 /* 菜单里沿用顶栏按钮配色，但改成整行左对齐（不影响 top-btn--primary 的选中底色） */
 .top-more__menu :slotted(.top-btn) {
   width: 100%;
+  flex: 0 0 auto;
   justify-content: flex-start;
+  padding: var(--lc-space-1-5) var(--lc-space-2);
   border-color: transparent;
   text-align: left;
 }
 .top-more__menu :slotted(.top-btn:not(.top-btn--primary)) {
   background: none;
 }
+.top-more__menu :slotted(.top-btn:not(.top-btn--primary):hover:not(:disabled)) {
+  background: var(--lc-topbar-input-bg);
+  border-color: var(--lc-topbar-btn-border);
+}
 .top-more__menu :slotted(.top-sep) {
   width: 100%;
   height: var(--lc-border-width);
   margin: var(--lc-space-1) 0;
+}
+
+/* 分组：标题 + 一组菜单项（2026-10-28 菜单项增多后按语义分区，避免一长串按钮） */
+.top-more__menu :slotted(.top-menu__group) {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.top-more__menu :slotted(.top-menu__label) {
+  padding: var(--lc-space-1) var(--lc-space-2) var(--lc-space-0-5);
+  font-size: var(--lc-font-micro);
+  font-weight: var(--lc-weight-semibold);
+  letter-spacing: 0.04em;
+  color: var(--lc-topbar-text-muted);
+  cursor: default;
+}
+.top-more__menu :slotted(.top-menu__divider) {
+  height: var(--lc-border-width);
+  margin: var(--lc-space-1) 0;
+  background: var(--lc-topbar-sep);
+}
+.top-more__menu :slotted(.top-menu__check) {
+  margin-left: auto;
+  padding-left: var(--lc-space-2);
+  color: var(--lc-brand-300);
+  font-size: var(--lc-font-micro);
 }
 </style>
