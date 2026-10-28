@@ -326,6 +326,17 @@
 > **实现状态（Phase 3 批 4 新增，2026-10-20，D-P3-11）**：`packages/renderer/src/uni/lc-portal-page.vue` 已兑现三字段 + 卡片事件；`packages/runtime/src/pages/view/index.vue` 按 `schema.type === 'portal'` 分发到门户页并接 `onOpenUrl`；设计器属性面板「门户」区（`data-testid=portal-config / portal-title / portal-columns / portal-card-i`）可增删改卡片、切换页型为「门户」；`PageType` 增加 `portal`，但 **`isStdPage` 仍只含 list/detail**（门户的 `root` 树要渲染，不占位）。服务端冒烟：`node apps/server/scripts/smoke-p3b4.mjs`（13 项断言：落库回读 + 非法卡片 400 `SCHEMA_INVALID`）。**未做**：卡片拖拽排序 / 卡片内自定义物料 / 门户级数据源（卡片角标自动取数）——见 [`PLANS.md`](PLANS.md) §3。
 >
 > **2026-10-28 补充（移动门户管理面，可选字段）**：新增 `order` / `remark` 两个运营字段（只给设计器门户清单用，运行时不读），`schemaVersion` 不变。设计器新增 **门户设计** 视图（`packages/designer/src/panel/PortalPanel.vue`）：`type=portal` 页面清单 + 查询 / 新增 / 编辑 / 删除 / 分页；新增走 `buildPortalPage`（`columns=4`、`cards=[]`）后直接 `PUT schema`，编码重复时**拒绝**（不 upsert 覆盖）；编辑先 `GET schema` 取 revision，再带 `If-Match` 写入，`409` 不自动覆盖。卡片区改为**四宫格图标块**（`.lc-card__tile--0..3`，四组令牌色按序号轮换）；`LcCanvas` 在 `type=portal` 时直接复用 `lc-portal-page` 的 `mode="design"`，画布与运行时同构（设计态点卡不跳转）。
+>
+> **2026-10-28 补充（门户组件库，纯前端物料，协议结构不变）**：新增 4 个物料，`root` 树照常承载，**不新增 `PageSchema` 字段**：
+>
+> | 物料 | 分类 | props（`settings` 全部走属性面板） | 事件 |
+> |---|---|---|---|
+> | `PortalBanner` 轮播图 | basic | `items`（`json`：`{title?,desc?,image?,pageId?,url?}[]`）、`height`（rpx，缺省 300）、`interval`（ms，缺省 3000，`<=0` 不切换）、`autoplay`、`indicator` | `itemClick(index)` |
+> | `PortalNotice` 公告条 | basic | `items`（`json`：`string[]` 或 `{text,pageId}[]`）、`text`（单条兜底）、`title`、`interval`（缺省 4000）、`more` | `itemClick(index)` |
+> | `PortalStat` 数据卡 | biz | `title`、`subtitle`、`items`（`json`：`{label,value,unit?}[]`）、`columns`（1~4） | — |
+> | `PortalTodo` 待办列表 | biz | `title`、`limit`（1~50）、`autoLoad`、`items`（`json`，静态数据优先）、`showCount` | `itemClick(index)` |
+>
+> 运行时分发在 `lc-node.vue` 的 v-if 链（与其余物料同构，MP 端无 `<component :is>`）。`PortalBanner` **不用 uni `<swiper>`**：设计器画布是纯 Vue 工程，`swiper` 不在 shim 名单、会退化未知元素，故用「绝对定位叠层 + 透明度切换 + 定时器 + 触摸位移（阈值 40px）」实现，三端一致；**文字不压图**（图片在上、说明条在下，surface 底 + 常规文字令牌），避免暗色主题下反色文字变深导致不可读。`PortalTodo` 数据优先级：静态 `items`（非空则零请求）→ 注入宿主 `LC_FLOW_HOST_KEY.request` 拉 `GET /api/v1/flows/tasks/todo`；无宿主/401 时静默空态或提示，不崩。属性面板 `json` setter 语义见 §4（`SetterType`）。设计器物料面板在 `type=portal` 时收敛为「基础组件 / 业务组件」两组。
 
 ---
 
@@ -380,8 +391,9 @@
 | `defaultRules` / `actionTypes` | 默认校验规则 / 关联动作能力 |
 
 **SettingDesc**：`{ key, label, setter, options?, placeholder?, help?, condition?, required? }`
-**SetterType（13 种）**：`input textarea number switch select color slider optionList ruleEditor expression fieldPicker dataSourcePicker eventBinder`
+**SetterType（14 种）**：`input textarea number switch select color slider optionList json ruleEditor expression fieldPicker dataSourcePicker eventBinder`
 —— `key` 支持路径：`'label'` → `node.props.label`；`'style.x'` → `node.style.x`；`'event'` → `node.actions`。
+—— `json`（2026-10-28 新增）：文本域里边打边 `JSON.parse`，**合法即写回解析后的数组/对象**（不是 JSON 文本），非法只提示「画布仍保留上一次合法内容」、不清空既有配置；清空文本域等价删除该键。物料侧用 `asArray` 同时容忍「数组 / JSON 文本 / 非法」三态，历史 schema 照常渲染。
 
 ---
 

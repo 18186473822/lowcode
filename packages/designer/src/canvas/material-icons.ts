@@ -2,11 +2,11 @@
  * material-icons.ts —— 物料面板图标集（design-system.md §7.1 物料面板 / 画布 B6）
  *
  * 为什么内置路径而不引图标包：
- *   与 `lc-icon` 物料的既有约定一致（「不引字体包」，见该物料注释）。34 个图标若引
+ *   与 `lc-icon` 物料的既有约定一致（「不引字体包」，见该物料注释）。38 个图标若引
  *   lucide/heroicons 会带来 ~30KB 的 tree-shaken 依赖与一套外部版本约束，而这里只需
- *   34 个 16px 单色线性图标 —— 内联路径是更小的成本。
+ *   38 个 16px 单色线性图标 —— 内联路径是更小的成本。
  *
- * 规格（34 个图标全部遵守，改任何一个都不要破例）：
+ * 规格（38 个图标全部遵守，改任何一个都不要破例）：
  *   - **viewBox 16×16**，活区 2..14（四周留 2px 视觉呼吸）
  *   - **描边 1.5**，`stroke-linecap/linejoin: round`，`fill: none`
  *   - **单色**：全部用 `currentColor`，颜色由宿主 CSS 决定（悬停变主色）
@@ -15,6 +15,7 @@
  *     Input(框+光标) / Select(框+下箭头) / Textarea(框+三行) / Picker(滚轮式三行渐变)
  *     / DatePicker(日历) / DateTimePicker(时钟) / Cell(框+右箭头) / Detail(键值对) / List(圆点行)
  *     / Chart(坐标轴+柱) / Statistic(卡片+上扬折线)
+ *     / PortalBanner(横幅+指示点) / PortalNotice(喇叭) / PortalStat(2×2 数字格) / PortalTodo(勾选待办)
  *
  * 返回的是 `<svg>` 内部标记（不含 svg 标签），由调用方塞进统一外壳。
  */
@@ -54,6 +55,19 @@ export const MATERIAL_ICONS: Record<string, string> = {
   // 指标卡：卡片 + 上扬折线（数值/趋势语义）
   Statistic:
     '<rect x="2.5" y="4.1" width="11" height="7.8" rx="2"/><path d="M4.9 9.7 7 7.6l1.6 1.6 2.5-2.8"/><path d="M9.6 6.4h1.5v1.5"/>',
+
+  /* ---------------- 门户组件库（2026-10-28 批 2） ---------------- */
+  // 轮播图：横幅 + 底部两个指示点（「多帧切换」的语义，与 Image 的单张相框区分）
+  PortalBanner:
+    '<rect x="2.5" y="3.6" width="11" height="8.8" rx="2"/><circle cx="6.6" cy="10.1" r="0.7" fill="currentColor" stroke="none"/><circle cx="9.4" cy="10.1" r="0.7"/>',
+  // 公告条：喇叭（「播报」的通用隐喻）
+  PortalNotice:
+    '<path d="M3 6.6h2.4l3.2-2.4v7.6L5.4 9.4H3a1 1 0 0 1-1-1V7.6a1 1 0 0 1 1-1Z"/><path d="M11.2 6.2a3 3 0 0 1 0 3.6"/>',
+  // 数据卡：卡片内 2×2 数字格（一卡多指标；与 Statistic 的单值折线构图区分）
+  PortalStat: '<rect x="2.5" y="3.5" width="11" height="9" rx="2"/><path d="M8 3.5v9M2.5 8h11"/>',
+  // 待办列表：勾选项 + 两行待办（第一项已勾，第二项未勾）
+  PortalTodo:
+    '<rect x="2.8" y="3.9" width="2.6" height="2.6" rx="0.8"/><path d="m3.5 5.2 0.7 0.7 1.2-1.4"/><rect x="2.8" y="9.4" width="2.6" height="2.6" rx="0.8"/><path d="M7 5.2h6.2M7 10.7h4.2"/>',
 
   /* ---------------- feedback ---------------- */
   // 按钮：胶囊 + 内部短标签

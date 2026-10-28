@@ -40,15 +40,18 @@ const BATCH2_NEW = ['ApprovalBar', 'Timeline'] as const
 /** Phase 3 批 4 新增 2 物料（data 组图表 / 指标卡，详设见 PLANS.md §3 D-P3-10） */
 const BATCH4_NEW = ['Chart', 'Statistic'] as const
 
-describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 32；批 4 后：35 / 34）', () => {
-  it('META_LIST 共 35 项（含 Page），展示项（排除 Page）= 34', () => {
-    expect(META_LIST).toHaveLength(35)
-    expect(META_LIST.filter((m) => m.name !== 'Page')).toHaveLength(34)
+/** 2026-10-28 门户组件库批 2 新增 4 物料（basic 2 + biz 2，见 docs/OPERATIONS.md §3.6） */
+const PORTAL_NEW = ['PortalBanner', 'PortalNotice', 'PortalStat', 'PortalTodo'] as const
+
+describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 32；批 4 后：35 / 34；门户批 2 后：39 / 38）', () => {
+  it('META_LIST 共 39 项（含 Page），展示项（排除 Page）= 38', () => {
+    expect(META_LIST).toHaveLength(39)
+    expect(META_LIST.filter((m) => m.name !== 'Page')).toHaveLength(38)
   })
 
   it('名称唯一，且 META_MAP 与 META_LIST 双向一致', () => {
     const names = META_LIST.map((m) => m.name)
-    expect(new Set(names).size).toBe(35)
+    expect(new Set(names).size).toBe(39)
     expect(Object.keys(META_MAP).sort()).toEqual([...names].sort())
   })
 
@@ -76,6 +79,19 @@ describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 3
     expect(META_MAP.Chart!.defaultProps.chartType).toBe('bar')
   })
 
+  it('门户组件库 4 个物料在册（basic 2 + biz 2）', () => {
+    for (const name of PORTAL_NEW) {
+      expect(META_MAP[name], `${name} 未注册`).toBeDefined()
+    }
+    expect(META_MAP.PortalBanner!.category).toBe('basic')
+    expect(META_MAP.PortalNotice!.category).toBe('basic')
+    expect(META_MAP.PortalStat!.category).toBe('biz')
+    expect(META_MAP.PortalTodo!.category).toBe('biz')
+    // JSON 驱动的物料一律用 json setter（写回解析后的数组，而不是 JSON 文本）
+    expect(META_MAP.PortalBanner!.settings.find((s) => s.key === 'items')!.setter).toBe('json')
+    expect(META_MAP.PortalStat!.settings.find((s) => s.key === 'items')!.setter).toBe('json')
+  })
+
   it('分类全部合法，且同分类内 order 不重复', () => {
     for (const m of META_LIST) {
       expect(LEGAL_CATEGORIES.has(m.category), `${m.name} 分类非法: ${m.category}`).toBe(true)
@@ -100,10 +116,10 @@ describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 3
     }
   })
 
-  it('designer material-map 覆盖全部 33 个叶子物料组件（kebab 标签口径）', () => {
-    // 展示 34 = 33 叶子组件 + Page（无组件，lc-node 内联容器分支）
+  it('designer material-map 覆盖全部 37 个叶子物料组件（kebab 标签口径）', () => {
+    // 展示 38 = 37 叶子组件 + Page（无组件，lc-node 内联容器分支）
     const leafNames = META_LIST.filter((m) => m.name !== 'Page' && m.name !== 'FormGroup').map((m) => m.name)
-    expect(leafNames).toHaveLength(33)
+    expect(leafNames).toHaveLength(37)
     const toKebab = (s: string): string => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
     for (const name of leafNames) {
       expect(MATERIAL_MAP[`lc-${toKebab(name)}`], `${name} 缺 designer 映射`).toBeDefined()

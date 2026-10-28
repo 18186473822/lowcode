@@ -45,6 +45,11 @@ import LcTimeline from '@lc/materials/src/timeline/index.vue'
 // Phase 3 批 4：图表 / 指标卡（data 组）
 import LcChart from '@lc/materials/src/chart/index.vue'
 import LcStatistic from '@lc/materials/src/statistic/index.vue'
+// 门户组件库（2026-10-28 批 2）：轮播 / 公告条 / 数据卡 / 待办列表
+import LcPortalBanner from '@lc/materials/src/portal-banner/index.vue'
+import LcPortalNotice from '@lc/materials/src/portal-notice/index.vue'
+import LcPortalStat from '@lc/materials/src/portal-stat/index.vue'
+import LcPortalTodo from '@lc/materials/src/portal-todo/index.vue'
 
 /** kebab 标签名 → 物料组件（与 easycom `^lc-(.*)$` 解析结果一致） */
 export const MATERIAL_MAP: Record<string, Component> = {
@@ -81,6 +86,10 @@ export const MATERIAL_MAP: Record<string, Component> = {
   'lc-timeline': LcTimeline,
   'lc-chart': LcChart,
   'lc-statistic': LcStatistic,
+  'lc-portal-banner': LcPortalBanner,
+  'lc-portal-notice': LcPortalNotice,
+  'lc-portal-stat': LcPortalStat,
+  'lc-portal-todo': LcPortalTodo,
 }
 
 /** 全局注册全部物料（供 lc-node 的 v-if 链标签解析） */

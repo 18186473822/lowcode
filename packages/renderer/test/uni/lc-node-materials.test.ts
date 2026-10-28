@@ -40,7 +40,7 @@ function makeStub(name: string) {
   })
 }
 
-/** 34 展示物料 = 33 叶子组件 + FormGroup 容器（lc-node 内联渲染，无物料组件） */
+/** 38 展示物料 = 37 叶子组件 + FormGroup 容器（lc-node 内联渲染，无物料组件） */
 const LEAF_MATERIALS: Array<[componentName: string, kebab: string]> = [
   // basic
   ['Text', 'lc-text'],
@@ -82,6 +82,11 @@ const LEAF_MATERIALS: Array<[componentName: string, kebab: string]> = [
   // biz（Phase 3 批 2：审批物料）
   ['ApprovalBar', 'lc-approval-bar'],
   ['Timeline', 'lc-timeline'],
+  // 门户组件库（2026-10-28 批 2）
+  ['PortalBanner', 'lc-portal-banner'],
+  ['PortalNotice', 'lc-portal-notice'],
+  ['PortalStat', 'lc-portal-stat'],
+  ['PortalTodo', 'lc-portal-todo'],
 ]
 
 const globalComponents: Record<string, ReturnType<typeof defineComponent>> = {
@@ -114,11 +119,11 @@ function controllerOf(schema: PageSchema) {
 /* 分发遍历                                                            */
 /* ------------------------------------------------------------------ */
 
-describe('lc-node —— 34 展示物料分发遍历（批 3 完整性锁 + 批 2 审批物料 + 批 4 图表）', () => {
-  it('名单自检：33 个叶子物料 kebab 标签唯一（防漏注册/重名）', () => {
+describe('lc-node —— 38 展示物料分发遍历（批 3 完整性锁 + 批 2 审批物料 + 批 4 图表 + 门户批 2）', () => {
+  it('名单自检：37 个叶子物料 kebab 标签唯一（防漏注册/重名）', () => {
     const kebabs = LEAF_MATERIALS.map(([, k]) => k)
-    expect(kebabs).toHaveLength(33)
-    expect(new Set(kebabs).size).toBe(33)
+    expect(kebabs).toHaveLength(37)
+    expect(new Set(kebabs).size).toBe(37)
   })
 
   it.each(LEAF_MATERIALS)('%s 命中分发分支（渲染 %s stub，不落「未知组件」）', (componentName, kebab) => {
@@ -133,7 +138,7 @@ describe('lc-node —— 34 展示物料分发遍历（批 3 完整性锁 + 批 
     pc.dispose()
   })
 
-  it('容器 FormGroup 渲染标题与组内子节点（34 展示项余下的容器项）', () => {
+  it('容器 FormGroup 渲染标题与组内子节点（38 展示项余下的容器项）', () => {
     const pc = controllerOf(
       page([
         node({

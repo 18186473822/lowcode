@@ -236,6 +236,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-27 | 安全审计 | 拒绝类事件落库：登录失败 / 401 / 403 / 429；`AuditMiddleware` 旁路记录 + 登录 401 去重；`GET /audit/events` 仅管理员；JSON 环形 2000 条 / MySQL `audit_events` 持久；补 6 条单测 + 5 条中间件单测 + 4 条 e2e + MySQL 映射；CI run #15 全绿 |
 | 2026-10-28 | 模型即模块 | 按模型一次生成列表 / 表单 / 详情三页并串联跳转；回写模型 `listPageId` / `formPageId`；重复前缀整体中止不覆盖；删除页面清理模型悬空引用；designer 374 用例、typecheck、`design:check`、build 全绿 |
 | 2026-10-28 | 移动门户管理面 | 新增「门户设计」视图：移动门户清单（内置行 + `type=portal` 行，查询/新增/编辑/删除/分页）；`portal.order` / `remark` 运营字段；四宫格图标卡片；画布复用 `lc-portal-page` 设计态；designer 389 用例、renderer 335、schema 90、双端 typecheck、build、`design:check` 全绿 |
+| 2026-10-28 | 门户组件库 | 新增 4 个门户物料（轮播图 / 公告条 / 数据卡 / 待办列表）+ 属性面板 `json` setter（边打边解析，非法保留上次合法值，顺带修好 `Detail` / `List` 的 JSON 文本域画布空白）；门户页物料面板收敛为「基础组件 / 业务组件」两组；轮播不用 uni `swiper`（画布会退化成未知元素），改叠层 + 定时器 + 触摸滑动，高度用 `padding-top: height/750` 百分比（内联 `rpx` 浏览器会丢弃）；待办静态数据优先、否则走 `/flows/tasks/todo`；designer 393 用例、renderer 356、schema 90、三端 typecheck、build、`design:check` 全绿，设计器与 H5 均实测 4 物料渲染；门户小字逐节点实测对比度（29 个/主题，亮暗均达 AA），修掉品牌胶囊在暗色只有 2.91:1 的问题 |
 
 ---
 

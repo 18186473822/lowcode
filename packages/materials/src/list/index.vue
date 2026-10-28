@@ -19,6 +19,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { asArray } from '../props-utils'
 
 interface ListItem {
   title: string
@@ -26,12 +27,13 @@ interface ListItem {
 }
 
 const props = defineProps<{
-  items?: ListItem[]
+  /** 数组，或 JSON 文本（历史 schema / 手写配置都能渲染） */
+  items?: unknown
 }>()
 
 const emit = defineEmits<{ itemClick: [index: number] }>()
 
-const itemList = computed<ListItem[]>(() => (Array.isArray(props.items) ? props.items : []))
+const itemList = computed<ListItem[]>(() => asArray<ListItem>(props.items))
 </script>
 
 <style scoped>

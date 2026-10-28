@@ -102,4 +102,66 @@ export const BASIC_META: MaterialSchema[] = [
     ],
     supports: { condition: true, loop: true },
   },
+  /* ---------------- 门户组件库（2026-10-28 批 2） ---------------- */
+  {
+    name: 'PortalBanner',
+    title: '轮播图',
+    category: 'basic',
+    order: 5,
+    version: '1.0.0',
+    // 不用 uni swiper：设计器画布是纯 Vue 工程，swiper 会退化成未知行内元素
+    defaultProps: {
+      items: [
+        { title: '门户横幅一', desc: '在右栏配置图片与跳转' },
+        { title: '门户横幅二' },
+      ],
+      height: 300,
+      interval: 3000,
+      autoplay: true,
+      indicator: true,
+    },
+    settings: [
+      {
+        key: 'items',
+        label: '轮播项（JSON）',
+        setter: 'json',
+        placeholder: '[{"title":"标题","desc":"说明","image":"/static/a.png"}]',
+        help: 'image 留空显示令牌色占位块；标题/说明渲染在图片下方（不压图，保证暗色可读）',
+      },
+      { key: 'height', label: '高度(rpx)', setter: 'number', help: '按屏宽/750 等比换算（300 ≈ 屏宽的 40%）' },
+      { key: 'interval', label: '切换间隔(ms)', setter: 'number', help: '<=0 不自动切换；单张不轮播' },
+      { key: 'autoplay', label: '自动播放', setter: 'switch' },
+      { key: 'indicator', label: '显示圆点', setter: 'switch' },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
+  {
+    name: 'PortalNotice',
+    title: '公告条',
+    category: 'basic',
+    order: 6,
+    version: '1.0.0',
+    defaultProps: {
+      title: '公告',
+      items: ['欢迎使用移动门户', '门户组件可在左栏「基础组件 / 业务组件」中拖入'],
+      interval: 4000,
+      more: true,
+    },
+    settings: [
+      {
+        key: 'items',
+        label: '公告项（JSON）',
+        setter: 'json',
+        placeholder: '["第一条公告","第二条公告"]',
+        help: '字符串数组或 [{"text":"…","pageId":"…"}]；多条按间隔轮换',
+      },
+      { key: 'text', label: '单条兜底文案', setter: 'input', help: '公告项为空时显示这一条' },
+      { key: 'title', label: '左侧标签', setter: 'input', placeholder: '缺省「公告」' },
+      { key: 'interval', label: '轮换间隔(ms)', setter: 'number' },
+      { key: 'more', label: '显示箭头', setter: 'switch' },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
 ]

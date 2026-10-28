@@ -18,10 +18,10 @@ beforeEach(() => {
 })
 
 describe('MaterialPanel（META 分组 + 拖拽源）', () => {
-  it('展示 34 项（排除 Page：root 不可拖），按 category 分组', () => {
+  it('展示 38 项（排除 Page：root 不可拖），按 category 分组', () => {
     const w = mount(MaterialPanel)
     const items = w.findAll('.lc-material-panel__item')
-    expect(items).toHaveLength(34) // 35 份 META - Page（批 3：12 → 30；批 2：→ 32；批 4：→ 34）
+    expect(items).toHaveLength(38) // 39 份 META - Page（批 3：12 → 30；批 2：→ 32；批 4：→ 34；门户批 2：→ 38）
     expect(w.text()).not.toContain('页面根容器')
 
     const titles = items.map((i) => i.text())

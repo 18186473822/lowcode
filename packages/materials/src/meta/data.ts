@@ -21,7 +21,7 @@ export const DATA_META: MaterialSchema[] = [
       {
         key: 'items',
         label: '描述项（JSON）',
-        setter: 'textarea',
+        setter: 'json',
         placeholder: '[{"label":"标题","value":"内容"}]',
         help: '只读键值对展示；value 支持字符串/数字/布尔',
       },
@@ -62,7 +62,7 @@ export const DATA_META: MaterialSchema[] = [
       {
         key: 'items',
         label: '列表项（JSON）',
-        setter: 'textarea',
+        setter: 'json',
         placeholder: '[{"title":"标题","desc":"描述"}]',
         help: '静态数据列表（导航/快捷入口）；模型驱动列表用「列表标准页」',
       },

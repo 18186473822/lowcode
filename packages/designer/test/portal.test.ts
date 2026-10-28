@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import type { PageSchema } from '@lc/schema'
 import {
@@ -21,6 +22,9 @@ import {
   type RoleRecord,
 } from '../src/store/store'
 import PortalPanel from '../src/panel/PortalPanel.vue'
+import MaterialPanel from '../src/panel/MaterialPanel.vue'
+import PropsPanel from '../src/panel/PropsPanel.vue'
+import { findNode } from '../src/core/schema-ops'
 
 function portalSchema(
   id: string,
@@ -314,6 +318,87 @@ describe('PortalPanel：清单渲染与查询', () => {
     expect(api.saveSchema).toHaveBeenCalledTimes(1)
     expect(api.saveSchema.mock.calls[0][1].portal?.order).toBe(3)
     expect(w.find('[data-testid="portal-form-id"]').exists()).toBe(false)
+    w.unmount()
+  })
+})
+
+describe('门户组件库（批 2）：物料面板分组 + json setter', () => {
+  it('type=portal → 只有「基础组件 / 业务组件」两组，且只列门户可用物料', () => {
+    const store = useDesignerStore()
+    store.setPageType('portal')
+
+    const w = mount(MaterialPanel)
+    const groupTitles = w.findAll('.lc-material-panel__group-title').map((g) => g.text())
+    expect(groupTitles).toEqual(['基础组件', '业务组件'])
+
+    const titles = w.findAll('.lc-material-panel__item').map((i) => i.text())
+    // 4 个新门户物料在两组内
+    expect(titles).toEqual(expect.arrayContaining(['轮播图', '公告条', '数据卡', '待办列表']))
+    // 表单控件/布局容器不进门户面板（门户是首屏展示，不是录入页）
+    expect(titles).not.toContain('单行输入')
+    expect(titles).not.toContain('按钮')
+    expect(titles).not.toContain('分组容器')
+    w.unmount()
+  })
+
+  it('非门户页仍按 7 个 category 分组（不回归）', () => {
+    const store = useDesignerStore()
+    store.setPageType('form')
+    const w = mount(MaterialPanel)
+    const groupTitles = w.findAll('.lc-material-panel__group-title').map((g) => g.text())
+    expect(groupTitles).toEqual(expect.arrayContaining(['基础', '布局', '表单', '反馈', '数据', '导航', '业务']))
+    w.unmount()
+  })
+
+  it('json setter：合法 JSON 写回数组；非法输入保留上一次合法值并红字提示', async () => {
+    const store = useDesignerStore()
+    store.schema = {
+      schemaVersion: '1.0.0',
+      id: 'p_portal_json',
+      name: '门户联调',
+      type: 'portal',
+      root: {
+        id: 'root',
+        componentName: 'Page',
+        children: [
+          {
+            id: 'n_banner',
+            componentName: 'PortalBanner',
+            props: { items: [{ title: 'A' }] },
+          },
+        ],
+      },
+      portal: { cards: [] },
+    } as PageSchema
+    store.select('n_banner')
+
+    const w = mount(PropsPanel)
+    await nextTick()
+
+    const readItems = (): unknown =>
+      (findNode(store.schema, 'n_banner')!.props as { items?: unknown }).items
+
+    const first = w.find('textarea.setter__textarea')
+    expect((first.element as HTMLTextAreaElement).value).toContain('"title": "A"')
+
+    // 合法 JSON → 写回解析后的数组（不是字符串）
+    ;(first.element as HTMLTextAreaElement).value = '[{"title":"B"}]'
+    await first.trigger('input')
+    expect(readItems()).toEqual([{ title: 'B' }])
+
+    // 非法 JSON → 保留上一次合法值 + 提示
+    const second = w.find('textarea.setter__textarea')
+    ;(second.element as HTMLTextAreaElement).value = '[{oops'
+    await second.trigger('input')
+    expect(readItems()).toEqual([{ title: 'B' }])
+    expect(w.find('.setter__json-err').text()).toContain('JSON 语法错误')
+
+    // 清空 → 删键
+    const third = w.find('textarea.setter__textarea')
+    ;(third.element as HTMLTextAreaElement).value = '  '
+    await third.trigger('input')
+    expect(readItems()).toBeUndefined()
+    expect(w.find('.setter__json-err').exists()).toBe(false)
     w.unmount()
   })
 })

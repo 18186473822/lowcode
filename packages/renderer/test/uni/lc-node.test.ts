@@ -104,6 +104,10 @@ const LEAF_KEBABS = [
   'lc-rate',
   'lc-approval-bar',
   'lc-timeline',
+  'lc-portal-banner',
+  'lc-portal-notice',
+  'lc-portal-stat',
+  'lc-portal-todo',
 ] as const
 
 const globalComponents: Record<string, ReturnType<typeof defineComponent>> = {

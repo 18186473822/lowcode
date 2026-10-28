@@ -70,4 +70,70 @@ export const BIZ_META: MaterialSchema[] = [
     events: [],
     supports: { condition: true, loop: false, perm: false },
   },
+  /* ---------------- 门户组件库（2026-10-28 批 2） ---------------- */
+  {
+    name: 'PortalStat',
+    title: '数据卡',
+    category: 'biz',
+    order: 3,
+    version: '1.0.0',
+    // 一卡多指标：主副标题 + 数字格（与 Statistic「单 KPI + 趋势」分工）
+    defaultProps: {
+      title: '数据概览',
+      subtitle: '本月',
+      items: [
+        { label: '待办', value: 12 },
+        { label: '已办', value: 86 },
+        { label: '超时', value: 3 },
+      ],
+      columns: 3,
+    },
+    settings: [
+      { key: 'title', label: '主标题', setter: 'input' },
+      { key: 'subtitle', label: '副标题', setter: 'input', placeholder: '说明统计口径/区间（可空）' },
+      {
+        key: 'items',
+        label: '数字格（JSON）',
+        setter: 'json',
+        placeholder: '[{"label":"待办","value":12,"unit":"条"}]',
+        help: '每项 label + value；value 可为数字或 $expr 表达式，数字自动千分位',
+      },
+      { key: 'columns', label: '每行列数(1~4)', setter: 'number' },
+    ],
+    supports: { condition: true, loop: false, perm: true },
+  },
+  {
+    name: 'PortalTodo',
+    title: '待办列表',
+    category: 'biz',
+    order: 4,
+    version: '1.0.0',
+    defaultProps: {
+      title: '我的待办',
+      limit: 5,
+      items: [],
+      autoLoad: true,
+      showCount: true,
+    },
+    settings: [
+      { key: 'title', label: '标题', setter: 'input' },
+      { key: 'limit', label: '最多条数(1~50)', setter: 'number' },
+      {
+        key: 'autoLoad',
+        label: '拉取待办',
+        setter: 'switch',
+        help: '开：运行时 GET /flows/tasks/todo；关：只用下方静态数据',
+      },
+      {
+        key: 'items',
+        label: '静态数据（JSON）',
+        setter: 'json',
+        placeholder: '[{"title":"报销审批","tag":"待审批","time":"10-28 09:30"}]',
+        help: '非空则不请求接口（设计期预览用）；行字段兼容流程待办 flowName/nodeName',
+      },
+      { key: 'showCount', label: '显示条数', setter: 'switch' },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
 ]

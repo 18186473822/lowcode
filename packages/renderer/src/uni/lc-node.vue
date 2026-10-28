@@ -127,6 +127,19 @@
     <template v-else-if="material === 'Statistic'">
       <lc-statistic v-bind="bindProps" />
     </template>
+    <!-- 门户组件库（2026-10-28 批 2）：轮播 / 公告条 / 数据卡 / 待办列表 -->
+    <template v-else-if="material === 'PortalBanner'">
+      <lc-portal-banner v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
+    <template v-else-if="material === 'PortalNotice'">
+      <lc-portal-notice v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
+    <template v-else-if="material === 'PortalStat'">
+      <lc-portal-stat v-bind="bindProps" />
+    </template>
+    <template v-else-if="material === 'PortalTodo'">
+      <lc-portal-todo v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
     <!-- 带标题容器：自身渲染分组头，children 走下方统一递归 -->
     <template v-else-if="material === 'FormGroup'">
       <view class="lc-node__group">

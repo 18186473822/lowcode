@@ -9,8 +9,8 @@
     <div class="panel-head">
       <h3 class="panel-title">物料</h3>
     </div>
-    <section v-for="group in groups" :key="group.category" class="lc-material-panel__group">
-      <div class="lc-material-panel__group-title">{{ CATEGORY_LABELS[group.category] ?? group.category }}</div>
+    <section v-for="group in groups" :key="group.key" class="lc-material-panel__group">
+      <div class="lc-material-panel__group-title">{{ group.label }}</div>
       <ul class="lc-material-panel__list">
         <li
           v-for="m in group.items"
@@ -49,7 +49,7 @@
       text="物料注册表为空，通常是构建期问题 —— 检查 @lc/materials 的 META_LIST 是否注册成功。"
       inline
     />
-    <p class="panel-note">拖动到画布即可添加；选中后可在右栏配置属性。</p>
+    <p class="panel-note">{{ note }}</p>
   </div>
 </template>
 
@@ -57,9 +57,10 @@
 import { computed } from 'vue'
 import type { DragEvent as VueDragEvent } from 'vue'
 import type { MaterialCategory, MaterialSchema } from '@lc/schema'
-import { META_LIST } from '@lc/materials'
+import { META_LIST, META_MAP } from '@lc/materials'
 import { LC_MATERIAL_MIME } from '../core/dnd'
 import { materialIcon } from '../canvas/material-icons'
+import { useDesignerStore } from '../store/store'
 import PanelState from '../components/PanelState.vue'
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -72,8 +73,56 @@ const CATEGORY_LABELS: Record<string, string> = {
   biz: '业务',
 }
 
+/**
+ * 门户页（type=portal）的物料分组（2026-10-28 批 2）：
+ * 门户是移动端首屏，表单控件/布局容器在这里没有落点，故**收敛为两组**：
+ *   基础组件 = 纯展示（不依赖业务数据）
+ *   业务组件 = 运行时接业务数据/流程的物料（数据卡、待办、图表、审批…）
+ * 其余页型保持原 category 分组不变。
+ */
+const PORTAL_GROUPS: Array<{ key: string; label: string; names: string[] }> = [
+  {
+    key: 'portal-basic',
+    label: '基础组件',
+    names: ['PortalBanner', 'PortalNotice', 'Text', 'Image', 'Icon', 'Tag', 'Divider', 'Progress'],
+  },
+  {
+    key: 'portal-biz',
+    label: '业务组件',
+    names: [
+      'PortalStat',
+      'PortalTodo',
+      'Chart',
+      'Statistic',
+      'List',
+      'Cell',
+      'Detail',
+      'Timeline',
+      'ApprovalBar',
+    ],
+  },
+]
+
+interface PanelGroup {
+  key: string
+  label: string
+  items: MaterialSchema[]
+}
+
+const store = useDesignerStore()
+
+const isPortal = computed(() => store.schema?.type === 'portal')
+
 /** 分组（排除 Page —— root 不可拖，属性面板仍可通过选中 root 展示） */
-const groups = computed<Array<{ category: MaterialCategory; items: MaterialSchema[] }>>(() => {
+const groups = computed<PanelGroup[]>(() => {
+  if (isPortal.value) {
+    return PORTAL_GROUPS.map((g) => ({
+      key: g.key,
+      label: g.label,
+      items: g.names.map((n) => META_MAP[n]).filter((m): m is MaterialSchema => !!m),
+    })).filter((g) => g.items.length > 0)
+  }
+
   const map = new Map<MaterialCategory, MaterialSchema[]>()
   for (const m of META_LIST) {
     if (m.name === 'Page') continue
@@ -81,8 +130,18 @@ const groups = computed<Array<{ category: MaterialCategory; items: MaterialSchem
     arr.push(m)
     map.set(m.category, arr)
   }
-  return [...map.entries()].map(([category, items]) => ({ category, items }))
+  return [...map.entries()].map(([category, items]) => ({
+    key: category,
+    label: CATEGORY_LABELS[category] ?? category,
+    items,
+  }))
 })
+
+const note = computed(() =>
+  isPortal.value
+    ? '门户页只列基础/业务组件：拖动到画布即可添加到卡片区下方。'
+    : '拖动到画布即可添加；选中后可在右栏配置属性。',
+)
 
 function onDragStart(e: VueDragEvent, m: MaterialSchema): void {
   const dt = e.dataTransfer

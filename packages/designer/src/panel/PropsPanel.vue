@@ -478,6 +478,16 @@
               :placeholder="s.placeholder ?? ''"
               @input="onInput(s, $event)"
             />
+            <!-- json：边打边解析；语法错时保留上一次合法值并红字提示（不静默清空配置） -->
+            <textarea
+              v-else-if="s.setter === 'json'"
+              class="setter__input setter__textarea"
+              rows="4"
+              :value="jsonDraft[s.key] ?? jsonText(s)"
+              :placeholder="s.placeholder ?? ''"
+              @input="onJsonInput(s, $event)"
+              @blur="onJsonBlur(s)"
+            />
             <span v-else-if="s.setter === 'optionList'" class="setter__options">
               <span v-for="(opt, oi) in optionRows(s)" :key="oi" class="setter__option-row">
                 <input
@@ -517,6 +527,11 @@
             >{{ s.setter }} · Phase 2 支持</span>
           </span>
           <span v-if="s.help" class="setter__help">{{ s.help }}</span>
+          <span
+            v-if="s.setter === 'json' && jsonError[s.key]"
+            class="setter__json-err"
+            role="alert"
+          >{{ jsonError[s.key] }}</span>
         </label>
       </div>
       <panel-state
@@ -562,7 +577,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, reactive, watch } from 'vue'
 import type { PageType, SettingDesc, PortalCard, PortalPageConfig } from '@lc/schema'
 import { useDesignerStore } from '../store/store'
 import { readNodeValue } from '../core/schema-ops'
@@ -864,6 +879,60 @@ function colorValue(s: SettingDesc): string {
 function onColor(s: SettingDesc, e: Event): void {
   store.setProp(store.selectedId, s.key, (e.target as HTMLInputElement).value)
 }
+
+/* ---------------- 门户组件库（批 2）：json setter ---------------- */
+
+/** 编辑中的 JSON 文本按 setter key 存草稿：边打边解析，但不回写格式化文本（否则光标跳位） */
+const jsonDraft = reactive<Record<string, string>>({})
+/** 解析失败提示（按 key；空 = 无错） */
+const jsonError = reactive<Record<string, string>>({})
+
+/** store 值 → 展示文本（对象/数组格式化 2 空格；历史字符串原样给出） */
+function jsonText(s: SettingDesc): string {
+  const v = read(s)
+  if (v === undefined || v === null) return ''
+  if (typeof v === 'string') return v
+  try {
+    return JSON.stringify(v, null, 2)
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * 实时解析：合法则写回**解析后的值**（数组/对象），非法只提示不改写 ——
+ * 打字到一半（如 `[{"tit`）时不能把已知配置清空。
+ */
+function onJsonInput(s: SettingDesc, e: Event): void {
+  const raw = (e.target as HTMLTextAreaElement).value
+  jsonDraft[s.key] = raw
+  if (raw.trim() === '') {
+    jsonError[s.key] = ''
+    store.setProp(store.selectedId, s.key, undefined)
+    return
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    jsonError[s.key] = ''
+    store.setProp(store.selectedId, s.key, parsed)
+  } catch {
+    jsonError[s.key] = 'JSON 语法错误：画布仍保留上一次合法内容'
+  }
+}
+
+/** 失焦后丢掉草稿，回到 store 的格式化展示（有语法错时保留草稿，避免用户丢输入） */
+function onJsonBlur(s: SettingDesc): void {
+  if (!jsonError[s.key]) delete jsonDraft[s.key]
+}
+
+// 换选中节点时清空草稿：否则会看到上一个节点的编辑中间态
+watch(
+  () => store.selectedId,
+  () => {
+    for (const k of Object.keys(jsonDraft)) delete jsonDraft[k]
+    for (const k of Object.keys(jsonError)) delete jsonError[k]
+  },
+)
 </script>
 
 <style scoped>
@@ -969,5 +1038,12 @@ function onColor(s: SettingDesc, e: Event): void {
   margin-top: var(--lc-space-1-5);
   font-size: var(--lc-font-micro);
   color: var(--lc-text-tertiary);
+}
+/* json setter：解析失败提示（跨 grid 两列，紧贴控件下方） */
+.setter__json-err {
+  grid-column: 1 / -1;
+  margin-top: var(--lc-space-1);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-status-danger);
 }
 </style>

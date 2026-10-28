@@ -14,6 +14,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { asArray } from '../props-utils'
 
 interface DetailItem {
   label: string
@@ -21,10 +22,11 @@ interface DetailItem {
 }
 
 const props = defineProps<{
-  items?: DetailItem[]
+  /** 数组，或 JSON 文本（历史 schema / 手写配置都能渲染） */
+  items?: unknown
 }>()
 
-const itemList = computed<DetailItem[]>(() => (Array.isArray(props.items) ? props.items : []))
+const itemList = computed<DetailItem[]>(() => asArray<DetailItem>(props.items))
 
 /** 只读值格式化（对齐 uni/display 的语义：空占位、布尔中文、对象 JSON） */
 function display(v: unknown): string {
