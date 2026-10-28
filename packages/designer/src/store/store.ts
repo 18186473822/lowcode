@@ -53,7 +53,15 @@ import {
   updateField as updateFieldOp,
 } from '../core/model-ops'
 import type { DragSource } from '../core/dnd'
-import { buildModelPage, MODEL_PAGE_TYPE_LABEL, type ModelPageType } from '../core/page-builder'
+import {
+  buildModelModule,
+  buildModelPage,
+  MODEL_PAGE_TYPE_LABEL,
+  MODEL_PAGE_TYPES,
+  moduleBase,
+  modulePageIds,
+  type ModelPageType,
+} from '../core/page-builder'
 import { demoPage } from '../fixtures/demo-page'
 
 export type { DragSource }
@@ -667,6 +675,104 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     }
   }
 
+  /* ---------------- 2026-10-28：模型即模块（一次生成成组页面） ---------------- */
+
+  /**
+   * 一次生成成组页面（列表 / 表单 / 详情），并回写模型的默认页引用。
+   *
+   * 与 `createPageFromModel` 的区别：这里**直接落盘**（逐个 PUT，服务端 upsert），
+   * 因为「模块」是个整体 —— 只留在本地草稿上，用户切页就散了。
+   *
+   * 安全约束：
+   *  - 生成前先刷新列表，**任一目标 id 已存在就整体中止**（saveSchema 是 upsert，不能悄悄覆盖别人的页面）；
+   *  - 每页先跑 `validatePage`，有错不发请求；
+   *  - 模型回写（`listPageId` / `formPageId`）失败只告警 —— 页面已成组，不该回滚。
+   */
+  async function createModelModule(
+    rawBase: string,
+    modelId: string,
+    types: readonly ModelPageType[] = MODEL_PAGE_TYPES,
+  ): Promise<boolean> {
+    if (!api) {
+      statusText.value = '未配置服务端 API'
+      return false
+    }
+    const base = moduleBase(rawBase)
+    if (!base) {
+      statusText.value = '请先填写模块 ID（字母或下划线开头）'
+      return false
+    }
+    if (!modelId) {
+      statusText.value = '请先选择数据模型'
+      return false
+    }
+    const wanted = MODEL_PAGE_TYPES.filter((t) => types.includes(t))
+    if (!wanted.length) {
+      statusText.value = '至少要勾选一种页面'
+      return false
+    }
+
+    const ids = modulePageIds(base)
+    const targets = wanted.map((t) => ids[t])
+    const created: string[] = []
+    let model: ModelSchema | undefined
+    try {
+      // 先刷新：id 冲突必须整体中止，不能靠「服务端 upsert」把存量页面覆盖掉
+      await loadPages(true)
+      const clash = targets.filter((id) => pages.value.some((p) => p.id === id))
+      if (clash.length) {
+        statusText.value = `页面已存在：${clash.join('、')}，请换一个模块 ID`
+        return false
+      }
+      model = await api.getModel(modelId)
+    } catch (e) {
+      statusText.value = `读取模型失败：${errMsg(e)}`
+      return false
+    }
+    if (!model) {
+      statusText.value = `读取模型失败：${modelId}`
+      return false
+    }
+
+    const mod = buildModelModule({ model, base, types: wanted })
+    try {
+      for (const page of mod.pages) {
+        const v = validatePage(page)
+        if (!v.valid) {
+          statusText.value = `页面 ${page.id} 校验失败（${v.errors.length} 项），已中止`
+          return false
+        }
+        await api.saveSchema(page.id, page, 0)
+        created.push(page.id)
+      }
+    } catch (e) {
+      statusText.value = `生成中断：${created.length ? `已建 ${created.join('、')}；` : ''}失败原因 ${errMsg(e)}`
+      await loadPages(true)
+      return false
+    }
+
+    // 回写模型默认页：让「模型 → 页面」有反向索引（云程同款：模型记得自己的列表/表单页）
+    let refWarn = ''
+    try {
+      const next: ModelSchema = { ...model }
+      if (wanted.includes('list')) next.listPageId = ids.list
+      if (wanted.includes('form')) next.formPageId = ids.form
+      await api.putModel(next)
+    } catch (e) {
+      refWarn = `；模型默认页回写失败：${errMsg(e)}`
+    }
+
+    await loadPages(true)
+    const openTarget = wanted.includes('list') ? ids.list : mod.pages[0]!.id
+    const opened = await openPage(openTarget)
+    modelFields.value = model.fields ?? []
+    fieldsModelId.value = modelId
+    statusText.value = `已生成 ${created.length} 个页面（${created.join('、')}）${
+      opened ? '，已打开首页' : '，但打开首页失败'
+    }${refWarn}`
+    return true
+  }
+
   /* ---------------- 2026-10-20：页面列表 / 删除 ---------------- */
 
   /**
@@ -708,9 +814,12 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       statusText.value = '当前服务端未提供删除接口'
       return false
     }
+    // 删除前记下绑定模型：删完要顺手清掉模型上指向本页的默认页引用
+    const removedPage = pages.value.find((p) => p.id === id)
     try {
       const r = await api.deletePage(id)
       pages.value = pages.value.filter((p) => p.id !== id)
+      void clearModelPageRef(id, removedPage?.modelId)
       const deleted = `已删除 ${id}（含 ${r.removedVersions} 个历史版本）`
       if (pageId.value === id) {
         const next = pages.value[0]
@@ -735,6 +844,26 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     } catch (e) {
       statusText.value = `删除失败：${errMsg(e)}`
       return false
+    }
+  }
+
+  /**
+   * 清理模型上指向已删除页面的默认页引用（旁路）。
+   *
+   * 「模型记得自己的列表/表单页」是本次新增的反向索引，页面被删后必须失效；
+   * 否则模型面板会指向一个 404 页面。失败只影响索引，**绝不回滚删除**。
+   */
+  async function clearModelPageRef(pageId: string, modelId?: string): Promise<void> {
+    if (!api || !modelId) return
+    try {
+      const model = await api.getModel(modelId)
+      if (model.listPageId !== pageId && model.formPageId !== pageId) return
+      const next: ModelSchema = { ...model }
+      if (next.listPageId === pageId) delete next.listPageId
+      if (next.formPageId === pageId) delete next.formPageId
+      await api.putModel(next)
+    } catch {
+      // 清理失败不影响删除结果；下次在模型面板重新指定默认页即可
     }
   }
 
@@ -1261,6 +1390,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     publish,
     newPage,
     createPageFromModel,
+    createModelModule,
     loadModels,
     loadModelFields,
     setSubmitModel,

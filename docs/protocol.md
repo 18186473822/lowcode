@@ -389,7 +389,9 @@
 
 **FieldSchema 关键字段**：`key`（表单控件 `props.name` 必须命中它）/ `name` / `type` / `length` / `precision` / `required` / `unique` / `defaultValue` / `options`（enum 必填，`E_FIELD_ENUM`）/ `refModel`+`refField`（relation 必填，`E_FIELD_RELATION`）/ `maxCount`+`accept`（file）/ `auto`（`now`/`autoIncrement`）/ `readonly` / `placeholder` / `help` / `rules`（2.5，**前后端双端执行**）。
 
-**ModelSchema**：`schemaVersion` / `id` / `name` / `code`（物理表名，小写下划线，`E_CODE_FORMAT`）/ `type`（`table`/`view`）/ `fields`（至少 1 个，`E_REQUIRED`；缺主键 `W_MODEL_NO_ID` 平台自动补）/ `indexes`（引用不存在字段报 `E_INDEX_FIELD`）/ `permissions`（CRUD → 角色数组）/ `dataScope`（`all / dept / deptAndChild / self`，行级数据权限）/ `formPageId` / `listPageId`。
+**ModelSchema**：`schemaVersion` / `id` / `name` / `code`（物理表名，小写下划线，`E_CODE_FORMAT`）/ `type`（`table`/`view`）/ `fields`（至少 1 个，`E_REQUIRED`；缺主键 `W_MODEL_NO_ID` 平台自动补）/ `indexes`（引用不存在字段报 `E_INDEX_FIELD`）/ `permissions`（CRUD → 角色数组）/ `dataScope`（`all / dept / deptAndChild / self`，行级数据权限）/ `formPageId` / `listPageId`（**模型 → 页面反向索引**，2026-10-28 起由设计器「按模型新建页面」成组生成时回写；设计器删除页面时旁路清空对应键，直接调 API 删除不清；不参与模型校验）。
+
+> **模型即模块**：设计器一次生成 `p_<base>_list` / `p_<base>_form` / `p_<base>_detail` 三页，自动串联（`list.detailPageId` → 详情、`detail.backPageId` → 列表、`form.submit.successAction` → 列表），并把 `listPageId` / `formPageId` 写回模型。目标 pageId 已存在时**整体中止**，不覆盖存量页。
 
 ---
 

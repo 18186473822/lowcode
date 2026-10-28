@@ -1,24 +1,25 @@
 <!--
-  NewPageDialog.vue —— 基于数据模型新建页面（2026-10-28）
+  NewPageDialog.vue —— 按数据模型成组新建页面（2026-10-28）
 
-  产品口径（用户确认）：**先建模型，再基于模型设计页面**。
-  因此本弹层把顺序固定为：
+  产品口径（用户确认）：**先建模型，再基于模型设计页面**；参考云程「一个模型 = 一套业务界面」，
+  这里不再「一次只建一页」，而是：
 
     ① 选数据模型（必填，没有模型时给「去创建模型」入口）
-    ② 填页面 ID（按模型自动建议，可改）
-    ③ 选用途：表单 / 列表 / 详情（三选一）
-    ④ 生成页面并切回画布，保存后建档
+    ② 填模块前缀（按模型自动建议，可改）→ 实时预览生成的页面 ID
+    ③ 勾选要生成的页面：列表 / 表单 / 详情（默认全选）
+    ④ 生成并落盘，自动串联（列表→详情、详情→返回列表、表单提交→回列表）
+       同时回写模型的 `listPageId` / `formPageId`
 
-  生成逻辑在 `@lc/designer` 的 `buildModelPage` 纯函数里（可单测），
-  本组件只负责收集输入、校验 ID、调用 `store.createPageFromModel`。
+  生成规则在 `@lc/designer` 的 `buildModelModule` 纯函数里（可单测），
+  本组件只负责收集输入、校验前缀、调用 `store.createModelModule`。
 -->
 <template>
   <div class="lc-newpage" data-testid="new-page-dialog" @click.self="emit('close')">
-    <div class="lc-newpage__panel" role="dialog" aria-modal="true" aria-label="基于模型新建页面">
+    <div class="lc-newpage__panel" role="dialog" aria-modal="true" aria-label="按模型新建页面">
       <div class="lc-newpage__head">
         <div class="lc-newpage__title">
-          <strong>新建页面</strong>
-          <span class="lc-newpage__sub">先选数据模型，再按用途生成页面结构</span>
+          <strong>按模型新建页面</strong>
+          <span class="lc-newpage__sub">先选数据模型，再一次生成列表 / 表单 / 详情并自动串联</span>
         </div>
         <button
           class="lc-newpage__close"
@@ -65,53 +66,62 @@
               </option>
             </select>
             <p class="lc-newpage__hint">
-              选中的模型决定页面字段与数据读写目标；建好后仍可在右侧属性面板调整绑定。
+              模型决定页面字段与数据读写目标；生成后仍可在右侧属性面板调整绑定。
             </p>
           </template>
         </section>
 
-        <!-- ② 页面 ID -->
+        <!-- ② 模块前缀 -->
         <section class="lc-newpage__section">
           <div class="lc-newpage__label-row">
             <span class="lc-newpage__step" aria-hidden="true">2</span>
-            <label class="lc-newpage__label" for="new-page-id">页面 ID</label>
+            <label class="lc-newpage__label" for="new-page-id">模块前缀</label>
+            <span class="lc-newpage__hint lc-newpage__hint--inline">页面 ID 由它派生</span>
           </div>
           <input
             id="new-page-id"
             ref="idRef"
-            v-model="pageId"
+            v-model="base"
             class="lc-newpage__input"
             type="text"
             spellcheck="false"
             autocomplete="off"
-            placeholder="如 p_leave_form"
+            placeholder="如 leave"
             data-testid="new-page-id"
-            @input="idTouched = true"
+            @input="baseTouched = true"
             @keydown.enter.prevent="submit"
           />
-          <p v-if="idError" class="lc-newpage__hint lc-newpage__hint--error">{{ idError }}</p>
+          <p v-if="baseError" class="lc-newpage__hint lc-newpage__hint--error">{{ baseError }}</p>
+          <div v-else-if="normalized" class="lc-newpage__ids" data-testid="new-page-ids">
+            <span
+              v-for="row in idRows"
+              :key="row.type"
+              class="lc-newpage__id-chip"
+              :class="{ 'lc-newpage__id-chip--off': !picked.includes(row.type) }"
+            >{{ row.id }}</span>
+          </div>
           <p v-else class="lc-newpage__hint">
-            字母或下划线开头，仅限字母、数字、下划线和短横线，最长 64 位；保存后建档。
+            字母或下划线开头，仅限字母、数字、下划线和短横线；会剥掉 `p_` 前缀与 `_list` / `_form` / `_detail` 尾巴。
           </p>
         </section>
 
-        <!-- ③ 用途 -->
+        <!-- ③ 生成哪些页面 -->
         <section class="lc-newpage__section">
           <div class="lc-newpage__label-row">
             <span class="lc-newpage__step" aria-hidden="true">3</span>
-            <span class="lc-newpage__label">页面用途</span>
+            <span class="lc-newpage__label">生成哪些页面</span>
+            <span class="lc-newpage__hint lc-newpage__hint--inline">至少一项</span>
           </div>
-          <div class="lc-newpage__types" role="radiogroup" aria-label="页面用途">
+          <div class="lc-newpage__types" role="group" aria-label="生成哪些页面">
             <label
               v-for="t in MODEL_PAGE_TYPES"
               :key="t"
               class="lc-newpage__type"
-              :class="{ 'lc-newpage__type--on': type === t }"
+              :class="{ 'lc-newpage__type--on': picked.includes(t) }"
             >
               <input
-                v-model="type"
-                type="radio"
-                name="new-page-type"
+                v-model="picked"
+                type="checkbox"
                 :value="t"
                 :data-testid="`new-page-type-${t}`"
               />
@@ -119,6 +129,10 @@
               <span class="lc-newpage__type-hint">{{ MODEL_PAGE_TYPE_HINT[t] }}</span>
             </label>
           </div>
+          <p class="lc-newpage__hint">
+            全选时三页自动串联：列表点行进详情、详情返回列表、表单提交成功回到列表；
+            并回写模型的默认列表页 / 表单页。
+          </p>
         </section>
 
         <p v-if="error" class="lc-newpage__error" data-testid="new-page-error">{{ error }}</p>
@@ -131,9 +145,9 @@
           type="button"
           data-testid="new-page-submit"
           :disabled="!canSubmit || creating"
-          :title="canSubmit ? '生成页面并切回画布' : '请选择模型并填写合法的页面 ID'"
+          :title="canSubmit ? '生成页面并打开首页' : '请选择模型、填写合法前缀并至少勾选一项'"
           @click="submit"
-        >{{ creating ? '生成中…' : '创建并打开' }}</button>
+        >{{ creating ? '生成中…' : `生成 ${picked.length} 个页面` }}</button>
       </div>
     </div>
   </div>
@@ -145,6 +159,8 @@ import {
   MODEL_PAGE_TYPES,
   MODEL_PAGE_TYPE_HINT,
   MODEL_PAGE_TYPE_LABEL,
+  moduleBase,
+  modulePageIds,
   useDesignerStore,
   type ModelPageType,
 } from '@lc/designer'
@@ -156,37 +172,47 @@ const store = useDesignerStore()
 /** 与服务端 `PAGE_ID_RE` 保持一致（apps/server/src/page/page.service.ts） */
 const PAGE_ID_RE = /^[A-Za-z_][\w-]{0,63}$/
 
+/** 页面 id 上限 64，多出的字符留给 `_detail` 尾巴 */
+const BASE_MAX = 57
+
 const modelId = ref('')
-const pageId = ref('')
-const type = ref<ModelPageType>('form')
-const idTouched = ref(false)
+const base = ref('')
+const picked = ref<ModelPageType[]>([...MODEL_PAGE_TYPES])
+const baseTouched = ref(false)
 const creating = ref(false)
 const error = ref('')
 const idRef = ref<HTMLInputElement | null>(null)
 
-const idError = computed(() => {
-  const v = pageId.value.trim()
-  if (!v) return ''
-  return PAGE_ID_RE.test(v) ? '' : '页面 ID 不合法：需字母/下划线开头，仅限字母、数字、_、-'
+/** 规范化后的前缀（剥 p_ / _list 等）；空串 = 还没填 */
+const normalized = computed(() => moduleBase(base.value))
+
+const baseError = computed(() => {
+  if (!base.value.trim()) return ''
+  const n = normalized.value
+  if (!n) return '前缀不能为空，且需字母或下划线开头'
+  if (!PAGE_ID_RE.test(n)) return '前缀不合法：仅限字母、数字、下划线、短横线'
+  if (n.length > BASE_MAX) return `前缀过长：最长 ${BASE_MAX} 位（页面 ID 上限 64）`
+  return ''
 })
-const canSubmit = computed(() => !!modelId.value && PAGE_ID_RE.test(pageId.value.trim()))
 
-/** 由模型 id / code 推导页面 ID 前缀：m_leave → leave */
-function idBase(mid: string): string {
-  const hit = store.models.find((m) => m.id === mid)
-  const raw = (hit?.code || mid).replace(/^m_/, '')
-  const cleaned = raw.replace(/[^\w-]/g, '_')
-  return /^[A-Za-z_]/.test(cleaned) ? cleaned : `p_${cleaned}`
+/** 预览用：三页 id 与勾选状态 */
+const idRows = computed(() => {
+  const ids = modulePageIds(normalized.value)
+  return MODEL_PAGE_TYPES.map((t) => ({ type: t, id: ids[t] }))
+})
+
+const canSubmit = computed(
+  () => !!modelId.value && !!normalized.value && !baseError.value && picked.value.length > 0,
+)
+
+/** 由模型 id / code 推导前缀：m_leave → leave */
+function suggestBase(): void {
+  if (baseTouched.value || !modelId.value) return
+  const hit = store.models.find((m) => m.id === modelId.value)
+  base.value = (hit?.code || modelId.value).replace(/^m_/, '')
 }
 
-function suggestId(): void {
-  if (idTouched.value || !modelId.value) return
-  pageId.value = `p_${idBase(modelId.value)}_${type.value}`
-}
-
-// 模型或用途变化时只更新「未手改过」的建议 ID，避免覆盖用户输入
-watch(modelId, suggestId)
-watch(type, suggestId)
+watch(modelId, suggestBase)
 
 function goCreateModel(): void {
   emit('close')
@@ -195,12 +221,14 @@ function goCreateModel(): void {
 
 async function submit(): Promise<void> {
   if (!canSubmit.value || creating.value) return
+  // 勾选顺序按固定枚举走，避免 UI 点选顺序影响生成顺序
+  const types = MODEL_PAGE_TYPES.filter((t) => picked.value.includes(t))
   creating.value = true
   error.value = ''
   try {
-    const ok = await store.createPageFromModel(pageId.value.trim(), modelId.value, type.value)
+    const ok = await store.createModelModule(normalized.value, modelId.value, types)
     if (!ok) {
-      error.value = store.statusText || '创建失败'
+      error.value = store.statusText || '生成失败'
       return
     }
     await store.switchView('page')
@@ -237,7 +265,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 .lc-newpage__panel {
   display: flex;
   flex-direction: column;
-  width: 520px;
+  width: 560px;
   max-width: calc(100vw - var(--lc-space-8));
   max-height: calc(100vh - 80px);
   overflow: hidden;
@@ -350,6 +378,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   line-height: var(--lc-leading-readable);
   color: var(--lc-text-tertiary);
 }
+.lc-newpage__hint--inline {
+  color: var(--lc-text-tertiary);
+}
 .lc-newpage__hint--error {
   color: var(--lc-text-danger);
 }
@@ -368,6 +399,28 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 .lc-newpage__empty strong {
   font-size: var(--lc-font-caption);
   color: var(--lc-text-primary);
+}
+
+/* 生成的页面 id 预览：勾选的实底、未勾选的弱化 */
+.lc-newpage__ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lc-space-1-5);
+}
+.lc-newpage__id-chip {
+  padding: 0 var(--lc-space-2);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-label);
+  background: var(--lc-bg-subtle);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-xs);
+}
+.lc-newpage__id-chip--off {
+  color: var(--lc-text-tertiary);
+  border-style: dashed;
+  text-decoration: line-through;
 }
 
 .lc-newpage__types {

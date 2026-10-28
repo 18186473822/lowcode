@@ -259,3 +259,205 @@ describe('2026-10-28：先选模型再建页面（store action）', () => {
     expect(store.pageId).toBe('keep_me')
   })
 })
+
+describe('2026-10-28：模型即模块（一次生成成组页面）', () => {
+  const leaveModel: ModelSchema = {
+    schemaVersion: '1.0.0',
+    id: 'm_leave',
+    name: '请假单',
+    code: 'leave',
+    fields: [
+      { key: 'title', name: '事由', type: 'string', required: true },
+      { key: 'days', name: '天数', type: 'number' },
+    ],
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('默认生成三页并落盘，串联跳转 + 回写模型默认页 + 打开列表页', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([])
+    api.getModel.mockResolvedValue(leaveModel)
+    store.setApi(api)
+
+    expect(await store.createModelModule('p_leave_list', 'm_leave')).toBe(true)
+
+    const savedIds = api.saveSchema.mock.calls.map((c) => c[0])
+    expect(savedIds).toEqual(['p_leave_list', 'p_leave_form', 'p_leave_detail'])
+    const saved = api.saveSchema.mock.calls.map((c) => c[1])
+    expect(saved[0].list?.detailPageId).toBe('p_leave_detail')
+    expect(saved[1].submit?.successAction).toEqual({
+      event: 'success',
+      type: 'navigate',
+      value: { pageId: 'p_leave_list', mode: 'redirect' },
+    })
+    expect(saved[2].detail?.backPageId).toBe('p_leave_list')
+
+    // 模型反向索引
+    const patched = api.putModel.mock.calls[0][0]
+    expect(patched.listPageId).toBe('p_leave_list')
+    expect(patched.formPageId).toBe('p_leave_form')
+    expect(patched.id).toBe('m_leave')
+
+    expect(store.pageId).toBe('p_leave_list')
+    expect(store.modelFields.map((f) => f.key)).toEqual(['title', 'days'])
+    expect(store.statusText).toContain('已生成 3 个页面')
+  })
+
+  it('任一目标 id 已存在 → 整体中止，不发写请求（不能 upsert 覆盖存量页）', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([page('p_leave_detail')])
+    api.getModel.mockResolvedValue(leaveModel)
+    store.setApi(api)
+
+    expect(await store.createModelModule('leave', 'm_leave')).toBe(false)
+    expect(store.statusText).toContain('页面已存在')
+    expect(store.statusText).toContain('p_leave_detail')
+    expect(api.saveSchema).not.toHaveBeenCalled()
+    expect(api.putModel).not.toHaveBeenCalled()
+  })
+
+  it('只勾选表单时只生成表单页，且不写列表默认页', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([])
+    api.getModel.mockResolvedValue(leaveModel)
+    store.setApi(api)
+
+    expect(await store.createModelModule('leave', 'm_leave', ['form'])).toBe(true)
+    expect(api.saveSchema.mock.calls.map((c) => c[0])).toEqual(['p_leave_form'])
+    const patched = api.putModel.mock.calls[0][0]
+    expect(patched.formPageId).toBe('p_leave_form')
+    expect(patched.listPageId).toBeUndefined()
+    expect(store.pageId).toBe('p_leave_form')
+  })
+
+  it('中途保存失败 → 报告已建页面并刷新列表', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([])
+    api.getModel.mockResolvedValue(leaveModel)
+    api.saveSchema
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('409 VERSION_CONFLICT'))
+    store.setApi(api)
+
+    expect(await store.createModelModule('leave', 'm_leave')).toBe(false)
+    expect(store.statusText).toContain('生成中断')
+    expect(store.statusText).toContain('已建 p_leave_list')
+    expect(store.statusText).toContain('409 VERSION_CONFLICT')
+    expect(api.putModel).not.toHaveBeenCalled()
+    expect(api.listPages.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('模型回写失败只告警，不否定已生成的页面', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([])
+    api.getModel.mockResolvedValue(leaveModel)
+    api.putModel.mockRejectedValueOnce(new Error('500 服务端错误'))
+    store.setApi(api)
+
+    expect(await store.createModelModule('leave', 'm_leave')).toBe(true)
+    expect(store.statusText).toContain('已生成 3 个页面')
+    expect(store.statusText).toContain('回写失败')
+  })
+
+  it('前缀为空 / 未勾选页面 → 直接拒绝，不读模型', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([])
+    store.setApi(api)
+
+    expect(await store.createModelModule('   ', 'm_leave')).toBe(false)
+    expect(store.statusText).toContain('模块 ID')
+
+    expect(await store.createModelModule('leave', 'm_leave', [])).toBe(false)
+    expect(store.statusText).toBe('至少要勾选一种页面')
+    expect(api.getModel).not.toHaveBeenCalled()
+  })
+})
+
+describe('2026-10-28：删除页面后清理模型默认页引用（旁路）', () => {
+  const boundPage: PageListItem = {
+    id: 'p_leave_list',
+    name: '请假单',
+    type: 'list',
+    status: 'draft',
+    currentVersion: 0,
+    updatedAt: '2026-10-28T00:00:00.000Z',
+    modelId: 'm_leave',
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('删掉模型默认列表页 → putModel 去掉 listPageId，保留 formPageId', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([boundPage])
+    api.getModel.mockResolvedValue({
+      schemaVersion: '1.0.0',
+      id: 'm_leave',
+      name: '请假单',
+      code: 'leave',
+      fields: [{ key: 'title', name: '事由', type: 'string' }],
+      listPageId: 'p_leave_list',
+      formPageId: 'p_leave_form',
+    })
+    store.setApi(api)
+    await store.loadPages()
+
+    expect(await store.deletePage('p_leave_list')).toBe(true)
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(api.getModel).toHaveBeenCalledWith('m_leave')
+    expect(api.putModel).toHaveBeenCalledTimes(1)
+    const patched = api.putModel.mock.calls[0][0]
+    expect(patched.listPageId).toBeUndefined()
+    expect(patched.formPageId).toBe('p_leave_form')
+  })
+
+  it('模型没引用这个页面 → 不做无谓写回', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([boundPage])
+    api.getModel.mockResolvedValue({
+      schemaVersion: '1.0.0',
+      id: 'm_leave',
+      name: '请假单',
+      code: 'leave',
+      fields: [{ key: 'title', name: '事由', type: 'string' }],
+      listPageId: 'p_other_list',
+      formPageId: 'p_leave_form',
+    })
+    store.setApi(api)
+    await store.loadPages()
+
+    expect(await store.deletePage('p_leave_list')).toBe(true)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(api.putModel).not.toHaveBeenCalled()
+  })
+
+  it('清理失败不影响删除结果（只告警，不回滚）', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([boundPage])
+    api.getModel.mockRejectedValue(new Error('500 服务端错误'))
+    store.setApi(api)
+    await store.loadPages()
+
+    expect(await store.deletePage('p_leave_list')).toBe(true)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(store.pages).toEqual([])
+    expect(store.statusText).toContain('已删除 p_leave_list')
+  })
+
+  it('页面未绑定模型 → 不查模型', async () => {
+    const store = useDesignerStore()
+    const api = mockApi([page('a')])
+    store.setApi(api)
+    await store.loadPages()
+
+    expect(await store.deletePage('a')).toBe(true)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(api.getModel).not.toHaveBeenCalled()
+    expect(api.putModel).not.toHaveBeenCalled()
+  })
+})

@@ -72,7 +72,7 @@
           class="top-btn top-btn--primary"
           type="button"
           data-testid="new-page"
-          title="先选数据模型，再按表单 / 列表 / 详情生成页面"
+          title="先选数据模型，一次生成列表 / 表单 / 详情并自动串联"
           @click="openNewPage"
         >新建页面</button>
         <button
@@ -117,44 +117,48 @@
       <p v-else-if="store.pagesLoading" class="top-page__hint">加载中…</p>
       <div v-else-if="!store.pages.length" class="top-page__empty">
         <strong>还没有已保存的页面</strong>
-        <span>点「新建页面」先选模型再生成表单 / 列表 / 详情，保存后即建档。</span>
+        <span>点「新建页面」选模型，一次生成列表 / 表单 / 详情并自动串联。</span>
       </div>
+      <!-- 按模型分组：一个模型 = 一组标准页（云程「模块」口径），未绑定的单独一组 -->
       <div v-else class="top-page__list" role="listbox" aria-label="页面列表">
-        <button
-          v-for="p in store.pages"
-          :key="p.id"
-          class="top-page__item"
-          :class="{ 'top-page__item--on': p.id === store.pageId }"
-          type="button"
-          role="option"
-          :aria-selected="p.id === store.pageId"
-          :title="`${p.name}（${p.id}）${p.modelId ? ` · 模型 ${p.modelId}` : ' · 未绑定模型'}`"
-          @click="openById(p.id)"
-        >
-          <span class="top-page__item-main">
-            <span class="top-page__item-name">{{ p.name }}</span>
-            <span class="top-page__item-id">{{ p.id }}</span>
-          </span>
-          <span
-            class="top-page__item-model"
-            :class="{ 'top-page__item-model--none': !p.modelId }"
-          >{{ p.modelId ? `模型 ${p.modelId}` : '未绑定模型' }}</span>
-          <span class="top-page__item-meta">
-            {{ p.currentVersion ? `v${p.currentVersion}` : '草稿' }}
-          </span>
-          <span v-if="p.id === store.pageId" class="top-page__check" aria-hidden="true">✓</span>
-        </button>
+        <div v-for="g in pageGroups" :key="g.key" class="top-page__model-group">
+          <div class="top-page__model-head">
+            <span class="top-page__model-name">{{ g.label }}</span>
+            <span class="top-page__count">{{ g.items.length }}</span>
+          </div>
+          <button
+            v-for="p in g.items"
+            :key="p.id"
+            class="top-page__item"
+            :class="{ 'top-page__item--on': p.id === store.pageId }"
+            type="button"
+            role="option"
+            :aria-selected="p.id === store.pageId"
+            :title="`${p.name}（${p.id}）${p.modelId ? ` · 模型 ${p.modelId}` : ' · 未绑定模型'}`"
+            @click="openById(p.id)"
+          >
+            <span class="top-page__item-main">
+              <span class="top-page__item-name">{{ p.name }}</span>
+              <span class="top-page__item-id">{{ p.id }}</span>
+            </span>
+            <span class="top-page__item-type">{{ typeLabel(p.type) }}</span>
+            <span class="top-page__item-meta">
+              {{ p.currentVersion ? `v${p.currentVersion}` : '草稿' }}
+            </span>
+            <span v-if="p.id === store.pageId" class="top-page__check" aria-hidden="true">✓</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- 新建页面：模型优先（选模型 → 页面 ID → 表单/列表/详情） -->
+    <!-- 新建页面：模型优先，一次生成成组页面（列表 / 表单 / 详情） -->
     <new-page-dialog v-if="newOpen" @close="newOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useDesignerStore } from '@lc/designer'
+import { useDesignerStore, type PageListItem } from '@lc/designer'
 import NewPageDialog from './NewPageDialog.vue'
 
 const store = useDesignerStore()
@@ -207,6 +211,49 @@ const canDelete = computed(
   () => !store.pagesLoading && store.pages.some((p) => p.id === store.pageId),
 )
 
+/** 模型 id → 展示名（模型列表随菜单打开拉一次；拉不到就退回 id） */
+const modelNames = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {}
+  for (const m of store.models) map[m.id] = m.name
+  return map
+})
+
+interface PageGroup {
+  key: string
+  label: string
+  items: PageListItem[]
+}
+
+/**
+ * 页面按模型分组（云程「模块」口径）：同一模型生成的列表 / 表单 / 详情归到一组。
+ * 未绑定模型的页面单独一组，固定排在最后。
+ */
+const pageGroups = computed<PageGroup[]>(() => {
+  const groups = new Map<string, PageListItem[]>()
+  for (const p of store.pages) {
+    const key = p.modelId || ''
+    const hit = groups.get(key)
+    if (hit) hit.push(p)
+    else groups.set(key, [p])
+  }
+  const rows: PageGroup[] = [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: key ? `模型 ${modelNames.value[key] ?? key}` : '未绑定模型',
+    items,
+  }))
+  rows.sort((a, b) => {
+    if (!a.key) return 1
+    if (!b.key) return -1
+    return a.label.localeCompare(b.label, 'zh-Hans-CN')
+  })
+  return rows
+})
+
+function typeLabel(type?: string): string {
+  if (!type) return ''
+  return TYPE_LABEL[type] ?? type
+}
+
 /** 按触发按钮的视口位置定位面板（右上对齐，左边不越界） */
 function place(): void {
   const el = rootRef.value?.querySelector('.top-page__trigger')
@@ -242,6 +289,8 @@ function toggle(): void {
     clearDeleteArm()
     place()
     void store.loadPages()
+    // 分组标题要显示模型名：模型列表可能还没加载过
+    void store.loadModels()
   }
 }
 
@@ -579,24 +628,39 @@ onUnmounted(() => {
   font-size: var(--lc-font-micro);
   color: var(--lc-topbar-text-muted);
 }
-/* 列表里的模型绑定徽标：已绑定用品牌色，未绑定弱化提示 */
-.top-page__item-model {
+/* 列表里的页面类型徽标（分组后模型名已在组头，条目只需区分表单/列表/详情） */
+.top-page__item-type {
   flex-shrink: 0;
-  max-width: 112px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   padding: 0 var(--lc-space-1);
-  font-family: var(--lc-font-mono);
   font-size: var(--lc-font-micro);
-  color: var(--lc-brand-300);
-  background: var(--lc-topbar-input-bg);
+  color: var(--lc-topbar-text-muted);
   border: var(--lc-border-width) solid var(--lc-topbar-btn-border);
   border-radius: var(--lc-radius-xs);
 }
-.top-page__item-model--none {
-  color: var(--lc-topbar-text-muted);
-  border-style: dashed;
+
+/* 按模型分组：组头弱化，组与组之间留一点呼吸 */
+.top-page__model-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-0-5);
+}
+.top-page__model-group + .top-page__model-group {
+  margin-top: var(--lc-space-1);
+}
+.top-page__model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-2);
+  padding: var(--lc-space-0-5) var(--lc-space-2) 0;
+}
+.top-page__model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lc-font-micro);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-brand-300);
 }
 .top-page__check {
   flex-shrink: 0;

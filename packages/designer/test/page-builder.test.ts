@@ -2,12 +2,18 @@
  * page-builder.test.ts —— 基于数据模型生成页面（2026-10-28）
  *
  * 覆盖：表单页字段/组件映射、提交绑定与初始值；列表/详情页的 modelId 与字段投影；
- * 主键与 auto 列排除；生成结果必须通过 validatePage。
+ * 主键与 auto 列排除；生成结果必须通过 validatePage；
+ * 以及「模型即模块」：前缀规范化、三页成组生成与自动串联。
  */
 import { describe, it, expect } from 'vitest'
 import type { ModelSchema } from '@lc/schema'
 import { validatePage } from '@lc/schema'
-import { buildModelPage } from '../src/core/page-builder'
+import {
+  buildModelModule,
+  buildModelPage,
+  moduleBase,
+  modulePageIds,
+} from '../src/core/page-builder'
 
 function model(): ModelSchema {
   return {
@@ -155,6 +161,100 @@ describe('buildModelPage：列表 / 详情页', () => {
     const before = JSON.stringify(m)
     buildModelPage({ pageId: 'p_x', type: 'list', model: m })
     buildModelPage({ pageId: 'p_y', type: 'detail', model: m })
+    expect(JSON.stringify(m)).toBe(before)
+  })
+})
+
+describe('moduleBase / modulePageIds：前缀规范化', () => {
+  it('剥掉 p_ 前缀与 _list / _form / _detail 尾巴', () => {
+    expect(moduleBase('leave')).toBe('leave')
+    expect(moduleBase('p_leave')).toBe('leave')
+    expect(moduleBase('p_leave_list')).toBe('leave')
+    expect(moduleBase('m_leave_form')).toBe('m_leave')
+    expect(moduleBase('  请假  ')).toBe('__')
+  })
+
+  it('非法开头补 p_ 前缀，空串返回空', () => {
+    expect(moduleBase('1leave')).toBe('p_1leave')
+    expect(moduleBase('   ')).toBe('')
+  })
+
+  it('页面 id 固定为 p_<base>_<type>', () => {
+    expect(modulePageIds('leave')).toEqual({
+      list: 'p_leave_list',
+      form: 'p_leave_form',
+      detail: 'p_leave_detail',
+    })
+  })
+})
+
+describe('buildModelModule：一个模型 = 一套页面', () => {
+  it('默认生成三页，并按「列表 → 表单 → 详情」排序', () => {
+    const mod = buildModelModule({ model: model(), base: 'leave' })
+    expect(mod.base).toBe('leave')
+    expect(mod.pages.map((p) => p.type)).toEqual(['list', 'form', 'detail'])
+    expect(mod.pages.map((p) => p.id)).toEqual([
+      'p_leave_list',
+      'p_leave_form',
+      'p_leave_detail',
+    ])
+    // 每页都必须过协议校验 —— 生成器是「可直接保存」的
+    for (const page of mod.pages) expect(validatePage(page).errors).toEqual([])
+  })
+
+  it('三页自动串联：列表进详情、详情回列表、表单提交回列表', () => {
+    const [list, form, detail] = buildModelModule({ model: model(), base: 'p_leave_list' }).pages
+
+    expect(list.type).toBe('list')
+    expect(list.list?.detailPageId).toBe('p_leave_detail')
+
+    expect(form.type).toBe('form')
+    expect(form.submit?.successAction).toEqual({
+      event: 'success',
+      type: 'navigate',
+      value: { pageId: 'p_leave_list', mode: 'redirect' },
+    })
+
+    expect(detail.type).toBe('detail')
+    expect(detail.detail?.backPageId).toBe('p_leave_list')
+  })
+
+  it('页面名用模型名（列表=模型名 / 表单=新建… / 详情=…详情）', () => {
+    const [list, form, detail] = buildModelModule({ model: model(), base: 'leave' }).pages
+    expect(list.name).toBe('请假单')
+    expect(form.name).toBe('新建请假单')
+    expect(detail.name).toBe('请假单详情')
+  })
+
+  it('只勾部分页面时，不写出悬空跳转', () => {
+    const onlyList = buildModelModule({ model: model(), base: 'leave', types: ['list'] })
+    expect(onlyList.pages.map((p) => p.type)).toEqual(['list'])
+    expect(onlyList.pages[0].list?.detailPageId).toBeUndefined()
+
+    const onlyForm = buildModelModule({ model: model(), base: 'leave', types: ['form'] })
+    expect(onlyForm.pages).toHaveLength(1)
+    expect(onlyForm.pages[0].submit?.successAction).toBeUndefined()
+
+    const onlyDetail = buildModelModule({ model: model(), base: 'leave', types: ['detail'] })
+    expect(onlyDetail.pages[0].detail?.backPageId).toBeUndefined()
+  })
+
+  it('支持覆盖页面 id，并按覆盖值串联', () => {
+    const mod = buildModelModule({
+      model: model(),
+      base: 'leave',
+      types: ['list', 'detail'],
+      ids: { list: 'p_custom_list', detail: 'p_custom_detail' },
+    })
+    expect(mod.pages[0].id).toBe('p_custom_list')
+    expect(mod.pages[0].list?.detailPageId).toBe('p_custom_detail')
+    expect(mod.pages[1].detail?.backPageId).toBe('p_custom_list')
+  })
+
+  it('不修改 model 入参（纯函数）', () => {
+    const m = model()
+    const before = JSON.stringify(m)
+    buildModelModule({ model: m, base: 'leave' })
     expect(JSON.stringify(m)).toBe(before)
   })
 })

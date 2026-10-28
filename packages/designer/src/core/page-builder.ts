@@ -8,6 +8,13 @@
  *  - list   ：写入 `list.modelId` 与 `columns`（模型字段）；
  *  - detail ：写入 `detail.modelId` 与 `fields`（模型字段）。
  *
+ * **模型即模块**（2026-10-28，对齐云程「一个模型 = 一套业务界面」）：
+ * 实际使用中三页是一起要的 —— 列表点行进详情、详情返回列表、表单提交成功回列表。
+ * 所以除单页 `buildModelPage` 外，还提供 `buildModelModule`：一次生成
+ * `p_<base>_list` / `p_<base>_form` / `p_<base>_detail` 并按上述规则把跳转接好；
+ * 只生成其中几页时不写悬空跳转。页面落盘与模型 `listPageId` / `formPageId`
+ * 回写由 store 的 `createModelModule` 负责。
+ *
  * 纯函数、无副作用，store 只负责取模型与替换当前 schema —— 生成规则可单测。
  */
 import type { FieldSchema, FieldType, ModelSchema, NodeSchema, PageSchema } from '@lc/schema'
@@ -52,6 +59,97 @@ export interface BuildModelPageInput {
   pageId: string
   type: ModelPageType
   model: ModelSchema
+}
+
+/* ---------------- 模型即模块：一次生成成组页面（2026-10-28） ---------------- */
+
+/**
+ * 模块前缀规范化：`m_leave` / `p_leave_list` / `leave` 都归一成 `leave`。
+ *
+ * 生成的三张页面 id 统一是 `p_<base>_<type>`，所以输入里常见的 `p_` 前缀与
+ * `_list` / `_form` / `_detail` 尾巴要先剥掉，否则会得到 `p_p_leave_list_list`。
+ */
+export function moduleBase(raw: string): string {
+  let s = raw.trim().replace(/^p_/i, '')
+  s = s.replace(/_(list|form|detail)$/i, '')
+  s = s.replace(/[^\w-]/g, '_')
+  if (!s) return ''
+  // 与服务端 PAGE_ID_RE 对齐：必须以字母或下划线开头
+  if (!/^[A-Za-z_]/.test(s)) s = `p_${s}`
+  return s
+}
+
+/** 模块三页的页面 id（不校验合法性，调用方保证 base 已规范化） */
+export function modulePageIds(base: string): Record<ModelPageType, string> {
+  return {
+    list: `p_${base}_list`,
+    form: `p_${base}_form`,
+    detail: `p_${base}_detail`,
+  }
+}
+
+export interface BuildModelModuleInput {
+  model: ModelSchema
+  /** 模块前缀（未规范化也可，内部会剥 p_ / _list 等尾巴） */
+  base: string
+  /** 只生成其中几页；缺省三页全生成 */
+  types?: readonly ModelPageType[]
+  /** 覆盖页面 id（缺省按 base 推导） */
+  ids?: Partial<Record<ModelPageType, string>>
+}
+
+export interface ModelModule {
+  base: string
+  ids: Record<ModelPageType, string>
+  /** 固定 list → form → detail 顺序，仅含请求的类型 */
+  pages: PageSchema[]
+}
+
+/**
+ * 「一个模型 = 一套业务界面」：一次生成列表 / 表单 / 详情，并把它们串起来。
+ *
+ * 串联规则（与云程的模块页一致）：
+ *  - 列表点行进详情 → `list.detailPageId`
+ *  - 详情返回列表   → `detail.backPageId`
+ *  - 表单提交成功回列表 → `submit.successAction = navigate(list, redirect)`
+ *
+ * 只生成单页时对应跳转不写 —— 悬空指针比没有更糟。
+ */
+export function buildModelModule(input: BuildModelModuleInput): ModelModule {
+  const base = moduleBase(input.base)
+  const wanted = new Set<ModelPageType>(input.types ?? MODEL_PAGE_TYPES)
+  const ids = { ...modulePageIds(base), ...(input.ids ?? {}) }
+  const pages: PageSchema[] = []
+  const label = input.model.name || base
+
+  if (wanted.has('list')) {
+    const page = buildModelPage({ pageId: ids.list, type: 'list', model: input.model })
+    page.name = label
+    if (wanted.has('detail')) page.list = { ...page.list!, detailPageId: ids.detail }
+    pages.push(page)
+  }
+
+  if (wanted.has('form')) {
+    const page = buildModelPage({ pageId: ids.form, type: 'form', model: input.model })
+    page.name = `新建${label}`
+    if (wanted.has('list') && page.submit) {
+      page.submit.successAction = {
+        event: 'success',
+        type: 'navigate',
+        value: { pageId: ids.list, mode: 'redirect' },
+      }
+    }
+    pages.push(page)
+  }
+
+  if (wanted.has('detail')) {
+    const page = buildModelPage({ pageId: ids.detail, type: 'detail', model: input.model })
+    page.name = `${label}详情`
+    if (wanted.has('list')) page.detail = { ...page.detail!, backPageId: ids.list }
+    pages.push(page)
+  }
+
+  return { base, ids, pages }
 }
 
 /** 表单里可编辑的字段：排除主键与自动生成列（auto 由服务端填） */

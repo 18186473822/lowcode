@@ -93,6 +93,29 @@
         <span class="setter__help">小写字母/数字/下划线，字母开头</span>
       </label>
 
+      <!-- 模型 → 页面 反向索引（模型即模块）：生成成组页面时自动写入，可一键打开 -->
+      <div class="model-pages" data-testid="model-pages">
+        <div class="model-fields__head"><span>默认页面</span></div>
+        <div
+          v-for="link in pageLinks"
+          :key="link.key"
+          class="model-pages__row"
+        >
+          <span class="model-pages__label">{{ link.label }}</span>
+          <code class="model-pages__id">{{ link.id || '未生成' }}</code>
+          <button
+            v-if="link.id"
+            class="model-pages__open"
+            type="button"
+            :data-testid="`open-${link.key}`"
+            @click="openLinked(link.id)"
+          >打开</button>
+        </div>
+        <span class="setter__help">
+          「新建页面」按模型生成成组页面时自动回写；不是模型字段，删除页面时会一并清掉。
+        </span>
+      </div>
+
       <!-- 批 6 / 行级 + CRUD 权限（dataScope 下拉 + permissions 角色勾选） -->
       <div class="model-perms" data-testid="model-perms">
         <div class="model-fields__head"><span>数据权限</span></div>
@@ -246,7 +269,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { FieldType } from '@lc/schema'
 import { useDesignerStore } from '../store/store'
 import { FIELD_TYPES, formatOptions, parseOptions } from '../core/model-ops'
@@ -256,6 +279,19 @@ const store = useDesignerStore()
 const newId = ref('')
 /** 空态出口：把焦点送回新建输入框（不用额外弹窗，焦点即引导） */
 const newIdRef = ref<HTMLInputElement | null>(null)
+
+/** 模型记着的默认页（生成成组页面时回写；这里只读展示 + 一键打开） */
+const pageLinks = computed(() => [
+  { key: 'list', label: '列表页', id: store.editingModel?.listPageId ?? '' },
+  { key: 'form', label: '表单页', id: store.editingModel?.formPageId ?? '' },
+])
+
+/** 打开模型关联的页面：先保住未保存的模型改动（切视图会重置编辑态） */
+async function openLinked(id: string): Promise<void> {
+  if (store.modelDirty && !(await store.saveModel())) return
+  await store.switchView('page')
+  await store.openPage(id)
+}
 
 function focusNewId(): void {
   newIdRef.value?.focus()
@@ -479,5 +515,54 @@ function onOptions(key: string, e: Event): void {
 }
 .model-perms__help {
   margin: var(--lc-space-2) 0 0;
+}
+
+/* 默认页面（模型 → 页面反向索引） */
+.model-pages {
+  margin: 14px 0;
+  padding: var(--lc-space-2-5);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-md);
+  background: var(--lc-bg-subtle);
+}
+.model-pages__row {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  margin-top: var(--lc-space-1-5);
+}
+.model-pages__label {
+  flex: 0 0 40px;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-label);
+}
+.model-pages__id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
+}
+.model-pages__open {
+  flex-shrink: 0;
+  padding: 0 var(--lc-space-2);
+  font-family: inherit;
+  font-size: var(--lc-font-micro);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-action-primary);
+  background: var(--lc-bg-surface);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-xs);
+  cursor: pointer;
+}
+.model-pages__open:hover {
+  border-color: var(--lc-action-primary);
+}
+.model-pages__open:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
 }
 </style>
