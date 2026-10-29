@@ -194,15 +194,45 @@ const themeSchema: Json = {
   additionalProperties: false,
 }
 
+const appEntrySchema: Json = {
+  type: 'object',
+  required: ['type'],
+  properties: {
+    type: { type: 'string', enum: ['portal', 'page'] },
+    pageId: { type: 'string', description: '落地页 id；缺省则运行时回落「应用入口」' },
+  },
+}
+
+const appMenuSchema: Json = {
+  type: 'object',
+  required: ['id', 'name', 'type'],
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    icon: { type: 'string' },
+    type: { type: 'string', enum: ['page', 'portal', 'builtin', 'url'] },
+    pageId: { type: 'string', description: 'type=page/portal 时的目标页面' },
+    target: { type: 'string', description: 'type=builtin 时的内置页标识（如 todoList）' },
+    url: { type: 'string', description: 'type=url 时的站外链接（http/https）' },
+    badge: { type: 'string', enum: ['todo', 'none'] },
+  },
+}
+
 const appConfigSchema: Json = {
   type: 'object',
-  properties: { theme: themeSchema },
+  properties: {
+    theme: themeSchema,
+    name: { type: 'string' },
+    icon: { type: 'string' },
+    entry: appEntrySchema,
+    menus: { type: 'array', items: appMenuSchema },
+  },
   additionalProperties: false,
 }
 
 const appConfigPatchSchema: Json = {
   type: 'object',
-  required: ['theme'],
+  description: 'patch 语义：缺键保留旧值，显式 null 清除该键；menus 为整组替换',
   properties: {
     theme: {
       type: 'object',
@@ -214,7 +244,12 @@ const appConfigPatchSchema: Json = {
       additionalProperties: false,
       description: 'patch 语义：缺键保留旧值，显式 null 清除该键',
     },
+    name: { type: ['string', 'null'], description: '1~32 字；null 清除' },
+    icon: { type: ['string', 'null'], description: '1~16 字符；null 清除' },
+    entry: { oneOf: [appEntrySchema, { type: 'null' }] },
+    menus: { oneOf: [{ type: 'array', items: appMenuSchema }, { type: 'null' }] },
   },
+  additionalProperties: false,
 }
 
 const menuPageSchema: Json = {
@@ -248,6 +283,16 @@ const bootstrapSchema: Json = {
     perms: { type: 'array', items: { type: 'string' } },
     apps: { type: 'array', items: menuAppSchema },
     theme: themeSchema,
+    app: {
+      type: 'object',
+      description: '应用设置（2026-10-29 P1）：菜单顺序 / 入口页 / 应用名',
+      properties: {
+        name: { type: 'string' },
+        icon: { type: 'string' },
+        entry: appEntrySchema,
+        menus: { type: 'array', items: appMenuSchema },
+      },
+    },
   },
 }
 
@@ -1452,16 +1497,18 @@ export function buildOpenApi(): OpenApiDocument {
     },
     '/apps/config': {
       get: op('Apps', 'getAppConfig', '读取应用配置', {
-        200: ok('应用配置；无配置时无 theme 键', ref('AppConfig')),
+        200: ok('应用配置；无配置时为空对象', ref('AppConfig')),
         401: responseRef('Unauthorized'),
       }),
       put: op('Apps', 'updateAppConfig', '更新应用配置（patch 语义，仅管理员）', {
-        200: ok('合并后的 theme', ref('AppConfig')),
+        200: ok('合并后的完整配置', ref('AppConfig')),
         400: responseRef('BadRequest'),
         401: responseRef('Unauthorized'),
         403: responseRef('Forbidden'),
       }, {
-        description: '仅 `*` 通配角色可写；缺键保留旧值，显式 `null` 清除该键；未知键/非法颜色/非法 px/非布尔 → `APP_CONFIG_INVALID`。',
+        description:
+          '仅 `*` 通配角色可写；缺键保留旧值，显式 `null` 清除该键，`menus` 为整组替换；' +
+          '未知键 / 非法颜色 / 非法 px / 非布尔 / entry.type 越界 / 菜单缺目标 → `APP_CONFIG_INVALID`。',
         requestBody: body(ref('AppConfigPatch')),
       }),
     },

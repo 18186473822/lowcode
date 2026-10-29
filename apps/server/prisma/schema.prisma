@@ -185,6 +185,8 @@ model OpsEvent {
 model AppConfig {
   id        String   @id @db.VarChar(32)
   theme     Json?
+  /// 应用设置（name / icon / entry / menus）；与 theme 分列，见 AppConfigService.patch
+  settings  Json?
   updatedAt DateTime @updatedAt @db.DateTime(3)
 
   @@map("app_config")

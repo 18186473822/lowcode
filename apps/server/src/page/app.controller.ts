@@ -22,8 +22,11 @@
 import { Body, BadRequestException, Controller, ForbiddenException, Get, Inject, Put, Req, UseGuards } from '@nestjs/common'
 import { AuthGuard, type AuthedRequest } from '../common/auth.guard.js'
 import { RbacService } from '../rbac/rbac.service.js'
-import { AppConfigService, validateTheme } from './app-config.service.js'
+import { AppConfigService, validateAppSettings, validateTheme } from './app-config.service.js'
 import { PAGE_REPOSITORY, type PageRecord, type PageRepository } from './page.types.js'
+
+/** 应用配置允许的顶层键（白名单，未知键 400） */
+const CONFIG_KEYS = ['theme', 'name', 'icon', 'entry', 'menus']
 
 /** 菜单中的单页投影（不含 Schema 本体与版本历史，菜单要轻） */
 interface MenuPage {
@@ -57,19 +60,30 @@ export class AppController {
     return this.appConfig.getConfig()
   }
 
-  /** 应用配置写入（批 3）：patch 语义；仅 '*' 通配角色；校验失败 400 APP_CONFIG_INVALID */
+  /**
+   * 应用配置写入（批 3 + 2026-10-29 P1）：patch 语义；仅 '*' 通配角色。
+   *
+   * 支持顶层键 `theme / name / icon / entry / menus`。未知键直接 400 —— 宁可报错
+   * 也不把前端笔误静默写进配置。返回**合并后的完整配置**（前端不必再 GET 一次）。
+   */
   @Put('config')
-  async putConfig(@Req() req: AuthedRequest, @Body() body: { theme?: unknown }) {
+  async putConfig(@Req() req: AuthedRequest, @Body() body: Record<string, unknown>) {
     const user = this.mustUser(req)
     const perms = await this.rbac.grantedPerms(user)
     if (!perms.includes('*')) {
       throw new ForbiddenException({ code: 'PERMISSION_DENIED', message: '仅管理员可修改应用配置' })
     }
-    const issues = validateTheme(body?.theme)
+    const patch = typeof body === 'object' && body !== null ? body : {}
+    const issues: string[] = []
+    for (const k of Object.keys(patch)) {
+      if (!CONFIG_KEYS.includes(k)) issues.push(`未知配置项：${k}`)
+    }
+    if ('theme' in patch) issues.push(...validateTheme(patch.theme))
+    issues.push(...validateAppSettings(patch))
     if (issues.length > 0) {
       throw new BadRequestException({ code: 'APP_CONFIG_INVALID', message: issues.join('；') })
     }
-    return { theme: await this.appConfig.patchTheme(body!.theme as Record<string, unknown>) }
+    return this.appConfig.patch(patch)
   }
 
   @Get('bootstrap')
@@ -107,7 +121,14 @@ export class AppController {
         pages: pages.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
       }))
 
-    return { user, perms, apps, theme: cfg.theme }
+    return {
+      user,
+      perms,
+      apps,
+      theme: cfg.theme,
+      // 应用设置（2026-10-29 P1）：运行时首页按 menus 顺序渲染，entry 标「主页」
+      app: { name: cfg.name, icon: cfg.icon, entry: cfg.entry, menus: cfg.menus },
+    }
   }
 
   private mustUser(req: AuthedRequest) {
