@@ -18,7 +18,7 @@ import type {
   ListPageConfig,
   DetailPageConfig,
   PortalPageConfig,
-  AppSchema,
+  AppMenuItem,
 } from '@lc/schema'
 import { validatePage } from '@lc/schema'
 import { countNodes, formatPerf, type PerfSample } from '@lc/renderer'
@@ -127,12 +127,38 @@ export interface DesignerApi {
    */
   deletePage?(pageId: string): Promise<{ removedVersions: number }>
   /**
-   * 应用配置（**可选能力**）：门户首页的应用条（应用名 / 入口页）需要它。
+   * 应用设置读取（**可选能力**）：门户首页的应用条与「门户配置」页签需要它。
    *
-   * 清单本身的数据源是 `listPages`，应用配置只是门面 —— 宿主不实现时降级为
-   * 「未命名应用 / 入口页未设置」，不影响清单加载。
+   * 只取 `GET /apps/config` 里除主题外的部分 —— 主题走独立 `ThemeApi` 通道，
+   * 两边各自的 patch 语义不同，不合成一个接口。
    */
-  getAppConfig?(): Promise<AppSchema>
+  getAppConfig?(): Promise<AppSettings>
+  /** 应用设置写入（**可选能力**）：patch 语义，返回合并后的完整设置 */
+  putAppConfig?(patch: AppConfigPatch): Promise<AppSettings>
+}
+
+/**
+ * 应用设置（`GET/PUT /apps/config` 的非主题部分）。
+ *
+ * 与 `AppSchema` 解耦：AppSchema 是页面运行时拿到的完整应用定义，
+ * 这里只是**设计器能编辑的那几个键**，字段少、可缺省。
+ */
+export interface AppSettings {
+  name?: string
+  icon?: string
+  entry?: { type: 'portal' | 'page'; pageId?: string }
+  menus?: AppMenuItem[]
+}
+
+/**
+ * 应用设置 patch：**显式 `null` = 清除该键**（服务端契约），缺键 = 不改。
+ * 用 `null` 而不是 `undefined` 表达清除 —— `undefined` 在 JSON 序列化时会被丢掉。
+ */
+export interface AppConfigPatch {
+  name?: string | null
+  icon?: string | null
+  entry?: AppSettings['entry'] | null
+  menus?: AppMenuItem[] | null
 }
 
 /** 页面列表项（2026-10-20；除 id/name 外为可选富字段） */
@@ -815,8 +841,10 @@ export const useDesignerStore = defineStore('lc-designer', () => {
    *
    * 与清单解耦 —— 宿主没实现 `getAppConfig` 时直接返回 false，门户清单照常可用。
    */
-  const appConfig = ref<AppSchema | null>(null)
+  const appConfig = ref<AppSettings | null>(null)
   const appConfigError = ref('')
+  const appSaving = ref(false)
+  const appSaveError = ref('')
 
   async function loadAppConfig(): Promise<boolean> {
     if (!api?.getAppConfig) return false
@@ -825,8 +853,30 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       appConfigError.value = ''
       return true
     } catch (e) {
-      appConfigError.value = `应用配置加载失败：${errMsg(e)}`
+      appConfigError.value = `应用设置加载失败：${errMsg(e)}`
       return false
+    }
+  }
+
+  /**
+   * 保存应用设置（patch 语义）：成功后用**服务端回传的完整配置**覆盖本地，
+   * 避免前端自己合并出与前缀不一致的状态（例如菜单被服务端归一化过）。
+   */
+  async function saveAppConfig(patch: AppConfigPatch): Promise<boolean> {
+    if (!api?.putAppConfig) {
+      appSaveError.value = '当前宿主不支持保存应用设置'
+      return false
+    }
+    appSaving.value = true
+    appSaveError.value = ''
+    try {
+      appConfig.value = await api.putAppConfig(patch)
+      return true
+    } catch (e) {
+      appSaveError.value = `保存失败：${errMsg(e)}`
+      return false
+    } finally {
+      appSaving.value = false
     }
   }
 
@@ -1575,10 +1625,13 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     loadPortalPages,
     createPortalPage,
     updatePortalMeta,
-    /* 2026-10-29：应用配置（门户首页应用条） */
+    /* 2026-10-29：应用设置（门户首页应用条 / 门户配置） */
     appConfig,
     appConfigError,
+    appSaving,
+    appSaveError,
     loadAppConfig,
+    saveAppConfig,
     /* 批 5：Profiler 采样（schema 加载 / 画布渲染） */
     perf,
     perfText,

@@ -60,6 +60,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 属性配置 | ✅ | 基础 setter 真控件；未支持 setter 只读占位 |
 | 页面/模型/权限/主题视图 | ✅ | 页面列表与删除、模型可视化建模、RBAC 面板、主题换色 |
 | 移动门户管理面 | ✅ | 「门户设计」清单（查询/新增/编辑/删除/分页）；`portal.order` / `remark`；四宫格卡片；`type=portal` 页在画布直接复用运行时门户渲染器 |
+| 门户配置 | ✅ | 应用名 / 图标、入口页（`entry`）、应用菜单（`menus`，顺序即运行时首页顺序）；入口页置顶标「主页」；**不自定义 tabBar**（小程序 tabBar 运行时不可改），菜单以列表呈现 |
 | 模型即模块 | ✅ | 按模型一次生成列表 / 表单 / 详情并串联跳转，回写模型默认页；重复前缀整体中止 |
 | 版本管理 | ✅ | 版本列表、回滚、结构化 diff |
 | 保存/发布链路 | ✅ | 校验不过不发 PUT；ETag/If-Match 乐观锁；409 不覆盖 |
@@ -238,6 +239,8 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-28 | 移动门户管理面 | 新增「门户设计」视图：移动门户清单（内置行 + `type=portal` 行，查询/新增/编辑/删除/分页）；`portal.order` / `remark` 运营字段；四宫格图标卡片；画布复用 `lc-portal-page` 设计态；designer 389 用例、renderer 335、schema 90、双端 typecheck、build、`design:check` 全绿 |
 | 2026-10-28 | 门户组件库 | 新增 4 个门户物料（轮播图 / 公告条 / 数据卡 / 待办列表）+ 属性面板 `json` setter（边打边解析，非法保留上次合法值，顺带修好 `Detail` / `List` 的 JSON 文本域画布空白）；门户页物料面板收敛为「基础组件 / 业务组件」两组；轮播不用 uni `swiper`（画布会退化成未知元素），改叠层 + 定时器 + 触摸滑动，高度用 `padding-top: height/750` 百分比（内联 `rpx` 浏览器会丢弃）；待办静态数据优先、否则走 `/flows/tasks/todo`；designer 393 用例、renderer 356、schema 90、三端 typecheck、build、`design:check` 全绿，设计器与 H5 均实测 4 物料渲染；门户小字逐节点实测对比度（29 个/主题，亮暗均达 AA），修掉品牌胶囊在暗色只有 2.91:1 的问题 |
 | 2026-10-29 | 信息架构：门户为首页 | 设计器默认视图改为**门户设计**（不再自动打开硬编码 `demo`），新增 `store.pageLoaded` 标记按需拉页；页面级动作（保存 / 发布 / 撤销重做 / 保存徽标 / 底栏校验摘要）只在画布出现；清单 →「页面设计」改为**先取 schema 成功再切视图**（失败留清单红字、脏页二次确认防丢改动）；画布顶部面包屑 `← 门户设计 / 门户名`；「页面」菜单在清单页降级为纯工作区导航（无 pageId 输入 / 新建 / 删除当前页，避免误删看不见的页），顶栏品牌副标题随视图显示当前层级；designer 395 用例、`@lc/designer` / `@lc/designer-web` typecheck、designer-web build（1,320.76 kB / gzip 429.16）、`design:check` 全绿；浏览器实测：首屏落清单（空库只剩 2 条内置行）→ 新增 `default_home` → 4 卡片 + 4 门户物料 → 保存 `revision 2` / ETag `"page:default_home:2"` → 面包屑返回 → 工作区菜单进「数据模型」再回清单，全程无保存/发布/校验摘要外溢 |
+| 2026-10-29 | 门户首页骨架（P0） | 应用条（应用名 / 入口页 / 门户页数 / 最近编辑）+「门户页面 / 门户配置」两页签 + 工作区右栏五入口；`DesignerApi.getAppConfig` 做成可选能力（宿主未实现则降级「未命名应用」）；新增 `portal-home.test.ts`；designer 400 用例、design:check 全绿 |
+| 2026-10-29 | 门户配置（P1） | 应用设置扩到 `name / icon / entry / menus`：服务端校验 + patch 语义（`menus` 整组替换、`null` 清除）、MySQL `app_config.settings` 列（迁移 `20261029093000_app_config_settings`）、设计器可编辑面板（改名/图标/入口页/菜单增删排序 + 本地校验）、运行时按 `menus` 渲染首页并把 `entry` 置顶标「主页」（**不做自绘 tabBar**）；server 340 用例、designer 409 用例、design:check、H5 构建全绿；浏览器实测设计器保存落库 + 运行时首页 3 条菜单顺序/副标题/去重正确 |
 
 ---
 

@@ -100,7 +100,7 @@ describe('门户首页 · 应用条', () => {
 })
 
 describe('门户首页 · 页签', () => {
-  it('默认门户页面（有表格），切到门户配置显示入口页与底部栏', async () => {
+  it('默认门户页面（有表格），切到门户配置显示可编辑表单', async () => {
     const store = useDesignerStore()
     store.setApi(mockApi([portalRow('p_home', '门户首页')]))
     await store.loadPortalPages()
@@ -114,18 +114,18 @@ describe('门户首页 · 页签', () => {
 
     expect(w.find('[data-testid="portal-table"]').exists()).toBe(false)
     const cfg = w.get('[data-testid="portal-config"]')
-    expect(cfg.text()).toContain('门户首页')
-    expect(cfg.text()).toContain('门户页 · p_home')
-    expect(cfg.text()).toContain('我的待办')
-    expect(cfg.text()).toContain('内置页 · todoList')
-    expect(cfg.text()).toContain('https://example.com')
+    expect((cfg.get('[data-testid="cfg-name"]').element as HTMLInputElement).value).toBe('请假管理')
+    expect((cfg.get('[data-testid="cfg-entry"]').element as HTMLSelectElement).value).toBe('p_home')
+    // 三条菜单各一行，第一条是主页
+    expect(cfg.findAll('[data-testid^="cfg-menu-name-"]')).toHaveLength(3)
+    expect(cfg.find('[data-testid="cfg-menu-home"]').exists()).toBe(true)
 
     // 切回清单
     await w.get('[data-testid="portal-tab-pages"]').trigger('click')
     expect(w.find('[data-testid="portal-table"]').exists()).toBe(true)
   })
 
-  it('未配置底部栏时给明确空态，不是空白', async () => {
+  it('未配置菜单时给明确空态，不是空白', async () => {
     const store = useDesignerStore()
     store.setApi({
       ...mockApi([portalRow('p_home', '门户首页')]),
@@ -136,7 +136,7 @@ describe('门户首页 · 页签', () => {
 
     const w = mount(PortalPanel)
     await w.get('[data-testid="portal-tab-config"]').trigger('click')
-    expect(w.get('[data-testid="portal-config"]').text()).toContain('尚未配置底部栏')
+    expect(w.find('[data-testid="cfg-menu-empty"]').exists()).toBe(true)
   })
 })
 

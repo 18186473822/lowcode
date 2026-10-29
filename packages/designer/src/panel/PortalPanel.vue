@@ -244,39 +244,8 @@
     </div>
         </template>
 
-        <section v-else class="portal-config" data-testid="portal-config">
-          <h3 class="panel-title">门户配置</h3>
-          <p class="panel-note">
-            入口页决定登录后先看到哪一页；底部栏是运行时底部的导航，一个 tab 对应一个页面。
-            这两项写在应用配置里（<code>AppSchema.entry</code> / <code>AppSchema.menus</code>）。
-          </p>
-
-          <dl class="portal-config__list">
-            <div class="portal-config__row">
-              <dt class="portal-config__key">入口页</dt>
-              <dd class="portal-config__val">
-                <span class="portal-config__pill">{{ entryLabel }}</span>
-                <span class="portal-config__hint">{{ entryHint }}</span>
-              </dd>
-            </div>
-            <div class="portal-config__row">
-              <dt class="portal-config__key">底部栏</dt>
-              <dd class="portal-config__val">
-                <ul v-if="configMenus.length" class="portal-config__menus">
-                  <li v-for="m in configMenus" :key="m.id" class="portal-config__menu">
-                    <span class="portal-config__pill">{{ m.name }}</span>
-                    <span class="portal-config__hint">{{ menuTargetLabel(m) }}</span>
-                  </li>
-                </ul>
-                <span v-else class="portal-config__hint">尚未配置底部栏</span>
-              </dd>
-            </div>
-          </dl>
-
-          <p class="portal-config__todo" data-testid="portal-config-todo">
-            编辑能力将在下一步接入（协议已就绪，当前只读）。
-          </p>
-        </section>
+        <!-- 门户配置（P1）：应用信息 / 入口页 / 应用菜单，实现在独立面板里 -->
+        <portal-config-panel v-else />
       </div>
 
       <!-- 工作区入口：一级首页上唯一能直达管理视图的地方；画布内仍可用「页面」菜单 -->
@@ -375,12 +344,12 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import type { AppMenuItem } from '@lc/schema'
 import { useDesignerStore, type PortalListItem } from '../store/store'
+import PortalConfigPanel from './PortalConfigPanel.vue'
 
 const store = useDesignerStore()
 
-/** 一级首页的两个页签：门户页面（清单） / 门户配置（入口页 + 底部栏） */
+/** 一级首页的两个页签：门户页面（清单） / 门户配置（应用信息 + 入口页 + 应用菜单） */
 const tab = ref<'pages' | 'config'>('pages')
 
 /** 工作区入口：首页右栏直达管理视图（画布内仍可用顶栏「页面」菜单） */
@@ -403,21 +372,6 @@ const entryLabel = computed(() => {
   const named = store.pages.find((p) => p.id === entry.pageId)?.name
   return named || entry.pageId
 })
-
-const entryHint = computed(() => {
-  const entry = store.appConfig?.entry
-  if (!entry?.pageId) return '登录后默认进入「应用入口」（运行时兜底）'
-  return `${entry.type === 'portal' ? '门户页' : '普通页'} · ${entry.pageId}`
-})
-
-/** 底部栏条目（P0 只读，编辑随门户配置一起接入） */
-const configMenus = computed(() => store.appConfig?.menus ?? [])
-
-function menuTargetLabel(m: AppMenuItem): string {
-  if (m.type === 'url') return m.url || '站外链接'
-  if (m.type === 'builtin') return `内置页 · ${m.target || '未指定'}`
-  return `页面 · ${m.pageId || '未指定'}`
-}
 
 /** 最近编辑：页面列表里最大的 updatedAt（ISO 串，只取到分钟） */
 const lastEditedText = computed(() => {
@@ -830,68 +784,7 @@ function goTo(): void {
   outline-offset: 1px;
 }
 
-/* 门户配置（P0 只读） */
-.portal-config {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lc-space-3);
-}
-.portal-config__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lc-space-2);
-  margin: 0;
-}
-.portal-config__row {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: var(--lc-space-3);
-  align-items: start;
-  padding: var(--lc-space-3);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
-}
-.portal-config__key {
-  font-size: var(--lc-font-caption);
-  color: var(--lc-text-label);
-}
-.portal-config__val {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--lc-space-2);
-  margin: 0;
-}
-.portal-config__pill {
-  padding: 0 var(--lc-space-1-5);
-  font-size: var(--lc-font-micro);
-  line-height: var(--lc-leading-label);
-  color: var(--lc-action-primary);
-  background: var(--lc-status-info-bg);
-  border-radius: var(--lc-radius-xs);
-}
-.portal-config__hint {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
-}
-.portal-config__menus {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lc-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.portal-config__menu {
-  display: flex;
-  align-items: center;
-  gap: var(--lc-space-2);
-}
-.portal-config__todo {
-  margin: 0;
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
-}
+/* 门户配置的样式已随面板抽到 PortalConfigPanel.vue（scoped），此处不再保留副本 */
 
 /* 工作区右栏 */
 .portal-home__rail {

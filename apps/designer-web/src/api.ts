@@ -8,6 +8,7 @@
  */
 import type {
   DesignerApi,
+  AppSettings,
   ModelSummary,
   PageListItem,
   VersionList,
@@ -19,7 +20,13 @@ import type {
   WebhookMetrics,
   WebhookSubscription,
 } from '@lc/designer'
-import type { PageSchema, ModelSchema, AppTheme, AppSchema } from '@lc/schema'
+import type { PageSchema, ModelSchema, AppTheme } from '@lc/schema'
+
+/** 应用设置通道只关心非主题部分（主题由 themeApi 负责，两者 patch 语义不同） */
+function stripTheme(body: Record<string, unknown>): AppSettings {
+  const { theme: _theme, ...settings } = body
+  return settings as AppSettings
+}
 
 const BASE = '/api/v1'
 const SEED_USER = { username: 'admin', password: 'admin123' }
@@ -171,10 +178,20 @@ function ifMatchFor(pageId: string, revision: number | undefined): Record<string
 }
 
 export const designerApi: DesignerApi = {
-  /** 应用配置（门户首页应用条）：`GET /apps/config` 直接返回 AppSchema，无配置时服务端给默认骨架 */
+  /**
+   * 应用设置（门户首页应用条 / 门户配置）：`GET /apps/config` 返回 `{ theme, name, icon, entry, menus }`。
+   * 这里把 `theme` 摘掉 —— 主题走独立的 `themeApi` 通道，两条通道的 patch 语义不同。
+   */
   async getAppConfig() {
     const res = await req('/apps/config')
-    return (await res.json()) as AppSchema
+    return stripTheme((await res.json()) as Record<string, unknown>)
+  },
+  async putAppConfig(patch) {
+    const res = await req('/apps/config', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    })
+    return stripTheme((await res.json()) as Record<string, unknown>)
   },
   async getSchema(pageId, version) {
     const qs = version ? `?version=${encodeURIComponent(version)}` : ''

@@ -149,18 +149,20 @@ export async function bootstrap(): Promise<{
   perms: string[]
   apps: BootstrapApp[]
   theme?: AppTheme
+  app?: BootstrapConfig
 }> {
   const body = (await call('/apps/bootstrap', { token: getToken() })) as {
     user: SessionUser
     perms?: unknown
     apps: BootstrapApp[]
     theme?: AppTheme
+    app?: BootstrapConfig
   }
   const perms = Array.isArray(body.perms) ? body.perms.map(String) : []
   setPerms(perms)
   // 批 3：主题缓存（无配置时清缓存，回落令牌默认值）
   setThemeCache(body.theme)
-  return { user: body.user, perms, apps: body.apps, theme: body.theme }
+  return { user: body.user, perms, apps: body.apps, theme: body.theme, app: body.app }
 }
 
 /** 批 3：主题缓存（bootstrap 下发时写入；App.vue 启动时恢复应用，直达 view 页也有主题） */
@@ -187,6 +189,29 @@ export interface BootstrapApp {
   id: string
   name: string
   pages: MenuPage[]
+}
+
+/**
+ * 应用设置（2026-10-29 P1）：`bootstrap` 顶层 `app` 下发。
+ *
+ * 本期**不做自绘底部栏**（小程序 tabBar 是 pages.json 静态配置、运行时不可改），
+ * 所以 `menus` 只用于首页列表的顺序与命名，`entry` 用于标「主页」并置顶。
+ */
+export interface BootstrapConfig {
+  name?: string
+  icon?: string
+  entry?: { type: 'portal' | 'page'; pageId?: string }
+  menus?: AppMenu[]
+}
+
+export interface AppMenu {
+  id: string
+  name: string
+  icon?: string
+  type: 'page' | 'portal' | 'builtin' | 'url'
+  pageId?: string
+  target?: string
+  url?: string
 }
 
 export interface MenuPage {
