@@ -51,13 +51,35 @@
         class="lc-history__hint"
         data-testid="history-empty"
       >尚无发布版本（点顶栏「发布」固化版本）</p>
-      <ul v-else class="lc-history__list" data-testid="history-list">
-        <li
-          v-for="v in store.versions"
-          :key="v.version"
-          class="lc-history__row"
-          :data-testid="`history-v${v.version}`"
-        >
+      <!-- 有历史：互比选择条 + 列表（同一个 v-else 容器，保持三态互斥） -->
+      <div v-else>
+        <div v-if="store.versions.length >= 2" class="lc-history__pickbar">
+          <span class="lc-history__pickhint">勾选两个版本可互比（与当前画布无关）</span>
+          <button
+            class="lc-history__btn"
+            type="button"
+            data-testid="compare-picked"
+            :disabled="picked.length !== 2"
+            @click="comparePicked"
+          >对比选中（{{ picked.length }}/2）</button>
+        </div>
+
+        <ul class="lc-history__list" data-testid="history-list">
+          <li
+            v-for="v in store.versions"
+            :key="v.version"
+            class="lc-history__row"
+            :data-testid="`history-v${v.version}`"
+          >
+            <label v-if="store.versions.length >= 2" class="lc-history__pick" @click.stop>
+              <input
+                type="checkbox"
+                :checked="picked.includes(v.version)"
+                :aria-label="`选择 v${v.version}`"
+                :data-testid="`pick-v${v.version}`"
+                @change="togglePick(v.version)"
+              />
+            </label>
           <span
             class="lc-history__badge"
             :class="{ 'lc-history__badge--cur': v.version === store.currentVersion }"
@@ -95,16 +117,20 @@
             </template>
           </span>
         </li>
-      </ul>
+        </ul>
+      </div>
 
-      <!-- diff 区：vN（before）→ 当前画布（after） -->
+      <!-- diff 区：vN → 当前画布，或 vA ↔ vB（互比） -->
       <div
-        v-if="store.diffVersion !== null"
+        v-if="store.diffVersion !== null || store.diffPair"
         class="lc-history__diff"
         data-testid="history-diff"
       >
         <div class="lc-history__diff-head">
-          <strong>v{{ store.diffVersion }} → 当前画布</strong>
+          <strong v-if="store.diffPair" data-testid="diff-pair">
+            v{{ store.diffPair.from }} ↔ v{{ store.diffPair.to }}
+          </strong>
+          <strong v-else>v{{ store.diffVersion }} → 当前画布</strong>
           <span class="lc-history__diff-count" data-testid="diff-count">{{ store.diffEntries.length }} 处差异</span>
           <button
             class="lc-history__btn"
@@ -117,7 +143,7 @@
           v-if="store.diffEntries.length === 0"
           class="lc-history__hint"
           data-testid="diff-none"
-        >与当前画布无差异</p>
+        >{{ store.diffPair ? '两版无差异' : '与当前画布无差异' }}</p>
         <ul v-else class="lc-history__entries">
           <li
             v-for="(e, i) in store.diffEntries"
@@ -147,11 +173,33 @@ const store = useDesignerStore()
 /** 行内两步确认的目标版本（null = 未进入确认态） */
 const confirming = ref<number | null>(null)
 
-/** 弹层关闭 → 复位确认态（下次打开不残留） */
+/** 互比勾选（最多两版；选第三个时挤掉最早的，避免出现「选了 3 个不知道怎么比」） */
+const picked = ref<number[]>([])
+
+function togglePick(v: number): void {
+  const i = picked.value.indexOf(v)
+  if (i >= 0) {
+    picked.value.splice(i, 1)
+    return
+  }
+  picked.value.push(v)
+  if (picked.value.length > 2) picked.value.shift()
+}
+
+async function comparePicked(): Promise<void> {
+  const [a, b] = picked.value
+  if (a === undefined || b === undefined) return
+  await store.compareVersions(a, b)
+}
+
+/** 弹层关闭 → 复位确认态与互比勾选（下次打开不残留） */
 watch(
   () => store.historyOpen,
   (open) => {
-    if (!open) confirming.value = null
+    if (!open) {
+      confirming.value = null
+      picked.value = []
+    }
   },
 )
 
@@ -238,6 +286,25 @@ function formatTime(iso: string): string {
 .lc-history__head-right {
   display: flex;
   gap: var(--lc-space-1-5);
+}
+/* 互比选择条：只在有 ≥2 个版本时出现 */
+.lc-history__pickbar {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  margin-bottom: var(--lc-space-2);
+}
+.lc-history__pickhint {
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-tertiary);
+}
+.lc-history__pick {
+  display: flex;
+  align-items: center;
+  margin-right: var(--lc-space-1);
+}
+.lc-history__pick input {
+  cursor: pointer;
 }
 .lc-history__list {
   margin: 0;

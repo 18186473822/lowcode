@@ -396,6 +396,8 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   /** 对比结果条目（before = vN 历史版，after = 当前画布；null diffVersion = 未对比） */
   const diffEntries = ref<DiffEntry[]>([])
   const diffVersion = ref<number | null>(null)
+  /** 两版互比的目标（`diffVersion` 为「版本 vs 当前画布」，两者互斥） */
+  const diffPair = ref<{ from: number; to: number } | null>(null)
 
   /** 打开版本弹层并拉列表 */
   async function openHistory(): Promise<void> {
@@ -441,7 +443,39 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       const r = await api.getSchema(pageId.value, `v${v}`)
       diffEntries.value = diffSchema(r.schema, schema.value)
       diffVersion.value = v
+      diffPair.value = null
       statusText.value = `已对比 v${v} 与当前画布：${diffEntries.value.length} 处差异`
+      return true
+    } catch (e) {
+      statusText.value = `版本对比失败：${errMsg(e)}`
+      return false
+    }
+  }
+
+  /**
+   * 两版互比（2026-10-29 P3）：拉取两个历史版本全文，直接 diff。
+   *
+   * 与 `compareVersion`（版本 vs 当前画布）分开：互比不动内存里的 schema，
+   * 也不允许同一个版本自比（diff 恒为空，只会让人以为"没改动"）。
+   */
+  async function compareVersions(from: number, to: number): Promise<boolean> {
+    if (!api) {
+      statusText.value = '未配置服务端 API'
+      return false
+    }
+    if (from === to) {
+      statusText.value = '请选择两个不同的版本'
+      return false
+    }
+    try {
+      const [a, b] = await Promise.all([
+        api.getSchema(pageId.value, `v${from}`),
+        api.getSchema(pageId.value, `v${to}`),
+      ])
+      diffEntries.value = diffSchema(a.schema, b.schema)
+      diffVersion.value = null
+      diffPair.value = { from, to }
+      statusText.value = `已对比 v${from} 与 v${to}：${diffEntries.value.length} 处差异`
       return true
     } catch (e) {
       statusText.value = `版本对比失败：${errMsg(e)}`
@@ -453,6 +487,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   function clearDiff(): void {
     diffEntries.value = []
     diffVersion.value = null
+    diffPair.value = null
   }
 
   /**
@@ -548,11 +583,23 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     return true
   }
 
-  /** 画布内节点拖拽换位（非法目标由 moveNode no-op 兜底） */
+  /**
+   * 节点拖拽换位（画布 DnD / 大纲树 DnD 共用；非法目标由 moveNode no-op 兜底）。
+   *
+   * `resolve()` 给的是 `before/after` 语义下的**插入下标**（在原数组上算的）。
+   * 同父且源在目标之前时，moveNode 会先摘除源节点，目标下标随之左移一位 ——
+   * 这里必须减 1，否则「把第 1 个拖到第 3 个前面」会落到第 3 个**后面**。
+   * （`moveSibling` 传的是绝对位置，不能用同一套修正，所以修在调用侧。）
+   */
   function moveByDrop(nodeId: string, hit: AnchorHit): void {
     if (!hit.nodeId || nodeId === hit.nodeId) return
     const target = resolve(hit)
-    const r = moveNode(schema.value, nodeId, target.parentId, target.index)
+    const from = findParent(schema.value, nodeId)
+    const index =
+      from && from.parent.id === target.parentId && from.index < target.index
+        ? target.index - 1
+        : target.index
+    const r = moveNode(schema.value, nodeId, target.parentId, index)
     if (!r.id) return
     schema.value = r.schema
     touch()
@@ -1727,10 +1774,12 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     versionsError,
     diffEntries,
     diffVersion,
+    diffPair,
     openHistory,
     closeHistory,
     refreshVersions,
     compareVersion,
+    compareVersions,
     clearDiff,
     rollbackTo,
     models,

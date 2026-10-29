@@ -236,3 +236,83 @@ describe('批 5：HistoryDialog 版本历史弹层', () => {
     expect(store.historyOpen).toBe(false)
   })
 })
+
+/* ---------------- 2026-10-29 P3：两版互比 ---------------- */
+
+describe('HistoryDialog —— 两版互比（P3）', () => {
+  it('勾选两版后按钮可用；点击拉两次历史 schema 并显示 vA ↔ vB', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    store.setApi(api)
+    store.historyOpen = true
+    store.versions = [
+      { version: 3, createdBy: 'admin', createdAt: '2026-10-14T10:00:00.000Z' },
+      { version: 2, createdBy: 'admin', createdAt: '2026-10-14T09:00:00.000Z' },
+      { version: 1, createdBy: 'admin', createdAt: '2026-10-14T08:00:00.000Z' },
+    ]
+    const w = mount(HistoryDialog)
+    await flushPromises()
+
+    const btn = w.get('[data-testid="compare-picked"]')
+    expect(btn.attributes('disabled')).toBeDefined()
+
+    await w.get('[data-testid="pick-v1"]').setValue(true)
+    await w.get('[data-testid="pick-v3"]').setValue(true)
+    expect(w.get('[data-testid="compare-picked"]').attributes('disabled')).toBeUndefined()
+
+    await w.get('[data-testid="compare-picked"]').trigger('click')
+    await flushPromises()
+
+    expect(api.getSchema).toHaveBeenCalledWith('demo', 'v1')
+    expect(api.getSchema).toHaveBeenCalledWith('demo', 'v3')
+    expect(w.get('[data-testid="diff-pair"]').text()).toContain('v1')
+    expect(w.get('[data-testid="diff-pair"]').text()).toContain('v3')
+    w.unmount()
+  })
+
+  it('勾第三个版本会挤掉最早勾的（始终保持两个）', async () => {
+    const store = useDesignerStore()
+    store.setApi(mockApi())
+    store.historyOpen = true
+    store.versions = [
+      { version: 3, createdBy: 'admin', createdAt: '2026-10-14T10:00:00.000Z' },
+      { version: 2, createdBy: 'admin', createdAt: '2026-10-14T09:00:00.000Z' },
+      { version: 1, createdBy: 'admin', createdAt: '2026-10-14T08:00:00.000Z' },
+    ]
+    const w = mount(HistoryDialog)
+    await flushPromises()
+
+    await w.get('[data-testid="pick-v1"]').setValue(true)
+    await w.get('[data-testid="pick-v2"]').setValue(true)
+    await w.get('[data-testid="pick-v3"]').setValue(true)
+
+    // 按钮文案带计数，能直接看出只保留了两个
+    expect(w.get('[data-testid="compare-picked"]').text()).toContain('2/2')
+    // v1 被挤掉（取消勾选）
+    expect((w.get('[data-testid="pick-v1"]').element as HTMLInputElement).checked).toBe(false)
+    expect((w.get('[data-testid="pick-v3"]').element as HTMLInputElement).checked).toBe(true)
+    w.unmount()
+  })
+
+  it('关闭弹层后勾选复位，不会带到下次', async () => {
+    const store = useDesignerStore()
+    store.setApi(mockApi())
+    store.historyOpen = true
+    store.versions = [
+      { version: 2, createdBy: 'admin', createdAt: '2026-10-14T09:00:00.000Z' },
+      { version: 1, createdBy: 'admin', createdAt: '2026-10-14T08:00:00.000Z' },
+    ]
+    const w = mount(HistoryDialog)
+    await flushPromises()
+    await w.get('[data-testid="pick-v1"]').setValue(true)
+    expect(w.get('[data-testid="compare-picked"]').text()).toContain('1/2')
+
+    store.closeHistory()
+    await flushPromises()
+    store.openHistory()
+    await flushPromises()
+
+    expect(w.get('[data-testid="compare-picked"]').text()).toContain('0/2')
+    w.unmount()
+  })
+})

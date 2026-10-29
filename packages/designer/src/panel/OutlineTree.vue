@@ -3,7 +3,11 @@
 
   左栏 Tab「物料 / 大纲」的第二页签：从 store.schema.root 扁平化出树行，
   与画布**双向联动**（点击行 ↔ 画布选中高亮）；行内删除复用 store.removeById。
-  不做大纲内拖拽排序（画布/属性面板已有排序入口）。
+
+  2026-10-29 P3：支持**树内拖拽排序**（HTML5 DnD；画布是 SVG，HTML5 会话不建立，故那边仍走 mouse 手势）。
+  - 落点：行上 1/4 = before、下 1/4 = after、中间 = into（仅容器组件；叶子只认前后）
+  - 排序复用 store.moveByDrop（与画布同一套 schema-ops），不另写一份移动逻辑
+  - 禁止拖到自身或自己的后代（会成环）
 -->
 <template>
   <div class="lc-outline" data-testid="outline-tree">
@@ -17,10 +21,21 @@
         v-for="row in rows"
         :key="row.id"
         class="lc-outline__row"
-        :class="{ 'lc-outline__row--active': row.id === store.selectedId }"
+        :class="{
+          'lc-outline__row--active': row.id === store.selectedId,
+          'lc-outline__row--drop-before': dropState?.id === row.id && dropState.position === 'before',
+          'lc-outline__row--drop-after': dropState?.id === row.id && dropState.position === 'after',
+          'lc-outline__row--drop-into': dropState?.id === row.id && dropState.position === 'into',
+        }"
         :style="{ paddingLeft: `${8 + row.level * 14}px` }"
+        :draggable="!row.isRoot"
         :data-testid="`outline-row-${row.id}`"
         @click="store.select(row.id)"
+        @dragstart="onDragStart(row, $event)"
+        @dragover="onDragOver(row, $event)"
+        @dragleave="onDragLeave(row)"
+        @drop="onDrop(row, $event)"
+        @dragend="onDragEnd"
       >
         <button
           v-if="row.hasChildren"
@@ -57,6 +72,8 @@ import { computed, ref, watch } from 'vue'
 import { META_MAP } from '@lc/materials'
 import type { NodeSchema } from '@lc/schema'
 import { ancestorIds } from '../core/schema-ops'
+import { LC_NODE_MIME } from '../core/dnd'
+import type { DropPosition } from '../core/anchor'
 import { useDesignerStore } from '../store/store'
 import PanelState from '../components/PanelState.vue'
 
@@ -73,6 +90,8 @@ interface TreeRow {
   isRoot: boolean
   hasChildren: boolean
   collapsed: boolean
+  /** 容器组件才接受 into（叶子只认前后插入） */
+  isContainer: boolean
 }
 
 /** 扁平化树：折叠分支的后代不出现（与画布可见节点口径一致）；root 行 label 固定「页面」 */
@@ -89,6 +108,7 @@ const rows = computed<TreeRow[]>(() => {
       isRoot,
       hasChildren: Array.isArray(n.children) && n.children.length > 0,
       collapsed: isCollapsed,
+      isContainer: isRoot || !!META_MAP[n.componentName]?.isContainer,
     })
     if (!isCollapsed && n.children) for (const c of n.children) walk(c, level + 1)
   }
@@ -112,6 +132,65 @@ const nodeCount = computed(() => {
 function toggle(id: string): void {
   if (collapsed.value.has(id)) collapsed.value.delete(id)
   else collapsed.value.add(id)
+}
+
+/* ---------------- 2026-10-29 P3：树内拖拽排序 ---------------- */
+
+const dragId = ref('')
+const dropState = ref<{ id: string; position: DropPosition } | null>(null)
+
+function onDragStart(row: TreeRow, e: DragEvent): void {
+  if (row.isRoot) return
+  dragId.value = row.id
+  e.dataTransfer?.setData(LC_NODE_MIME, row.id)
+  e.dataTransfer?.setData('text/plain', row.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+
+/**
+ * 落点：容器组件的中段 = into（追加为最后一个子节点），上下 1/4 = before/after；
+ * 叶子只认前后。jsdom 里 rect 高度为 0，统一回落到「容器 into / 叶子 after」，便于测试。
+ */
+function computePosition(row: TreeRow, e: DragEvent): DropPosition {
+  const el = e.currentTarget as HTMLElement | null
+  const rect = el?.getBoundingClientRect()
+  if (!rect || !rect.height) return row.isContainer ? 'into' : 'after'
+  const ratio = (e.clientY - rect.top) / rect.height
+  if (row.isContainer && ratio > 0.25 && ratio < 0.75) return 'into'
+  return ratio < 0.5 ? 'before' : 'after'
+}
+
+/** 不能拖到自己身上，也不能拖进自己的后代（会形成环） */
+function canDrop(sourceId: string, row: TreeRow): boolean {
+  if (!sourceId || sourceId === row.id) return false
+  return !ancestorIds(store.schema, row.id).includes(sourceId)
+}
+
+function onDragOver(row: TreeRow, e: DragEvent): void {
+  if (!canDrop(dragId.value, row)) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropState.value = { id: row.id, position: computePosition(row, e) }
+}
+
+function onDragLeave(row: TreeRow): void {
+  if (dropState.value?.id === row.id) dropState.value = null
+}
+
+function onDrop(row: TreeRow, e: DragEvent): void {
+  e.preventDefault()
+  const source = dragId.value || e.dataTransfer?.getData('text/plain') || ''
+  const position = dropState.value?.id === row.id ? dropState.value.position : null
+  if (!canDrop(source, row) || !position) return
+  store.moveByDrop(source, { nodeId: row.id, position })
+  // 拖进去之后展开目标，否则用户看不到「放下去了」（into 到折叠节点时尤其明显）
+  collapsed.value.delete(row.id)
+  onDragEnd()
+}
+
+function onDragEnd(): void {
+  dragId.value = ''
+  dropState.value = null
 }
 
 /** 选中变化（画布点选或树内点选）→ 自动展开父链，保证选中行可见 */
@@ -158,6 +237,17 @@ watch(
 .lc-outline__row--active {
   background: var(--lc-action-primary-subtle);
   color: var(--lc-action-primary);
+}
+/* 拖拽落点：前后用 2px 内阴影画插入线（不占布局，列表不会抖） */
+.lc-outline__row--drop-before {
+  box-shadow: inset 0 2px 0 0 var(--lc-action-primary);
+}
+.lc-outline__row--drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--lc-action-primary);
+}
+.lc-outline__row--drop-into {
+  background: var(--lc-action-primary-subtle);
+  box-shadow: inset 0 0 0 1px var(--lc-action-primary);
 }
 .lc-outline__toggle {
   width: 16px;

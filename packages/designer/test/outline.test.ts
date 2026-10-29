@@ -121,3 +121,114 @@ describe('OutlineTree —— 删除联动与 root 保护', () => {
     w.unmount()
   })
 })
+
+/* ---------------- 2026-10-29 P3：树内拖拽排序 ---------------- */
+
+/** jsdom 没有 DataTransfer，给个最小桩（组件内部另存 dragId，桩只用于 setData/getData 不报错） */
+function makeDT() {
+  const data: Record<string, string> = {}
+  return {
+    data,
+    setData: (k: string, v: string) => {
+      data[k] = v
+    },
+    getData: (k: string) => data[k] ?? '',
+    effectAllowed: '',
+    dropEffect: '',
+  }
+}
+
+/** jsdom 的 rect 全是 0，按需要伪造（ratio 由 clientY / height 决定） */
+function fakeRect(el: Element, height = 20): void {
+  Object.defineProperty(el, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ top: 0, height, left: 0, width: 100, bottom: height, right: 100, x: 0, y: 0, toJSON: () => ({}) }),
+  })
+}
+
+describe('OutlineTree —— 树内拖拽排序（P3）', () => {
+  it('拖到容器中段 → into：成为该容器的最后一个子节点', async () => {
+    const store = useDesignerStore()
+    const fg = findNode(store.schema, 'n-fg')!
+    const before = fg.children!.length
+    // 拿一个不在 fg 里的顶层节点当源
+    const source = store.schema.root.children!.find((c) => c.id !== 'n-fg')!
+
+    const w = mountTree()
+    const src = w.get(`[data-testid="outline-row-${source.id}"]`)
+    const dst = w.get('[data-testid="outline-row-n-fg"]')
+    fakeRect(dst.element)
+
+    const dt = makeDT()
+    await src.trigger('dragstart', { dataTransfer: dt })
+    await dst.trigger('dragover', { dataTransfer: dt, clientY: 10 })
+    expect(dst.classes()).toContain('lc-outline__row--drop-into')
+    await dst.trigger('drop', { dataTransfer: dt, clientY: 10 })
+
+    const moved = findNode(store.schema, source.id)!
+    expect(findNode(store.schema, 'n-fg')!.children!.map((c) => c.id)).toContain(moved.id)
+    expect(findNode(store.schema, 'n-fg')!.children!.length).toBe(before + 1)
+    w.unmount()
+  })
+
+  it('拖到叶子上半 → before：插到目标前面（顺序真的变了）', async () => {
+    const store = useDesignerStore()
+    const kids = store.schema.root.children!
+    const source = kids[0]!
+    const target = kids.find((c) => c.id !== source.id && !(c.children?.length))!
+
+    const w = mountTree()
+    const src = w.get(`[data-testid="outline-row-${source.id}"]`)
+    const dst = w.get(`[data-testid="outline-row-${target.id}"]`)
+    fakeRect(dst.element)
+
+    const dt = makeDT()
+    await src.trigger('dragstart', { dataTransfer: dt })
+    await dst.trigger('dragover', { dataTransfer: dt, clientY: 2 })
+    expect(dst.classes()).toContain('lc-outline__row--drop-before')
+    await dst.trigger('drop', { dataTransfer: dt, clientY: 2 })
+
+    const ids = store.schema.root.children!.map((c) => c.id)
+    expect(ids.indexOf(source.id)).toBe(ids.indexOf(target.id) - 1)
+    w.unmount()
+  })
+
+  it('拖到自己的后代上 → 拒绝（不成环）', async () => {
+    const store = useDesignerStore()
+    const fgChild = findNode(store.schema, 'n-fg')!.children![0]!
+    const snapshot = JSON.stringify(store.schema)
+
+    const w = mountTree()
+    const src = w.get('[data-testid="outline-row-n-fg"]')
+    const dst = w.get(`[data-testid="outline-row-${fgChild.id}"]`)
+    fakeRect(dst.element)
+
+    const dt = makeDT()
+    await src.trigger('dragstart', { dataTransfer: dt })
+    await dst.trigger('dragover', { dataTransfer: dt, clientY: 10 })
+    // 不允许：没有落点指示
+    expect(dst.classes().some((c) => c.startsWith('lc-outline__row--drop'))).toBe(false)
+    await dst.trigger('drop', { dataTransfer: dt, clientY: 10 })
+    expect(JSON.stringify(store.schema)).toBe(snapshot)
+    w.unmount()
+  })
+
+  it('拖拽结束后落点指示清空；root 不可拖', async () => {
+    const store = useDesignerStore()
+    const kids = store.schema.root.children!
+    const w = mountTree()
+    const src = w.get(`[data-testid="outline-row-${kids[0]!.id}"]`)
+    const dst = w.get(`[data-testid="outline-row-${kids[1]!.id}"]`)
+    fakeRect(dst.element)
+
+    const dt = makeDT()
+    await src.trigger('dragstart', { dataTransfer: dt })
+    await dst.trigger('dragover', { dataTransfer: dt, clientY: 2 })
+    expect(dst.classes()).toContain('lc-outline__row--drop-before')
+    await src.trigger('dragend')
+    expect(dst.classes().some((c) => c.startsWith('lc-outline__row--drop'))).toBe(false)
+    // root 行没有 draggable
+    expect(w.get('.lc-outline__row').attributes('draggable')).toBe('false')
+    w.unmount()
+  })
+})
