@@ -90,6 +90,7 @@ const LEAF_MATERIALS: Array<[componentName: string, kebab: string]> = [
   // 2026-10-29 P2
   ['PortalGrid', 'lc-portal-grid'],
   ['PortalPageEntry', 'lc-portal-page-entry'],
+  ['PortalFlowList', 'lc-portal-flow-list'],
 ]
 
 const globalComponents: Record<string, ReturnType<typeof defineComponent>> = {
@@ -122,11 +123,11 @@ function controllerOf(schema: PageSchema) {
 /* 分发遍历                                                            */
 /* ------------------------------------------------------------------ */
 
-describe('lc-node —— 40 展示物料分发遍历（批 3 完整性锁 + 审批物料 + 图表 + 门户 P2）', () => {
-  it('名单自检：39 个叶子物料 kebab 标签唯一（防漏注册/重名）', () => {
+describe('lc-node —— 41 展示物料分发遍历（批 3 完整性锁 + 审批物料 + 图表 + 门户 P2）', () => {
+  it('名单自检：40 个叶子物料 kebab 标签唯一（防漏注册/重名）', () => {
     const kebabs = LEAF_MATERIALS.map(([, k]) => k)
-    expect(kebabs).toHaveLength(39)
-    expect(new Set(kebabs).size).toBe(39)
+    expect(kebabs).toHaveLength(40)
+    expect(new Set(kebabs).size).toBe(40)
   })
 
   it.each(LEAF_MATERIALS)('%s 命中分发分支（渲染 %s stub，不落「未知组件」）', (componentName, kebab) => {

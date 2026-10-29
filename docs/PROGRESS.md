@@ -54,7 +54,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 能力 | 状态 | 要点 |
 |---|---|---|
-| 物料库 | ✅ | 39 个叶子物料（41 份 META，含 Page）：基础/表单/数据/导航/反馈/图表/业务；门户专属「魔方 / 页面入口 / 轮播 / 公告 / 数据卡 / 待办列表」 |
+| 物料库 | ✅ | 40 个叶子物料（42 份 META，含 Page）：基础/表单/数据/导航/反馈/图表/业务；门户专属「魔方 / 页面入口 / 常用流程 / 轮播 / 公告 / 数据卡 / 待办列表」 |
 | 画布渲染 | ✅ | 同进程 uni-shim + 增强器；rpx→px；选中/遮罩/动作拦截 |
 | 拖拽编排 | ✅ | 拖入、换位、删除、大纲树、撤销重做、跨页剪贴板 |
 | 属性配置 | ✅ | 基础 setter 真控件；未支持 setter 只读占位 |
@@ -242,6 +242,8 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-29 | 门户首页骨架（P0） | 应用条（应用名 / 入口页 / 门户页数 / 最近编辑）+「门户页面 / 门户配置」两页签 + 工作区右栏五入口；`DesignerApi.getAppConfig` 做成可选能力（宿主未实现则降级「未命名应用」）；新增 `portal-home.test.ts`；designer 400 用例、design:check 全绿 |
 | 2026-10-29 | 门户配置（P1） | 应用设置扩到 `name / icon / entry / menus`：服务端校验 + patch 语义（`menus` 整组替换、`null` 清除）、MySQL `app_config.settings` 列（迁移 `20261029093000_app_config_settings`）、设计器可编辑面板（改名/图标/入口页/菜单增删排序 + 本地校验）、运行时按 `menus` 渲染首页并把 `entry` 置顶标「主页」（**不做自绘 tabBar**）；server 340 用例、designer 409 用例、design:check、H5 构建全绿；浏览器实测设计器保存落库 + 运行时首页 3 条菜单顺序/副标题/去重正确 |
 | 2026-10-29 | 门户物料（P2） | 新增「魔方」（`PortalGrid`，3/4 列入口格）与「页面入口」（`PortalPageEntry`，业务组件口径：从已保存页面里挑一个）；新增 `pagePicker` setter（选项来自 `listPages`，选中写回 `props.pageId`）；画布里的 `uni` 是 PC polyfill（无 `navigateTo`），物料跳转天然 no-op，不会跳走设计器；顶栏「工作区」菜单移除，工作区入口只留首页右栏；designer 411 用例、renderer 364 用例、typecheck、design:check、designer-web 与 H5 构建全绿 |
+| 2026-10-29 | 魔方可视化编辑 | 新增 `pageItemList` setter：入口项按行编辑（图标字 / 名称 / 目标页面下拉 / 上移下移删除），替掉手写 JSON；写回保留三键，不会「改一个丢两个」 |
+| 2026-10-29 | 常用流程（P2 收尾） | `FlowSchema.startPageId` 可选字段 + `E_FLOW_START_PAGE` 校验；新增 `PortalFlowList` 物料（读 `/flows`，只列配了 `startPageId` 的流程，点击进启动表单页，由 `flow.start` 起流程）；空态/错误态明确，静态数据可预览 |
 
 ---
 

@@ -74,6 +74,9 @@ export const MATERIAL_ICONS: Record<string, string> = {
   // 页面入口：卡片 + 指向右侧的箭头（「从这里进入某页」）
   PortalPageEntry:
     '<rect x="2.4" y="3.6" width="6.4" height="8.8" rx="1.6"/><path d="M11 8h3M12.6 6.4 14.2 8l-1.6 1.6"/>',
+  // 常用流程：三条流程条目 + 末条带「发起」箭头
+  PortalFlowList:
+    '<path d="M2.6 4.4h6.4M2.6 8h6.4M2.6 11.6h3.4"/><path d="M10.4 11.6h3.2M12.2 10l1.4 1.6-1.4 1.6"/>',
 
   /* ---------------- feedback ---------------- */
   // 按钮：胶囊 + 内部短标签

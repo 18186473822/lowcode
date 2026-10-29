@@ -21,6 +21,7 @@ import LcPortalStat from '@lc/materials/src/portal-stat/index.vue'
 import LcPortalTodo from '@lc/materials/src/portal-todo/index.vue'
 import LcPortalGrid from '@lc/materials/src/portal-grid/index.vue'
 import LcPortalPageEntry from '@lc/materials/src/portal-page-entry/index.vue'
+import LcPortalFlowList from '@lc/materials/src/portal-flow-list/index.vue'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -370,6 +371,68 @@ describe('PortalPageEntry（页面入口）', () => {
     expect(w.find('.lc-portal-entry__title').text()).toBe('p_leave')
     await w.find('.lc-portal-entry').trigger('tap')
     expect(w.emitted('itemClick')?.[0]?.[0]).toMatchObject({ pageId: 'p_leave' })
+    w.unmount()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 常用流程（2026-10-29 P2 收尾）                                      */
+/* ------------------------------------------------------------------ */
+
+describe('PortalFlowList（常用流程）', () => {
+  function mountWithHost(data: unknown, props: Record<string, unknown> = {}) {
+    const host: LcFlowHost = { request: vi.fn(async () => ({ statusCode: 200, data })) }
+    const w = mount(LcPortalFlowList, {
+      props,
+      global: { provide: { [LC_FLOW_HOST_KEY as symbol]: host } },
+    })
+    return { w, host }
+  }
+
+  it('自动拉 /flows，只保留配了 startPageId 的流程', async () => {
+    const { w, host } = mountWithHost({
+      flows: [
+        { flowId: 'f_leave', name: '请假审批', modelId: 'm_leave', startPageId: 'p_leave' },
+        { flowId: 'f_x', name: '没绑启动页', modelId: 'm_x' },
+      ],
+    })
+    await flushPromises()
+    expect(host.request).toHaveBeenCalledTimes(1)
+    expect(w.findAll('.lc-portal-flow__row')).toHaveLength(1)
+    expect(w.find('.lc-portal-flow__name').text()).toBe('请假审批')
+    expect(w.find('.lc-portal-flow__meta').text()).toContain('m_leave')
+    w.unmount()
+  })
+
+  it('静态数据优先：零请求', async () => {
+    const { w, host } = mountWithHost({ flows: [] }, { items: [{ name: '报销' }] })
+    await flushPromises()
+    expect(host.request).not.toHaveBeenCalled()
+    expect(w.find('.lc-portal-flow__name').text()).toBe('报销')
+    w.unmount()
+  })
+
+  it('空列表文案点明 startPageId（不是空白）', async () => {
+    const { w } = mountWithHost({ flows: [] })
+    await flushPromises()
+    expect(w.find('.lc-portal-flow__state-text').text()).toContain('startPageId')
+    w.unmount()
+  })
+
+  it('limit 截断；点击带 startPageId 发出 itemClick', async () => {
+    const { w } = mountWithHost(
+      {
+        flows: [
+          { flowId: 'a', name: 'A', startPageId: 'p_a' },
+          { flowId: 'b', name: 'B', startPageId: 'p_b' },
+        ],
+      },
+      { limit: 1 },
+    )
+    await flushPromises()
+    expect(w.findAll('.lc-portal-flow__row')).toHaveLength(1)
+    await w.find('.lc-portal-flow__row').trigger('tap')
+    expect(w.emitted('itemClick')?.[0]?.[0]).toMatchObject({ startPageId: 'p_a' })
     w.unmount()
   })
 })

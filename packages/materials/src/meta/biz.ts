@@ -137,6 +137,39 @@ export const BIZ_META: MaterialSchema[] = [
     supports: { condition: true, loop: false, perm: true },
   },
   {
+    name: 'PortalFlowList',
+    title: '常用流程',
+    category: 'biz',
+    order: 98,
+    version: '1.0.0',
+    // 自动读 /flows，只列配置了 startPageId 的流程（配了才发得起来）
+    defaultProps: {
+      title: '常用流程',
+      limit: 5,
+      autoLoad: true,
+      items: [],
+    },
+    settings: [
+      { key: 'title', label: '标题', setter: 'input' },
+      { key: 'limit', label: '最多条数(1~20)', setter: 'number' },
+      {
+        key: 'autoLoad',
+        label: '拉取流程',
+        setter: 'switch',
+        help: '开：运行时 GET /flows，只列配了 startPageId 的；关：只用下方静态数据',
+      },
+      {
+        key: 'items',
+        label: '静态数据（JSON）',
+        setter: 'json',
+        placeholder: '[{"name":"请假审批","meta":"表单 · m_leave"}]',
+        help: '非空则不请求接口（设计期预览用）',
+      },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
+  {
     name: 'PortalPageEntry',
     title: '页面入口',
     category: 'biz',

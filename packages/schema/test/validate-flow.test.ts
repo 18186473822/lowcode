@@ -76,6 +76,18 @@ describe('validateFlow —— 顶层字段', () => {
     expect(has(validateFlow({ ...flow86(), nodes: [] }).errors, 'E_FLOW_NODES_EMPTY')).toBe(true)
     expect(has(validateFlow({ ...flow86(), nodes: 'x' }).errors, 'E_FLOW_NODES_EMPTY')).toBe(true)
   })
+
+  it('startPageId：缺省合法；合法页面编码通过；非法/非串 → E_FLOW_START_PAGE', () => {
+    // 缺省 = 不能从门户发起，仍是合法流程
+    expect(validateFlow(flow86()).valid).toBe(true)
+    expect(validateFlow({ ...flow86(), startPageId: 'p_leave' }).valid).toBe(true)
+
+    const badId = validateFlow({ ...flow86(), startPageId: '9-bad' })
+    expect(has(badId.errors, 'E_FLOW_START_PAGE', 'startPageId')).toBe(true)
+
+    const badType = validateFlow({ ...flow86(), startPageId: 123 })
+    expect(has(badType.errors, 'E_FLOW_START_PAGE', 'startPageId')).toBe(true)
+  })
 })
 
 describe('validateFlow —— 结构硬约束', () => {

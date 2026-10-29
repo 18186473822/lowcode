@@ -47,6 +47,11 @@ export interface FlowSchema {
   name: string
   /** 绑定的数据模型 id */
   modelId: string
+  /**
+   * 发起流程的表单页 id（2026-10-29）：门户「常用流程」据此列出发得起的流程并跳转。
+   * 缺省 = 该流程不能从门户发起（仍可由页面 submit 动作的 flow.start 启动）。
+   */
+  startPageId?: string
   /** linear：全序推进（condition 忽略）；condition：按节点 condition 求值跳过 */
   mode: 'linear' | 'condition'
   /** 首节点必须 start、末节点必须 end、approve ≥ 1 */

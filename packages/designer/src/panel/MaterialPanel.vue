@@ -91,6 +91,7 @@ const PORTAL_GROUPS: Array<{ key: string; label: string; names: string[] }> = [
     label: '业务组件',
     names: [
       'PortalPageEntry',
+      'PortalFlowList',
       'PortalStat',
       'PortalTodo',
       'Chart',

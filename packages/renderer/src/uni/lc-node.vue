@@ -147,6 +147,9 @@
     <template v-else-if="material === 'PortalPageEntry'">
       <lc-portal-page-entry v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
     </template>
+    <template v-else-if="material === 'PortalFlowList'">
+      <lc-portal-flow-list v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
     <!-- 带标题容器：自身渲染分组头，children 走下方统一递归 -->
     <template v-else-if="material === 'FormGroup'">
       <view class="lc-node__group">

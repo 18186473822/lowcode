@@ -463,6 +463,16 @@ export function validateFlow(flow: unknown, opt: ValidateOptions = {}): Validati
   if (typeof f['modelId'] !== 'string' || !f['modelId']) {
     c.error('E_FLOW_MODEL', 'modelId', 'modelId 缺失（流程必须绑定数据模型）')
   }
+  if (
+    f['startPageId'] !== undefined &&
+    (typeof f['startPageId'] !== 'string' || !ID_RE.test(f['startPageId']))
+  ) {
+    c.error(
+      'E_FLOW_START_PAGE',
+      'startPageId',
+      'startPageId 必须是页面编码（字母或下划线开头，仅字母/数字/-/_）',
+    )
+  }
   if (f['mode'] !== 'linear' && f['mode'] !== 'condition') {
     c.error('E_FLOW_MODE', 'mode', `mode 必须是 linear | condition，实际 ${JSON.stringify(f['mode'])}`)
   }

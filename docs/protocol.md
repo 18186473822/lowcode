@@ -580,6 +580,7 @@
 | POST | `/flows/instances/:instanceId/tasks/:taskId` | `{ action: 'approve' \| 'reject', comment? }`，可选 `Idempotency-Key`（1~128 字符） | `200` 推进后的 `FlowInstance`，响应带新 `ETag`（审批人不命中 `403 TASK_FORBIDDEN`、非 running `400 FLOW_NOT_RUNNING`、非当前 pending `400 FLOW_TASK_STALE`、任务/实例不存在 `404`；并发推进 `409 FLOW_CONFLICT`；同一键重放返回当前实例；同键改任务/动作/意见/审批人 `409 IDEMPOTENCY_KEY_REUSED`） |
 
 - **提交联动**：`POST /models/:modelId/records` 成功后按 `modelId` 匹配定义**自动启动实例**并推进到首个审批节点（**弱保证**：启动失败只记日志、不影响记录提交 —— 记录是业务真相）。
+- **`startPageId`（2026-10-29）**：`FlowSchema` 可选字段，指向**发起该流程的表单页**。门户「常用流程」物料据此列出发得起的流程并跳转该页，由表单的 `flow.start` 动作真正起流程（不新增「流程启动页」）。缺省 = 该流程不能从门户发起，仍可由页面 submit 触发；格式同页面编码（`^[A-Za-z_][\w-]*$`），非法报 `E_FLOW_START_PAGE`。流程定义本来就只能经 `PUT /flows/:flowId` 创建（无流程编辑 UI），所以该绑定与定义同源维护。
 - **推进语义**：`start` 自动通过（history 记 `start` / 驳回重入记 `reenter`）；`approve` 在 `mode=condition` 且 `condition` 求值为假时**跳过**（求值异常按 `true` 走审批，fail-open 防漏审），否则创建 pending 任务停下等审批；到达 `end` → 实例 `approved` 并应用 `onApprove.setField`；`reject` 有 `onReject` 则回退到目标节点、无则实例 `rejected` 终态。
 - **assignee 命中（单一事实源 `FlowService.canDecide`）**：`starter` = 实例发起人；`role` = 用户角色命中 **或 RBAC perms 含 `'*'` 超级豁免**；`dept` 首期无组织服务**不可命中**（与批 6 dataScope dept 降级同口径）。
 - **setField 回写**：服务端内部直写记录 payload（**不经表单 sanitize** —— 8.6 `status: approved` 回写语义）；顺序 = **先 CAS 落实例（写入 `pendingPatch` outbox）、再 CAS 回写记录、最后清空 outbox**。记录写失败或进程退出时，后续 GET 实例 / 列表 / 审批会补偿（见 10.6）。
