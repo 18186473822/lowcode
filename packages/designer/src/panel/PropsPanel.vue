@@ -470,6 +470,18 @@
                 {{ o.label }}
               </option>
             </select>
+            <select
+              v-else-if="s.setter === 'pagePicker'"
+              class="setter__select"
+              :value="str(read(s))"
+              data-testid="setter-page-picker"
+              @change="onSelect(s, $event)"
+            >
+              <option value="">未选择页面</option>
+              <option v-for="p in store.pages" :key="p.id" :value="p.id">
+                {{ p.name }}（{{ p.id }}）
+              </option>
+            </select>
             <textarea
               v-else-if="s.setter === 'textarea'"
               class="setter__input setter__textarea"

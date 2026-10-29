@@ -50,6 +50,8 @@ import LcPortalBanner from '@lc/materials/src/portal-banner/index.vue'
 import LcPortalNotice from '@lc/materials/src/portal-notice/index.vue'
 import LcPortalStat from '@lc/materials/src/portal-stat/index.vue'
 import LcPortalTodo from '@lc/materials/src/portal-todo/index.vue'
+import LcPortalGrid from '@lc/materials/src/portal-grid/index.vue'
+import LcPortalPageEntry from '@lc/materials/src/portal-page-entry/index.vue'
 
 /** kebab 标签名 → 物料组件（与 easycom `^lc-(.*)$` 解析结果一致） */
 export const MATERIAL_MAP: Record<string, Component> = {
@@ -90,6 +92,8 @@ export const MATERIAL_MAP: Record<string, Component> = {
   'lc-portal-notice': LcPortalNotice,
   'lc-portal-stat': LcPortalStat,
   'lc-portal-todo': LcPortalTodo,
+  'lc-portal-grid': LcPortalGrid,
+  'lc-portal-page-entry': LcPortalPageEntry,
 }
 
 /** 全局注册全部物料（供 lc-node 的 v-if 链标签解析） */

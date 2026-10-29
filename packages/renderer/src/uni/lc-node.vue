@@ -140,6 +140,13 @@
     <template v-else-if="material === 'PortalTodo'">
       <lc-portal-todo v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
     </template>
+    <!-- 2026-10-29 P2：魔方（九宫格入口）/ 页面入口（业务组件·引用已存页面） -->
+    <template v-else-if="material === 'PortalGrid'">
+      <lc-portal-grid v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
+    <template v-else-if="material === 'PortalPageEntry'">
+      <lc-portal-page-entry v-bind="bindProps" @item-click="onItemEvent('itemClick', $event)" />
+    </template>
     <!-- 带标题容器：自身渲染分组头，children 走下方统一递归 -->
     <template v-else-if="material === 'FormGroup'">
       <view class="lc-node__group">

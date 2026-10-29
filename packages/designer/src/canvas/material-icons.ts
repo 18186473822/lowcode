@@ -68,6 +68,12 @@ export const MATERIAL_ICONS: Record<string, string> = {
   // 待办列表：勾选项 + 两行待办（第一项已勾，第二项未勾）
   PortalTodo:
     '<rect x="2.8" y="3.9" width="2.6" height="2.6" rx="0.8"/><path d="m3.5 5.2 0.7 0.7 1.2-1.4"/><rect x="2.8" y="9.4" width="2.6" height="2.6" rx="0.8"/><path d="M7 5.2h6.2M7 10.7h4.2"/>',
+  // 魔方：2×2 小格（「九宫格入口」的构图，与 DataCard 的单卡区分）
+  PortalGrid:
+    '<rect x="2.6" y="2.6" width="4.4" height="4.4" rx="1.2"/><rect x="9" y="2.6" width="4.4" height="4.4" rx="1.2"/><rect x="2.6" y="9" width="4.4" height="4.4" rx="1.2"/><rect x="9" y="9" width="4.4" height="4.4" rx="1.2"/>',
+  // 页面入口：卡片 + 指向右侧的箭头（「从这里进入某页」）
+  PortalPageEntry:
+    '<rect x="2.4" y="3.6" width="6.4" height="8.8" rx="1.6"/><path d="M11 8h3M12.6 6.4 14.2 8l-1.6 1.6"/>',
 
   /* ---------------- feedback ---------------- */
   // 按钮：胶囊 + 内部短标签

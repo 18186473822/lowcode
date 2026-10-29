@@ -14,6 +14,7 @@ export type SetterType =
   | 'slider'
   | 'optionList'
   | 'json'
+  | 'pagePicker'
   | 'ruleEditor'
   | 'expression'
   | 'fieldPicker'

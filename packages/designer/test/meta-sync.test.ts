@@ -43,15 +43,15 @@ const BATCH4_NEW = ['Chart', 'Statistic'] as const
 /** 2026-10-28 门户组件库批 2 新增 4 物料（basic 2 + biz 2，见 docs/OPERATIONS.md §3.6） */
 const PORTAL_NEW = ['PortalBanner', 'PortalNotice', 'PortalStat', 'PortalTodo'] as const
 
-describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 32；批 4 后：35 / 34；门户批 2 后：39 / 38）', () => {
-  it('META_LIST 共 39 项（含 Page），展示项（排除 Page）= 38', () => {
-    expect(META_LIST).toHaveLength(39)
-    expect(META_LIST.filter((m) => m.name !== 'Page')).toHaveLength(38)
+describe('META 注册表同步（批 3：31 / 30；门户批 2：39 / 38；P2 魔方与页面入口后：41 / 40）', () => {
+  it('META_LIST 共 41 项（含 Page），展示项（排除 Page）= 40', () => {
+    expect(META_LIST).toHaveLength(41)
+    expect(META_LIST.filter((m) => m.name !== 'Page')).toHaveLength(40)
   })
 
   it('名称唯一，且 META_MAP 与 META_LIST 双向一致', () => {
     const names = META_LIST.map((m) => m.name)
-    expect(new Set(names).size).toBe(39)
+    expect(new Set(names).size).toBe(41)
     expect(Object.keys(META_MAP).sort()).toEqual([...names].sort())
   })
 
@@ -116,10 +116,10 @@ describe('META 注册表同步（批 3：31 项 / 展示 30；批 2 后：33 / 3
     }
   })
 
-  it('designer material-map 覆盖全部 37 个叶子物料组件（kebab 标签口径）', () => {
-    // 展示 38 = 37 叶子组件 + Page（无组件，lc-node 内联容器分支）
+  it('designer material-map 覆盖全部 39 个叶子物料组件（kebab 标签口径）', () => {
+    // 展示 40 = 39 叶子组件 + Page（无组件，lc-node 内联容器分支）
     const leafNames = META_LIST.filter((m) => m.name !== 'Page' && m.name !== 'FormGroup').map((m) => m.name)
-    expect(leafNames).toHaveLength(37)
+    expect(leafNames).toHaveLength(39)
     const toKebab = (s: string): string => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
     for (const name of leafNames) {
       expect(MATERIAL_MAP[`lc-${toKebab(name)}`], `${name} 缺 designer 映射`).toBeDefined()

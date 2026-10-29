@@ -136,4 +136,31 @@ export const BIZ_META: MaterialSchema[] = [
     events: ['itemClick'],
     supports: { condition: true, loop: false, perm: true },
   },
+  {
+    name: 'PortalPageEntry',
+    title: '页面入口',
+    category: 'biz',
+    order: 99,
+    version: '1.0.0',
+    // 云程「业务组件」的口径：从已配置页面里挑一个，直接变成入口卡
+    defaultProps: {
+      title: '',
+      desc: '',
+      icon: '入',
+      pageId: '',
+    },
+    settings: [
+      { key: 'title', label: '标题', setter: 'input', placeholder: '留空显示页面编码' },
+      { key: 'desc', label: '说明', setter: 'input', placeholder: '一行说明（可留空）' },
+      { key: 'icon', label: '图标字', setter: 'input', placeholder: '单字，如 请' },
+      {
+        key: 'pageId',
+        label: '目标页面',
+        setter: 'pagePicker',
+        help: '从已保存页面里选；运行时点击直达该页',
+      },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
 ]

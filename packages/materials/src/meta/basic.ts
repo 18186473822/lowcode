@@ -164,4 +164,35 @@ export const BASIC_META: MaterialSchema[] = [
     events: ['itemClick'],
     supports: { condition: true, loop: false, perm: true },
   },
+  {
+    name: 'PortalGrid',
+    title: '魔方',
+    category: 'basic',
+    order: 7,
+    version: '1.0.0',
+    // 云程口径的「魔方」：小格入口 + 图标字 + 名称，3/4 列
+    defaultProps: {
+      title: '',
+      columns: 4,
+      items: [
+        { icon: '考', title: '考勤', pageId: '' },
+        { icon: '报', title: '报销', pageId: '' },
+        { icon: '审', title: '审批', pageId: '' },
+        { icon: '档', title: '档案', pageId: '' },
+      ],
+    },
+    settings: [
+      {
+        key: 'items',
+        label: '入口项（JSON）',
+        setter: 'json',
+        placeholder: '[{"icon":"考","title":"考勤","pageId":"p_leave"}]',
+        help: 'pageId 填已保存页面编码则点击直达；留空只发 itemClick，由「动作」处理',
+      },
+      { key: 'columns', label: '每行列数', setter: 'number', help: '3 或 4（缺省 4）' },
+      { key: 'title', label: '分组标题', setter: 'input', placeholder: '留空不显示标题' },
+    ],
+    events: ['itemClick'],
+    supports: { condition: true, loop: false, perm: true },
+  },
 ]

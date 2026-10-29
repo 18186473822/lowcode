@@ -84,12 +84,13 @@ const PORTAL_GROUPS: Array<{ key: string; label: string; names: string[] }> = [
   {
     key: 'portal-basic',
     label: '基础组件',
-    names: ['PortalBanner', 'PortalNotice', 'Text', 'Image', 'Icon', 'Tag', 'Divider', 'Progress'],
+    names: ['PortalBanner', 'PortalNotice', 'PortalGrid', 'Text', 'Image', 'Icon', 'Tag', 'Divider', 'Progress'],
   },
   {
     key: 'portal-biz',
     label: '业务组件',
     names: [
+      'PortalPageEntry',
       'PortalStat',
       'PortalTodo',
       'Chart',

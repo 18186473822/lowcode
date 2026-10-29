@@ -54,7 +54,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 
 | 能力 | 状态 | 要点 |
 |---|---|---|
-| 物料库 | ✅ | 30+ 物料：基础/表单/数据/导航/反馈/图表/业务；META 注册表 |
+| 物料库 | ✅ | 39 个叶子物料（41 份 META，含 Page）：基础/表单/数据/导航/反馈/图表/业务；门户专属「魔方 / 页面入口 / 轮播 / 公告 / 数据卡 / 待办列表」 |
 | 画布渲染 | ✅ | 同进程 uni-shim + 增强器；rpx→px；选中/遮罩/动作拦截 |
 | 拖拽编排 | ✅ | 拖入、换位、删除、大纲树、撤销重做、跨页剪贴板 |
 | 属性配置 | ✅ | 基础 setter 真控件；未支持 setter 只读占位 |
@@ -241,6 +241,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-29 | 信息架构：门户为首页 | 设计器默认视图改为**门户设计**（不再自动打开硬编码 `demo`），新增 `store.pageLoaded` 标记按需拉页；页面级动作（保存 / 发布 / 撤销重做 / 保存徽标 / 底栏校验摘要）只在画布出现；清单 →「页面设计」改为**先取 schema 成功再切视图**（失败留清单红字、脏页二次确认防丢改动）；画布顶部面包屑 `← 门户设计 / 门户名`；「页面」菜单在清单页降级为纯工作区导航（无 pageId 输入 / 新建 / 删除当前页，避免误删看不见的页），顶栏品牌副标题随视图显示当前层级；designer 395 用例、`@lc/designer` / `@lc/designer-web` typecheck、designer-web build（1,320.76 kB / gzip 429.16）、`design:check` 全绿；浏览器实测：首屏落清单（空库只剩 2 条内置行）→ 新增 `default_home` → 4 卡片 + 4 门户物料 → 保存 `revision 2` / ETag `"page:default_home:2"` → 面包屑返回 → 工作区菜单进「数据模型」再回清单，全程无保存/发布/校验摘要外溢 |
 | 2026-10-29 | 门户首页骨架（P0） | 应用条（应用名 / 入口页 / 门户页数 / 最近编辑）+「门户页面 / 门户配置」两页签 + 工作区右栏五入口；`DesignerApi.getAppConfig` 做成可选能力（宿主未实现则降级「未命名应用」）；新增 `portal-home.test.ts`；designer 400 用例、design:check 全绿 |
 | 2026-10-29 | 门户配置（P1） | 应用设置扩到 `name / icon / entry / menus`：服务端校验 + patch 语义（`menus` 整组替换、`null` 清除）、MySQL `app_config.settings` 列（迁移 `20261029093000_app_config_settings`）、设计器可编辑面板（改名/图标/入口页/菜单增删排序 + 本地校验）、运行时按 `menus` 渲染首页并把 `entry` 置顶标「主页」（**不做自绘 tabBar**）；server 340 用例、designer 409 用例、design:check、H5 构建全绿；浏览器实测设计器保存落库 + 运行时首页 3 条菜单顺序/副标题/去重正确 |
+| 2026-10-29 | 门户物料（P2） | 新增「魔方」（`PortalGrid`，3/4 列入口格）与「页面入口」（`PortalPageEntry`，业务组件口径：从已保存页面里挑一个）；新增 `pagePicker` setter（选项来自 `listPages`，选中写回 `props.pageId`）；画布里的 `uni` 是 PC polyfill（无 `navigateTo`），物料跳转天然 no-op，不会跳走设计器；顶栏「工作区」菜单移除，工作区入口只留首页右栏；designer 411 用例、renderer 364 用例、typecheck、design:check、designer-web 与 H5 构建全绿 |
 
 ---
 

@@ -19,6 +19,8 @@ import LcPortalBanner from '@lc/materials/src/portal-banner/index.vue'
 import LcPortalNotice from '@lc/materials/src/portal-notice/index.vue'
 import LcPortalStat from '@lc/materials/src/portal-stat/index.vue'
 import LcPortalTodo from '@lc/materials/src/portal-todo/index.vue'
+import LcPortalGrid from '@lc/materials/src/portal-grid/index.vue'
+import LcPortalPageEntry from '@lc/materials/src/portal-page-entry/index.vue'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -303,6 +305,71 @@ describe('PortalTodo（待办列表）', () => {
     await flushPromises()
     expect(w.find('.lc-todo__state').text()).toContain('暂无待办')
     expect(w.find('.lc-todo__err').exists()).toBe(false)
+    w.unmount()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* 魔方 / 页面入口（2026-10-29 P2）                                    */
+/* ------------------------------------------------------------------ */
+
+describe('PortalGrid（魔方）', () => {
+  it('渲染标题与 N 个格；列数决定格宽', () => {
+    const w = mount(LcPortalGrid, {
+      props: {
+        title: '常用',
+        columns: 3,
+        items: [{ icon: '考', title: '考勤' }, { title: '报销' }],
+      },
+    })
+    expect(w.find('.lc-portal-grid__title').text()).toBe('常用')
+    expect(w.findAll('.lc-portal-grid__cell')).toHaveLength(2)
+    expect(w.findAll('.lc-portal-grid__cell')[0]!.attributes('style')).toContain('33.33')
+    w.unmount()
+  })
+
+  it('图标留空回落标题首字；items 也吃 JSON 文本', () => {
+    const w = mount(LcPortalGrid, {
+      props: { items: '[{"title":"考勤"},{"icon":"报","title":"报销"}]' },
+    })
+    const glyphs = w.findAll('.lc-portal-grid__glyph')
+    expect(glyphs[0]!.text()).toBe('考')
+    expect(glyphs[1]!.text()).toBe('报')
+    w.unmount()
+  })
+
+  it('空配置给引导文案（不是空白）', () => {
+    const w = mount(LcPortalGrid, { props: {} })
+    expect(w.find('.lc-portal-grid__empty-text').text()).toContain('入口项')
+    w.unmount()
+  })
+
+  it('点击发 itemClick；画布无 uni.navigateTo 时不抛错（安全 no-op）', async () => {
+    const w = mount(LcPortalGrid, { props: { items: [{ title: '考勤', pageId: 'p_leave' }] } })
+    await w.find('.lc-portal-grid__cell').trigger('tap')
+    expect(w.emitted('itemClick')?.[0]?.[0]).toMatchObject({ pageId: 'p_leave', title: '考勤' })
+    w.unmount()
+  })
+})
+
+describe('PortalPageEntry（页面入口）', () => {
+  it('标题/说明/图标渲染；未选页面时给提示', () => {
+    const w = mount(LcPortalPageEntry, { props: { title: '请假', desc: '发起请假申请', icon: '请' } })
+    expect(w.find('.lc-portal-entry__title').text()).toBe('请假')
+    expect(w.find('.lc-portal-entry__desc').text()).toBe('发起请假申请')
+    expect(w.find('.lc-portal-entry__glyph').text()).toBe('请')
+    w.unmount()
+
+    const empty = mount(LcPortalPageEntry, { props: {} })
+    expect(empty.find('.lc-portal-entry__desc').text()).toContain('目标页面')
+    empty.unmount()
+  })
+
+  it('未选页面时回落显示 pageId；点击把 pageId 发出去', async () => {
+    const w = mount(LcPortalPageEntry, { props: { pageId: 'p_leave' } })
+    expect(w.find('.lc-portal-entry__title').text()).toBe('p_leave')
+    await w.find('.lc-portal-entry').trigger('tap')
+    expect(w.emitted('itemClick')?.[0]?.[0]).toMatchObject({ pageId: 'p_leave' })
     w.unmount()
   })
 })
