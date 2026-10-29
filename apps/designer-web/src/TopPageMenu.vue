@@ -25,10 +25,9 @@
       @click="toggle"
     >
       <span v-if="store.view === 'page'" class="top-page__title">{{ currentName }}</span>
-      <span v-else-if="workspaceOnly" class="top-page__title">工作区</span>
       <span v-else class="top-page__title">{{ viewLabel }}</span>
       <span v-if="store.view === 'page'" class="top-page__type">{{ currentTypeLabel }}</span>
-      <span v-else-if="!workspaceOnly" class="top-page__type">工作区</span>
+      <span v-else class="top-page__type">工作区</span>
       <span v-if="store.view === 'page'" class="top-page__state">{{ store.currentVersion > 0 ? `v${store.currentVersion}` : '草稿' }}</span>
       <span class="top-page__caret" aria-hidden="true">▾</span>
     </button>
@@ -42,7 +41,7 @@
       @click.stop
     >
       <div class="top-page__head">
-        <span class="top-page__heading">{{ workspaceOnly ? '工作区' : '页面' }}</span>
+        <span class="top-page__heading">页面</span>
         <button
           class="top-page__link"
           type="button"
@@ -51,9 +50,8 @@
         >{{ store.pagesLoading ? '加载中…' : '刷新列表' }}</button>
       </div>
 
-      <!-- 页面级操作（打开 / 新建 / 删除当前页）只在画布里出现：
-           门户清单是首页，此时没有「当前可见页」，暴露删除会把用户看不见的页删掉。 -->
-      <div v-if="!workspaceOnly" class="top-page__open">
+      <!-- 页面级操作：本菜单只在设计器内出现（门户首页不渲染），所以这里始终有「当前页」语义 -->
+      <div class="top-page__open">
         <input
           v-model="draftId"
           class="top-page__input"
@@ -72,7 +70,7 @@
         >打开</button>
       </div>
 
-      <div v-if="!workspaceOnly" class="top-page__ops">
+      <div class="top-page__ops">
         <button
           class="top-btn top-btn--primary"
           type="button"
@@ -92,10 +90,8 @@
 
       <div class="top-page__divider" aria-hidden="true" />
 
-      <!-- 门户设计是**一级首页**，不是并列的工作区：单列为「返回」入口放在工作区之上。
-           已经在门户清单里时隐藏（点了也是原地不动）。 -->
+      <!-- 门户设计是**一级首页**，不是并列的工作区：单列为「返回」入口放在工作区之上 -->
       <button
-        v-if="!workspaceOnly"
         class="top-page__nav top-page__nav--home"
         type="button"
         data-testid="back-to-portal"
@@ -136,8 +132,7 @@
       <p v-else-if="store.pagesLoading" class="top-page__hint">加载中…</p>
       <div v-else-if="!store.pages.length" class="top-page__empty">
         <strong>还没有已保存的页面</strong>
-        <span v-if="workspaceOnly">先在「数据模型」里建模型，再回门户或画布生成页面。</span>
-        <span v-else>点「新建页面」选模型，一次生成列表 / 表单 / 详情并自动串联。</span>
+        <span>点「新建页面」选模型，一次生成列表 / 表单 / 详情并自动串联。</span>
       </div>
       <!-- 按模型分组：一个模型 = 一组标准页（云程「模块」口径），未绑定的单独一组 -->
       <div v-else class="top-page__list" role="listbox" aria-label="页面列表">
@@ -182,12 +177,6 @@ import { useDesignerStore, type PageListItem } from '@lc/designer'
 import NewPageDialog from './NewPageDialog.vue'
 
 const store = useDesignerStore()
-
-/**
- * workspaceOnly：只当「工作区导航」用（门户清单首页）。
- * 此时隐藏页面级操作（打开 / 新建 / 删除当前页）——清单页没有「当前可见页」。
- */
-const props = defineProps<{ workspaceOnly?: boolean }>()
 
 const open = ref(false)
 /** 模型优先的新建页面弹层 */
@@ -236,8 +225,6 @@ const currentModelId = computed(() => {
   return store.submitModelId ?? ''
 })
 const triggerTitle = computed(() => {
-  // 门户首页只有工作区入口（没有「当前页」），标题别再挂一个看不见的视图名
-  if (props.workspaceOnly) return '工作区：数据模型 / 权限管理 / 主题配置 / 开放集成 / 物料市场'
   if (store.view !== 'page') return `当前工作区：${viewLabel.value}（点此切换页面 / 工作区）`
   if (!store.pageId) return '选择或新建页面'
   return `当前页面：${store.pageId} · ${currentTypeLabel.value}${currentModelId.value ? ` · 模型 ${currentModelId.value}` : ' · 未绑定模型'}`

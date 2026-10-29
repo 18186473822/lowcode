@@ -44,10 +44,12 @@
         </template>
         <!-- 2026-10-28：换页下拉 + pageId 输入 + 打开 / 新建 / 删除 合并为「页面」菜单。
              原先五个控件平铺，1076px 窗口下被 flex 压缩、下拉与删除按钮互相重叠。
-             2026-10-29：门户设计是**一级首页**，此时还没有「当前页」可管：菜单降级为
-             「工作区」导航（workspaceOnly），页面级操作整体不出现。 -->
-        <top-page-menu :workspace-only="isPortalView" />
-        <span class="top-sep" aria-hidden="true" />
+             2026-10-29：门户设计是**一级首页**，工作区入口只保留首页右栏卡片，
+             所以这里整体不渲染（不再降级成「工作区」导航，避免两处入口并存）。 -->
+        <template v-if="!isPortalView">
+          <top-page-menu />
+          <span class="top-sep" aria-hidden="true" />
+        </template>
         <!-- 页面级动作只在画布视图出现：门户清单 / 模型 / 权限等视图下没有「当前可见页」，
              留着保存/发布会把用户看不见的页写盘（2026-10-28 结构调整）。 -->
         <template v-if="isCanvasView">
