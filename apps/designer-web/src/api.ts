@@ -19,7 +19,7 @@ import type {
   WebhookMetrics,
   WebhookSubscription,
 } from '@lc/designer'
-import type { PageSchema, ModelSchema, AppTheme } from '@lc/schema'
+import type { PageSchema, ModelSchema, AppTheme, AppSchema } from '@lc/schema'
 
 const BASE = '/api/v1'
 const SEED_USER = { username: 'admin', password: 'admin123' }
@@ -171,6 +171,11 @@ function ifMatchFor(pageId: string, revision: number | undefined): Record<string
 }
 
 export const designerApi: DesignerApi = {
+  /** 应用配置（门户首页应用条）：`GET /apps/config` 直接返回 AppSchema，无配置时服务端给默认骨架 */
+  async getAppConfig() {
+    const res = await req('/apps/config')
+    return (await res.json()) as AppSchema
+  },
   async getSchema(pageId, version) {
     const qs = version ? `?version=${encodeURIComponent(version)}` : ''
     const res = await req(`/pages/${encodeURIComponent(pageId)}/schema${qs}`)

@@ -18,6 +18,7 @@ import type {
   ListPageConfig,
   DetailPageConfig,
   PortalPageConfig,
+  AppSchema,
 } from '@lc/schema'
 import { validatePage } from '@lc/schema'
 import { countNodes, formatPerf, type PerfSample } from '@lc/renderer'
@@ -125,6 +126,13 @@ export interface DesignerApi {
    * 宿主未实现时 store 给出降级提示、不抛错 —— 避免为一个管理动作强制所有 API 实现跟进。
    */
   deletePage?(pageId: string): Promise<{ removedVersions: number }>
+  /**
+   * 应用配置（**可选能力**）：门户首页的应用条（应用名 / 入口页）需要它。
+   *
+   * 清单本身的数据源是 `listPages`，应用配置只是门面 —— 宿主不实现时降级为
+   * 「未命名应用 / 入口页未设置」，不影响清单加载。
+   */
+  getAppConfig?(): Promise<AppSchema>
 }
 
 /** 页面列表项（2026-10-20；除 id/name 外为可选富字段） */
@@ -798,6 +806,28 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       opened ? '，已打开首页' : '，但打开首页失败'
     }${refWarn}`
     return true
+  }
+
+  /* ---------------- 2026-10-29：应用配置（门户首页应用条） ---------------- */
+
+  /**
+   * 应用配置：首页应用条展示「应用名 / 入口页」。
+   *
+   * 与清单解耦 —— 宿主没实现 `getAppConfig` 时直接返回 false，门户清单照常可用。
+   */
+  const appConfig = ref<AppSchema | null>(null)
+  const appConfigError = ref('')
+
+  async function loadAppConfig(): Promise<boolean> {
+    if (!api?.getAppConfig) return false
+    try {
+      appConfig.value = await api.getAppConfig()
+      appConfigError.value = ''
+      return true
+    } catch (e) {
+      appConfigError.value = `应用配置加载失败：${errMsg(e)}`
+      return false
+    }
   }
 
   /* ---------------- 2026-10-28：门户清单（移动门户） ---------------- */
@@ -1545,6 +1575,10 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     loadPortalPages,
     createPortalPage,
     updatePortalMeta,
+    /* 2026-10-29：应用配置（门户首页应用条） */
+    appConfig,
+    appConfigError,
+    loadAppConfig,
     /* 批 5：Profiler 采样（schema 加载 / 画布渲染） */
     perf,
     perfText,

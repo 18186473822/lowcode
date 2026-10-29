@@ -599,6 +599,8 @@ onMounted(() => {
   // 这里只预载清单（内部会顺手刷新页面列表，供「页面」菜单用），**不再自动 openPage**：
   // 旧实现一进来就打开硬编码的 demo 页，用户既没选择过它，保存按钮还会把不可见的内容写盘。
   void store.loadPortalPages()
+  // 应用条（应用名 / 入口页）：可选能力，宿主没实现时不阻塞清单
+  void store.loadAppConfig()
   window.addEventListener('keydown', onKey)
 })
 onUnmounted(() => {

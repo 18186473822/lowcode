@@ -25,9 +25,10 @@
       @click="toggle"
     >
       <span v-if="store.view === 'page'" class="top-page__title">{{ currentName }}</span>
+      <span v-else-if="workspaceOnly" class="top-page__title">工作区</span>
       <span v-else class="top-page__title">{{ viewLabel }}</span>
       <span v-if="store.view === 'page'" class="top-page__type">{{ currentTypeLabel }}</span>
-      <span v-else class="top-page__type">工作区</span>
+      <span v-else-if="!workspaceOnly" class="top-page__type">工作区</span>
       <span v-if="store.view === 'page'" class="top-page__state">{{ store.currentVersion > 0 ? `v${store.currentVersion}` : '草稿' }}</span>
       <span class="top-page__caret" aria-hidden="true">▾</span>
     </button>
@@ -235,6 +236,8 @@ const currentModelId = computed(() => {
   return store.submitModelId ?? ''
 })
 const triggerTitle = computed(() => {
+  // 门户首页只有工作区入口（没有「当前页」），标题别再挂一个看不见的视图名
+  if (props.workspaceOnly) return '工作区：数据模型 / 权限管理 / 主题配置 / 开放集成 / 物料市场'
   if (store.view !== 'page') return `当前工作区：${viewLabel.value}（点此切换页面 / 工作区）`
   if (!store.pageId) return '选择或新建页面'
   return `当前页面：${store.pageId} · ${currentTypeLabel.value}${currentModelId.value ? ` · 模型 ${currentModelId.value}` : ' · 未绑定模型'}`
