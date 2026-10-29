@@ -264,6 +264,9 @@ importers:
 
   packages/designer:
     dependencies:
+      '@lc/expression':
+        specifier: workspace:*
+        version: link:../expression
       '@lc/materials':
         specifier: workspace:*
         version: link:../materials

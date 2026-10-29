@@ -65,6 +65,47 @@ describe('MaterialPanel（META 分组 + 拖拽源）', () => {
     await w.find('.lc-material-panel__item').trigger('dragstart')
     w.unmount()
   })
+
+  it('搜索：按标题/分组过滤并自动展开；清除后恢复 41 项', async () => {
+    const w = mount(MaterialPanel)
+    const search = w.get('[data-testid="material-search"]')
+    await search.setValue('轮播')
+    expect(w.findAll('.lc-material-panel__item')).toHaveLength(1)
+    expect(w.find('.lc-material-panel__item').text()).toContain('轮播图')
+    expect(w.findAll('.lc-material-panel__group-title').map((g) => g.text())).toEqual(['基础'])
+
+    await w.get('[data-testid="material-search-clear"]').trigger('click')
+    expect(w.findAll('.lc-material-panel__item')).toHaveLength(41)
+    w.unmount()
+  })
+
+  it('点击物料行 → 追加到 root 末尾并选中新节点', async () => {
+    const store = useDesignerStore()
+    const before = store.schema.root.children?.length ?? 0
+    const w = mount(MaterialPanel)
+    const row = w
+      .findAll('.lc-material-panel__item')
+      .find((i) => i.text().includes('单行输入'))!
+    await row.trigger('click')
+    expect(store.schema.root.children?.length).toBe(before + 1)
+    expect(store.selectedId).not.toBe('')
+    w.unmount()
+  })
+
+  it('分组头折叠：点击后列表隐藏，再点恢复', async () => {
+    const w = mount(MaterialPanel)
+    const head = w.findAll('.mat-group')[0]!
+    const listStyle = (): string =>
+      w.findAll('.lc-material-panel__list')[0]!.attributes('style') ?? ''
+    expect(listStyle()).not.toContain('display: none')
+    expect(head.attributes('aria-expanded')).toBe('true')
+    await head.trigger('click')
+    expect(listStyle()).toContain('display: none')
+    expect(head.attributes('aria-expanded')).toBe('false')
+    await head.trigger('click')
+    expect(listStyle()).not.toContain('display: none')
+    w.unmount()
+  })
 })
 
 describe('PropsPanel（选中信息 / 操作按钮 / settings 列出）', () => {
@@ -74,7 +115,7 @@ describe('PropsPanel（选中信息 / 操作按钮 / settings 列出）', () => 
     w.unmount()
   })
 
-  it('选中 Input → 标题 + id + settings 6 行 setter 表单 + expression 占位', async () => {
+  it('选中 Input → 标题 + id + settings 6 行 setter 表单 + expression 输入', async () => {
     const store = useDesignerStore()
     store.select('n-input')
     const w = mount(PropsPanel)
@@ -87,14 +128,25 @@ describe('PropsPanel（选中信息 / 操作按钮 / settings 列出）', () => 
     const rows = w.find('.lc-props-panel__settings').findAll('.setter')
     expect(rows).toHaveLength(6) // label/name/placeholder/required/disabled/value
     expect(w.text()).toContain('字段名')
-    // 控件分布（限 settings 区块；批 6 的权限点 perm 在区块外，不计入）：3 input + 2 switch + 1 占位
+    // 控件分布（限 settings 区块；批 6 的权限点 perm 在区块外，不计入）：
+    // 4 input（label/name/placeholder/value-expression）+ 2 switch
     const settingsBox = w.find('.lc-props-panel__settings')
-    expect(settingsBox.findAll('input[type="text"]')).toHaveLength(3)
+    expect(settingsBox.findAll('input[type="text"]')).toHaveLength(4)
     expect(settingsBox.findAll('input[type="checkbox"]')).toHaveLength(2)
-    const ph = w.find('.setter-unsupported')
-    expect(ph.exists()).toBe(true)
-    expect(ph.text()).toContain('expression')
-    expect(ph.text()).toContain('Phase 2')
+
+    // expression setter：静态值不报错；$expr: 前缀走语法校验
+    const expr = w.get('[data-testid="setter-expr-value"]')
+    expect(expr.element.tagName).toBe('INPUT')
+    await expr.setValue('张三')
+    expect(findNode(store.schema, 'n-input')!.props!.value).toBe('张三')
+    expect(w.find('.setter__expr-err').exists()).toBe(false)
+
+    await expr.setValue('$expr: formData.a +')
+    expect(findNode(store.schema, 'n-input')!.props!.value).toBe('$expr: formData.a +')
+    expect(w.find('.setter__expr-err').text()).toContain('表达式语法错误')
+
+    await expr.setValue('$expr: formData.a')
+    expect(w.find('.setter__expr-err').exists()).toBe(false)
 
     // 删除/排序可用（非 root）
     const deleteBtn = w.findAll('.op-btn--danger')[0]!
@@ -400,7 +452,7 @@ describe('PropsPanel 字段绑定（提交模型 + 绑定字段）', () => {
     w.unmount()
   })
 
-  it('动作绑定（D-A13）：Button 出 click 下拉，选「提交表单」写 actions；有参动作占位禁用', async () => {
+  it('动作绑定（D-A13）：Button 出 click 下拉，选「提交表单」写 actions；navigate/toast 可配参数', async () => {
     const store = useDesignerStore()
     store.setApi(apiWithModels())
     store.select('n-btn') // Button.events = ['click']
@@ -419,9 +471,24 @@ describe('PropsPanel 字段绑定（提交模型 + 绑定字段）', () => {
     const sel2 = w.find('[data-testid="action-click"]')
     expect((sel2.element as HTMLSelectElement).value).toBe('submit')
 
-    // 有参动作（页面跳转）→ 占位禁用（参数编辑器 Phase 2）
+    // 页面跳转：不再禁用；切过去带最小参数骨架 + 页面选择器
     const nav = sel2.findAll('option').find((o) => o.text()!.includes('页面跳转'))!
-    expect(nav.attributes('disabled')).toBeDefined()
+    expect(nav.attributes('disabled')).toBeUndefined()
+    await sel2.setValue('navigate')
+    expect(findNode(store.schema, 'n-btn')!.actions).toEqual([
+      { event: 'click', type: 'navigate', value: { pageId: '' } },
+    ])
+    expect(w.find('[data-testid="action-click-page"]').exists()).toBe(true)
+
+    // 轻提示：文案实时写 value.text
+    await sel2.setValue('toast')
+    expect(findNode(store.schema, 'n-btn')!.actions).toEqual([
+      { event: 'click', type: 'toast', value: { text: '' } },
+    ])
+    await w.get('[data-testid="action-click-text"]').setValue('已提交')
+    expect(findNode(store.schema, 'n-btn')!.actions).toEqual([
+      { event: 'click', type: 'toast', value: { text: '已提交' } },
+    ])
 
     // 解除
     await sel2.setValue('')

@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@lc/expression": "workspace:*",
     "@lc/materials": "workspace:*",
     "@lc/renderer": "workspace:*",
     "@lc/schema": "workspace:*",

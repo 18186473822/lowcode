@@ -237,88 +237,239 @@ a.top-btn {
   background: var(--lc-bg-canvas);
 }
 
-/* 标准页（list/detail）提示条 */
-.std-hint {
+/* 画布页头：层级 + 页型 + 规模读数。不再使用蓝色提示条。 */
+.canvas-head {
   flex-shrink: 0;
-  padding: var(--lc-space-2) var(--lc-space-4);
-  font-size: var(--lc-font-caption);
-  line-height: var(--lc-leading-ui);
-  color: var(--lc-text-link);
-  background: var(--lc-status-info-bg);
-  border-bottom: var(--lc-border-width) solid var(--lc-brand-200);
-}
-.std-hint strong {
-  margin-right: var(--lc-space-1);
-}
-
-/* 面包屑：门户页从「移动门户」清单下钻进来，返回入口必须常驻（不藏在菜单里） */
-.canvas-crumbs {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--lc-space-2);
-  height: 32px;
-  padding: 0 var(--lc-space-4);
-  font-size: var(--lc-font-caption);
-  background: var(--lc-bg-surface);
-  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
-}
-.canvas-crumbs__back {
-  padding: var(--lc-space-0-5) var(--lc-space-1-5);
-  font-family: inherit;
-  font-size: var(--lc-font-caption);
-  color: var(--lc-text-link);
-  background: none;
-  border: var(--lc-border-width) solid transparent;
-  border-radius: var(--lc-radius-sm);
-  cursor: pointer;
-}
-.canvas-crumbs__back:hover {
-  background: var(--lc-bg-subtle);
-  border-color: var(--lc-border-default);
-}
-.canvas-crumbs__back:focus-visible {
-  outline: var(--lc-focus-ring);
-  outline-offset: 1px;
-}
-.canvas-crumbs__sep {
-  color: var(--lc-text-tertiary);
-}
-.canvas-crumbs__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: var(--lc-weight-medium);
-  color: var(--lc-text-primary);
-}
-
-/* ---------------- 画布工具条（§7.1 高 40 · 白底 · 左设备 / 右缩放与标尺） ---------------- */
-
-.canvas-bar {
-  flex-shrink: 0;
-  height: 40px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--lc-space-4);
   padding: 0 var(--lc-space-4);
+  font-size: var(--lc-font-caption);
   background: var(--lc-bg-surface);
   border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
-.canvas-bar__group {
+.canvas-head__path {
   display: flex;
   align-items: center;
-  gap: var(--lc-space-1);
+  gap: var(--lc-space-2);
+  min-width: 0;
 }
-.canvas-bar__zoom {
-  min-width: 44px;
-  text-align: center;
-  font-family: var(--lc-font-mono);
+.canvas-head__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+  height: 26px;
+  padding: 0 var(--lc-space-1-5);
+  font-family: inherit;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
+  background: none;
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    color var(--lc-duration-fast) var(--lc-ease-standard);
 }
+.canvas-head__back:hover {
+  background: var(--lc-bg-subtle);
+  border-color: var(--lc-border-default);
+  color: var(--lc-text-primary);
+}
+.canvas-head__back:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.canvas-head__arrow {
+  font-size: var(--lc-font-body);
+  line-height: var(--lc-leading-label);
+}
+.canvas-head__slash {
+  color: var(--lc-text-tertiary);
+}
+.canvas-head__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.canvas-head__type {
+  flex-shrink: 0;
+  padding: 1px var(--lc-space-1-5);
+  font-size: var(--lc-font-micro);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-secondary);
+  background: var(--lc-bg-subtle);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-xs);
+}
+.canvas-head__facts {
+  flex-shrink: 0;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--lc-text-tertiary);
+  white-space: nowrap;
+}
+
+/* ---------------- 画布工具条（§7.1 高 44 · 白底 · 左设备轨道 / 右预览、缩放与标尺） ---------------- */
+
+.canvas-bar {
+  flex-shrink: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-3);
+  padding: 0 var(--lc-space-4);
+  background: var(--lc-bg-surface);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.canvas-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  flex-shrink: 0;
+}
+.canvas-bar__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--lc-border-default);
+}
+
+/* 设备档位：内凹轨道 + 白色滑块。选中不靠主色填充，避免与画布内容抢注意力。 */
+.canvas-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-0-5);
+  padding: var(--lc-space-0-5);
+  background: var(--lc-bg-subtle);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-md);
+}
+.canvas-seg__btn {
+  height: 26px;
+  padding: 0 var(--lc-space-2-5);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  white-space: nowrap;
+  color: var(--lc-text-secondary);
+  background: none;
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--lc-duration-fast) var(--lc-ease-standard),
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.canvas-seg__btn:hover {
+  color: var(--lc-text-primary);
+}
+.canvas-seg__btn--on {
+  background: var(--lc-bg-surface);
+  border-color: var(--lc-border-default);
+  color: var(--lc-text-primary);
+  font-weight: var(--lc-weight-semibold);
+  box-shadow: var(--lc-shadow-e1);
+}
+.canvas-seg__btn:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+
+/* 预览：工具条里唯一带边框的入口，层级低于顶栏「保存 / 发布」 */
+.canvas-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  min-height: var(--lc-btn-h-md);
+  padding: 0 var(--lc-space-2-5);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  white-space: nowrap;
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-surface);
+  border: var(--lc-border-width) solid var(--lc-border-strong);
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--lc-duration-fast) var(--lc-ease-standard),
+    background-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.canvas-preview:hover:not(:disabled) {
+  border-color: var(--lc-action-primary);
+  background: var(--lc-bg-subtle);
+}
+.canvas-preview:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+.canvas-preview:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.canvas-preview__icon {
+  flex: 0 0 14px;
+  color: var(--lc-icon-muted);
+}
+.canvas-preview:hover .canvas-preview__icon {
+  color: var(--lc-action-primary);
+}
+
+/* 缩放：连体步进器，读数用等宽数字 */
+.canvas-zoom {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  background: var(--lc-bg-surface);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-sm);
+}
+.canvas-zoom__btn {
+  width: 28px;
+  height: 26px;
+  font-family: inherit;
+  font-size: var(--lc-font-body);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.canvas-zoom__btn:hover:not(:disabled) {
+  background: var(--lc-bg-subtle);
+  color: var(--lc-text-primary);
+}
+.canvas-zoom__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.canvas-zoom__btn:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: -2px;
+}
+.canvas-zoom__value {
+  min-width: 48px;
+  padding: 0 var(--lc-space-1);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--lc-text-secondary);
+  border-right: var(--lc-border-width) solid var(--lc-border-default);
+  border-left: var(--lc-border-width) solid var(--lc-border-default);
+}
+
+/* 标尺开关：按下态用中性底 + 描边，不用主色块 */
 .canvas-chip {
-  padding: var(--lc-space-1) var(--lc-space-2);
+  height: 28px;
+  padding: 0 var(--lc-space-2);
   font-family: inherit;
   font-size: var(--lc-font-caption);
   border: var(--lc-border-width) solid transparent;
@@ -335,13 +486,10 @@ a.top-btn {
   background: var(--lc-bg-subtle);
   color: var(--lc-text-primary);
 }
-.canvas-chip:active:not(:disabled) {
-  background: var(--lc-bg-canvas);
-}
 .canvas-chip--on {
-  background: var(--lc-action-primary-subtle);
-  border-color: var(--lc-brand-200);
-  color: var(--lc-action-primary);
+  background: var(--lc-bg-subtle);
+  border-color: var(--lc-border-default);
+  color: var(--lc-text-primary);
   font-weight: var(--lc-weight-semibold);
 }
 .canvas-chip:disabled {
@@ -351,6 +499,37 @@ a.top-btn {
 .canvas-chip:focus-visible {
   outline: var(--lc-focus-ring);
   outline-offset: 1px;
+}
+
+/* 画布读数栏：页型 + 尺寸 / 组件 / 缩放。 */
+.canvas-foot {
+  flex-shrink: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-4);
+  padding: 0 var(--lc-space-4);
+  font-size: var(--lc-font-micro);
+  background: var(--lc-bg-surface);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+  color: var(--lc-text-secondary);
+}
+.canvas-foot__kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-foot__readout {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-3);
+  flex-shrink: 0;
+  font-family: var(--lc-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--lc-text-tertiary);
+  white-space: nowrap;
 }
 
 /* 标尺 · 参考线（§7.1）：开启时用 20px 双轴网格，左上角留空白角块 */
@@ -528,6 +707,18 @@ a.top-btn {
 
 @media (max-width: 1279px) {
   .designer__perf {
+    display: none;
+  }
+}
+
+/* 画布读数在窄屏让位给设备轨道与预览：先隐藏页头规模，再隐藏缩放读数 */
+@media (max-width: 1099px) {
+  .canvas-head__facts {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .canvas-foot__zoom {
     display: none;
   }
 }

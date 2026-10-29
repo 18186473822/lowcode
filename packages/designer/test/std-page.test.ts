@@ -425,4 +425,40 @@ describe('PropsPanel：门户配置区块', () => {
     expect(store.schema.portal?.cards).toEqual([])
     w.unmount()
   })
+
+  it('卡片行：默认折叠、展开编辑 badge/url、上移/复制/删除', async () => {
+    const store = useDesignerStore()
+    store.setApi(mockApi())
+    store.setPageType('portal')
+    store.setPortalConfig({ cards: [{ title: '甲' }, { title: '乙' }] })
+    const w = mount(PropsPanel)
+    await flushPromises()
+
+    // 初始折叠：卡片行没有 --open；展开后加上
+    const card = (i: number) => w.get(`[data-testid="portal-card-${i}"]`)
+    expect(card(1).classes()).not.toContain('lc-props-panel__card--open')
+    await w.get('[data-testid="portal-card-toggle-1"]').trigger('click')
+    expect(card(1).classes()).toContain('lc-props-panel__card--open')
+
+    await w.get('[data-testid="portal-card-badge-1"]').setValue('新')
+    await w.get('[data-testid="portal-card-url-1"]').setValue('https://example.com')
+    expect(store.schema.portal?.cards[1]).toMatchObject({
+      title: '乙',
+      badge: '新',
+      url: 'https://example.com',
+    })
+
+    // 上移：乙到第一位
+    await w.get('[data-testid="portal-card-up-1"]').trigger('click')
+    expect(store.schema.portal?.cards.map((c) => c.title)).toEqual(['乙', '甲'])
+
+    // 复制：原地插入副本
+    await w.get('[data-testid="portal-card-copy-0"]').trigger('click')
+    expect(store.schema.portal?.cards.map((c) => c.title)).toEqual(['乙', '乙 副本', '甲'])
+
+    // 删除副本
+    await w.get('[data-testid="portal-card-del-1"]').trigger('click')
+    expect(store.schema.portal?.cards.map((c) => c.title)).toEqual(['乙', '甲'])
+    w.unmount()
+  })
 })

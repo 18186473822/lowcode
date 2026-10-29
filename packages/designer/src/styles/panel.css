@@ -298,6 +298,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 堆叠标签：可视化条目编辑器 / 长标签需要整行宽度，标签独占一行（2026-10-29） */
+.setter--stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--lc-space-1);
+  align-items: stretch;
+}
+.setter--stack > .setter__label {
+  white-space: normal;
+  overflow: visible;
+}
 .setter__req {
   color: var(--lc-status-danger);
   font-style: normal;

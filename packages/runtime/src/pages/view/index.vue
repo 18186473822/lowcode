@@ -196,11 +196,14 @@ function onNavigate(target: { pageId: string; params: Record<string, unknown> })
  *   其他        → 重试本页加载
  */
 function onStateAction(kind?: StateKind): void {
-  if (kind === 'forbidden') {
+  // lc-state-view 的按钮只 emit('action')，不带 kind —— 以当前状态为准，
+  // 否则「去登录」会落进默认重试分支，401 死循环（2026-10-29 实测预览页）。
+  const k = kind ?? state.value?.kind
+  if (k === 'forbidden') {
     goMenu()
     return
   }
-  if (kind === 'no-auth') {
+  if (k === 'no-auth') {
     goLogin()
     return
   }

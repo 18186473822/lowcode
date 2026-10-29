@@ -16,7 +16,11 @@
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <div class="lc-canvas__stage" :style="zoomStyle">
+    <div
+      class="lc-canvas__stage"
+      :class="{ 'lc-canvas__stage--h5': device === 'h5' }"
+      :style="zoomStyle"
+    >
       <div class="lc-canvas__device" :style="deviceStyle">
         <!-- 页面层：布局宽恒 375，靠 zoom 放大到设备档位。
              选 zoom 而不是 transform：zoom **参与布局**，外壳高度会自己跟着涨，
@@ -47,6 +51,12 @@
         <div v-if="guides" class="lc-canvas__guides" data-testid="canvas-guides" aria-hidden="true">
           <i class="lc-canvas__guide lc-canvas__guide--v" />
           <i class="lc-canvas__guide lc-canvas__guide--h" />
+        </div>
+        <!-- 空画布引导：只在没有卡片、也没有拖入节点时出现（纯提示，不拦截拖放） -->
+        <div v-if="isEmpty" class="lc-canvas__empty" data-testid="canvas-empty">
+          <span class="lc-canvas__empty-icon" aria-hidden="true">＋</span>
+          <span class="lc-canvas__empty-title">把第一个组件放到这里</span>
+          <span class="lc-canvas__empty-text">从左侧拖入，或点击物料直接添加</span>
         </div>
       </div>
     </div>
@@ -117,10 +127,13 @@ let ro: ResizeObserver | undefined
  * 这里量的是**父级（stage）的宽度**去设**子级（page）的 zoom**，不是自指：
  * stage 宽度由布局决定，不依赖 page 的 zoom。
  */
+/** 样机内衬 = 左右各 8px + 左右各 1px 描边（页面层要完整落在内衬里） */
+const BEZEL = 18
+
 const pageZoom = computed(() => {
   if (props.device === '750') return 2
   if (props.device === 'h5') {
-    const avail = stageW.value > 0 ? Math.min(stageW.value, 720) : 375
+    const avail = stageW.value > 0 ? Math.min(stageW.value, 720) - BEZEL : 375
     return Math.max(avail / 375, 0.5)
   }
   return 1
@@ -128,14 +141,25 @@ const pageZoom = computed(() => {
 
 const deviceStyle = computed<Record<string, string>>(() => {
   if (props.device === 'h5') return { width: '100%', maxWidth: '720px' }
-  return { width: props.device === '750' ? '750px' : 'var(--lc-device-w)' }
+  const pageW = props.device === '750' ? 750 : 375
+  // 宽度写在外壳上：页面 375/750 宽 + 内衬 16 + 描边 2
+  return { width: `calc(${pageW}px + var(--lc-space-4) + 2px)` }
 })
 
-/** 页面层：布局宽恒 375，靠 zoom 放大（zoom 参与布局，故无需量高度） */
+/** 页面层：布局宽恒 375，靠 zoom 放大（zoom 参与布局，故无需量高度）。
+ *  min-height 按页面坐标折算：620 是**视觉高度**，除 pageZoom 后各档位都得到同样的手机高度。 */
 const pageStyle = computed<Record<string, string>>(() => ({
   width: '375px',
   zoom: String(pageZoom.value),
+  minHeight: `calc(var(--lc-device-min-h) / ${pageZoom.value})`,
 }))
+
+/** 空画布：root 之外没有节点，且门户没有配置卡片 */
+const isEmpty = computed(() => {
+  const hasNodes = countNodes(props.schema.root) > 1
+  const hasCards = props.schema.type === 'portal' && (props.schema.portal?.cards?.length ?? 0) > 0
+  return !hasNodes && !hasCards
+})
 
 /** 缩放用 transform：不改布局盒，画布滚动区仍按原尺寸算 —— 符合「预览」语义 */
 onMounted(() => {
@@ -152,10 +176,11 @@ onUnmounted(() => {
   endDragVisual()
 })
 
-/** 缩放用 transform：不改布局盒，画布滚动区仍按原尺寸算 —— 符合「预览」语义 */
+/** 视图缩放用 zoom（参与布局）：放大后滚动区跟着变宽，150% 时左右两侧仍可滚到。
+ *  旧实现用 transform，滚动宽度按未缩放尺寸算，放大后两侧会被裁掉 —— 2026-10-29 实测修正。 */
 const zoomStyle = computed<Record<string, string> | undefined>(() => {
   const z = props.zoom ?? 100
-  return z === 100 ? undefined : { transform: `scale(${z / 100})`, transformOrigin: 'top center' }
+  return z === 100 ? undefined : { zoom: String(z / 100) }
 })
 
 /* ---------------- 选中（批 1） ---------------- */
@@ -410,32 +435,82 @@ onUnmounted(() => {
   background: var(--lc-bg-canvas);
   padding: var(--lc-space-6);
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
 }
+/* width:max-content + margin:auto：内容比视口窄时居中，比视口宽时 auto 边距归零，
+   左边缘仍可滚到（flex 居中在溢出时会裁掉左侧，这是 2026-10-29 修掉的另一处）。
+   H5 档例外：设备要吃掉剩余宽度。 */
 .lc-canvas__stage {
+  width: max-content;
+  margin: 0 auto;
   display: flex;
   justify-content: center;
   align-items: flex-start;
+}
+.lc-canvas__stage--h5 {
   width: 100%;
+  max-width: 736px;
 }
 .lc-canvas__page {
-  /* 布局宽恒 375；放大靠 inline zoom（参与布局，外壳高度自动跟随） */
+  /* 布局宽恒 375；放大靠 inline zoom（参与布局，外壳高度自动跟随）。
+     min-height 由 inline style 按 pageZoom 折算，保证各档位视觉高度一致。 */
+  background: var(--lc-bg-surface);
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--lc-border-default);
 }
+/* 样机边框：8px 中性内衬 + 1px 描边 + 20px 圆角。不画刘海/状态栏 —— 页面内容才是实物。 */
 .lc-canvas__device {
   position: relative;
-  min-height: var(--lc-device-min-h);
-  background: var(--lc-canvas-shell);
-  border-radius: var(--lc-device-radius);
-  box-shadow: var(--lc-shadow-e3);
-  overflow: hidden;
+  padding: var(--lc-space-2);
+  background: var(--lc-bg-subtle);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: 20px;
+  box-shadow: var(--lc-shadow-e2);
 }
 /* 参考线：虚线（比实线更不抢注意力），brand-400 在亮暗下都可见 */
 .lc-canvas__guides {
   position: absolute;
-  inset: 0;
+  inset: var(--lc-space-2);
   z-index: 5;
   pointer-events: none;
+}
+/* 空画布：虚线框住可投放区域，文案给出两个入口 */
+.lc-canvas__empty {
+  position: absolute;
+  inset: var(--lc-space-2);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lc-space-2);
+  border: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-strong);
+  border-radius: 14px;
+  color: var(--lc-text-secondary);
+  text-align: center;
+  pointer-events: none;
+}
+.lc-canvas__empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: var(--lc-font-h2);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-tertiary);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: 50%;
+}
+.lc-canvas__empty-title {
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.lc-canvas__empty-text {
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
 }
 .lc-canvas__guide {
   position: absolute;

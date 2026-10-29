@@ -1353,11 +1353,26 @@ export const useDesignerStore = defineStore('lc-designer', () => {
    * `actionType = null` 解除该事件的动作；否则**同事件原位替换**（一个事件一个动作）。
    * 写 `node.actions`（renderer `runActions` 按 event 过滤执行）。
    */
-  function setNodeAction(nodeId: string, event: string, actionType: string | null): void {
+  /**
+   * 事件动作绑定（2026-10-29：支持带参动作）。
+   * `value` 缺省 = 无参动作（Action 的 `value?`）；navigate / toast 由右栏传最小参数对象。
+   * 同一事件只保留一个动作：先移除旧绑定，再追加新绑定。
+   */
+  function setNodeAction(
+    nodeId: string,
+    event: string,
+    actionType: string | null,
+    value?: unknown,
+  ): void {
     const cur = findNode(schema.value, nodeId)?.actions ?? []
     const rest = cur.filter((a) => a.event !== event)
     const next = actionType
-      ? [...rest, { event, type: actionType } as (typeof rest)[number]]
+      ? [
+          ...rest,
+          (value === undefined
+            ? { event, type: actionType }
+            : { event, type: actionType, value }) as (typeof rest)[number],
+        ]
       : rest
     const r = updateActions(schema.value, nodeId, next)
     if (!r.id) return

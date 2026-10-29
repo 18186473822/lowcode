@@ -228,61 +228,83 @@
         <outline-tree v-else />
       </aside>
       <main class="designer__main">
-        <!-- 面包屑：画布是从「门户设计」下钻进来的二级页，必须能原路返回。
-             2026-10-29：原先只对 portal 类型页显示，从「页面」菜单打开 list/form 页就没有回门户的路径；
-             改为**所有画布视图**都显示，右侧名字随页型取门户标题或页面名。 -->
-        <div v-if="isCanvasView" class="canvas-crumbs" data-testid="canvas-crumbs">
-          <button class="canvas-crumbs__back" type="button" @click="backToPortal">
-            ← 门户设计
-          </button>
-          <span class="canvas-crumbs__sep" aria-hidden="true">/</span>
-          <span class="canvas-crumbs__name">{{ crumbName }}</span>
+        <!-- 页头：层级（← 门户设计 / 页名）+ 页型 + 当前规模。
+             2026-10-29 重设计：不再用蓝色提示条解释画布，事实读数放页头与底部读数栏。 -->
+        <div class="canvas-head" data-testid="canvas-head">
+          <div class="canvas-head__path">
+            <button class="canvas-head__back" type="button" data-testid="canvas-crumbs" @click="backToPortal">
+              <span class="canvas-head__arrow" aria-hidden="true">←</span>
+              门户设计
+            </button>
+            <span class="canvas-head__slash" aria-hidden="true">/</span>
+            <span class="canvas-head__name" :title="store.pageId">{{ crumbName }}</span>
+            <span class="canvas-head__type">{{ pageTypeLabel }}</span>
+          </div>
+          <span class="canvas-head__facts" data-testid="canvas-facts">{{ canvasFacts }}</span>
         </div>
-        <!-- Phase 2 批 2：标准页（list/detail）提示 —— 配置驱动，画布根容器仅占位 -->
-        <div v-if="isStdPage" class="std-hint" data-testid="std-hint">
-          <strong>{{ store.schema.type === 'list' ? '列表页' : '详情页' }}</strong>
-          由右侧配置驱动（运行时按配置查询渲染）；下方画布为根容器占位，其节点在标准页运行时忽略。
-        </div>
-        <!-- Phase 3 批 4：门户页提示 —— 画布直接复用门户渲染器，卡片与右侧配置实时联动 -->
-        <div v-if="isPortalPage" class="std-hint" data-testid="portal-hint">
-          <strong>门户页</strong>
-          上方卡片区与右侧「导航卡片」实时联动（点卡在设计态不跳转）；下方为拖拽区，可拖入图表 / 指标卡等物料，运行时渲染在卡片区下方。
-        </div>
-        <!-- 画布工具条（§7.1）：高 40 · 白底 · 左设备切换 / 右缩放与标尺 -->
+
+        <!-- 工具条：左设备档位（内凹轨道 + 白色滑块）/ 右预览、缩放、标尺 -->
         <div class="canvas-bar">
-          <div class="canvas-bar__group" role="group" aria-label="设备档位">
+          <div class="canvas-seg" role="group" aria-label="设备档位">
             <button
               v-for="d in DEVICES"
               :key="d.value"
-              class="canvas-chip"
-              :class="{ 'canvas-chip--on': device === d.value }"
+              class="canvas-seg__btn"
+              :class="{ 'canvas-seg__btn--on': device === d.value }"
               type="button"
               :aria-pressed="device === d.value"
               :data-testid="`device-${d.value}`"
               @click="device = d.value"
             >{{ d.label }}</button>
           </div>
-          <div class="canvas-bar__group">
+          <div class="canvas-bar__actions">
             <button
-              class="canvas-chip"
+              class="canvas-preview"
               type="button"
-              data-testid="zoom-out"
-              title="缩小"
-              :disabled="zoom === ZOOM_STEPS[0]"
-              @click="zoomOut"
-            >−</button>
-            <span class="canvas-bar__zoom" data-testid="zoom-value">{{ zoom }}%</span>
+              data-testid="canvas-preview"
+              :disabled="previewing"
+              title="保存后在新标签打开运行体手机页"
+              @click="openPreview"
+            >
+              <svg
+                class="canvas-preview__icon"
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="4.5" y="1.5" width="7" height="13" rx="1.5" />
+                <path d="M7 12.5h2" />
+              </svg>
+              {{ previewing ? '准备中…' : '手机预览' }}
+            </button>
+            <span class="canvas-bar__divider" aria-hidden="true" />
+            <div class="canvas-zoom" role="group" aria-label="画布缩放">
+              <button
+                class="canvas-zoom__btn"
+                type="button"
+                data-testid="zoom-out"
+                title="缩小"
+                :disabled="zoom === ZOOM_STEPS[0]"
+                @click="zoomOut"
+              >−</button>
+              <span class="canvas-zoom__value" data-testid="zoom-value">{{ zoom }}%</span>
+              <button
+                class="canvas-zoom__btn"
+                type="button"
+                data-testid="zoom-in"
+                title="放大"
+                :disabled="zoom === ZOOM_STEPS[ZOOM_STEPS.length - 1]"
+                @click="zoomIn"
+              >＋</button>
+            </div>
             <button
-              class="canvas-chip"
-              type="button"
-              data-testid="zoom-in"
-              title="放大"
-              :disabled="zoom === ZOOM_STEPS[ZOOM_STEPS.length - 1]"
-              @click="zoomIn"
-            >＋</button>
-            <span class="top-sep" aria-hidden="true" />
-            <button
-              class="canvas-chip"
+              class="canvas-chip canvas-chip--ruler"
               :class="{ 'canvas-chip--on': ruler }"
               type="button"
               data-testid="toggle-ruler"
@@ -313,6 +335,16 @@
               @rendered="store.markRender"
             />
           </div>
+        </div>
+
+        <!-- 读数栏：页面类型 + 尺寸 / 组件 / 缩放。提示条信息改为可核对的事实。 -->
+        <div class="canvas-foot" data-testid="canvas-foot">
+          <span class="canvas-foot__kind">{{ canvasKind }}</span>
+          <span class="canvas-foot__readout">
+            <span>{{ deviceFact }}</span>
+            <span data-testid="canvas-count">{{ componentFact }}</span>
+            <span class="canvas-foot__zoom">{{ zoom }}%</span>
+          </span>
         </div>
       </main>
       <aside
@@ -390,7 +422,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { PageControllerOptions } from '@lc/renderer'
+import { countNodes, type PageControllerOptions } from '@lc/renderer'
 import {
   LcCanvas,
   HistoryDialog,
@@ -482,7 +514,7 @@ async function onPublish(note: string): Promise<void> {
 }
 
 /* ---------------- 画布工具条（design-system.md §7.1） ----------------
- * 高 40 · 白底 · 左设备切换（375 / 750 / H5）· 右缩放与标尺开关。 */
+ * 高 44 · 白底 · 左设备轨道（375 / 750 / H5）· 右预览 / 缩放 / 标尺。 */
 const DEVICES = [
   { value: '375', label: '375 手机' },
   { value: '750', label: '750 平板' },
@@ -503,11 +535,74 @@ function zoomIn(): void {
   if (i < ZOOM_STEPS.length - 1) zoom.value = ZOOM_STEPS[i + 1] ?? 100
 }
 
-/** Phase 2 批 2：标准页（list/detail）—— 画布仅占位，顶部提示条 */
-const isStdPage = computed(() => store.schema.type === 'list' || store.schema.type === 'detail')
-
-/** Phase 3 批 4：门户页 —— 画布为拖拽区（卡片由配置驱动），顶部提示条 */
+/** Phase 3 批 4：门户页 —— 画布为拖拽区（卡片由配置驱动） */
 const isPortalPage = computed(() => store.schema.type === 'portal')
+
+/* ---------------- 画布读数（2026-10-29 重设计） ----------------
+ * 提示条改为可核对的事实：页型 / 尺寸 / 卡片数 / 组件数 / 缩放。
+ * 组件数排除 root（root 是页面容器，不是用户拖入的组件）。 */
+const PAGE_TYPE_LABELS = {
+  form: '表单',
+  list: '列表',
+  detail: '详情',
+  portal: '门户',
+  custom: '自定义',
+} as const
+const pageTypeLabel = computed(() => PAGE_TYPE_LABELS[store.schema.type])
+
+const nodeCount = computed(() => Math.max(0, countNodes(store.schema.root) - 1))
+const cardCount = computed(() => store.schema.portal?.cards?.length ?? 0)
+const componentFact = computed(() =>
+  isPortalPage.value
+    ? `${cardCount.value} 张卡 / ${nodeCount.value} 个组件`
+    : `${nodeCount.value} 个组件`,
+)
+const canvasFacts = computed(() =>
+  isPortalPage.value
+    ? `${cardCount.value} 张卡片 · ${nodeCount.value} 个组件`
+    : `${nodeCount.value} 个组件`,
+)
+const canvasKind = computed(() => {
+  switch (store.schema.type) {
+    case 'portal':
+      return '门户页 · 卡片 + 自由拖拽'
+    case 'list':
+      return '列表页 · 配置驱动'
+    case 'detail':
+      return '详情页 · 配置驱动'
+    case 'custom':
+      return '自定义页 · 自由拖拽'
+    default:
+      return '表单页 · 拖拽搭建'
+  }
+})
+const deviceFact = computed(() => {
+  if (device.value === '750') return '750 宽 · 2× 预览'
+  if (device.value === 'h5') return 'H5 · 自适应宽'
+  return '375 宽 · 高度自适应'
+})
+
+/* ---------------- 手机预览（运行体 H5） ----------------
+ * 运行体固定 5173（designer 占 5174）；生产可用 VITE_LC_RUNTIME_URL 覆盖。
+ * 有未保存改动先保存，避免预览到旧 schema。 */
+const previewing = ref(false)
+const runtimeOrigin = (
+  (import.meta.env.VITE_LC_RUNTIME_URL as string | undefined) ?? ''
+).replace(/\/+$/, '')
+const runtimeBase = runtimeOrigin || (import.meta.env.DEV ? 'http://127.0.0.1:5173' : '')
+
+async function openPreview(): Promise<void> {
+  if (!store.pageId || previewing.value) return
+  previewing.value = true
+  try {
+    if (store.saveState === 'dirty' && !(await store.save())) return
+    // uni-app H5 是 hash 路由：路由与参数必须落在 `#/` 后面，否则只会打开首页。
+    const url = `${runtimeBase}/#/pages/view/index?pageId=${encodeURIComponent(store.pageId)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  } finally {
+    previewing.value = false
+  }
+}
 
 /** 当前是否「画布」视图：页面级动作 / 校验摘要 / 保存徽标只在画布有意义 */
 const isCanvasView = computed(() => store.view === 'page')

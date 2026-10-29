@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import type { NodeSchema } from '@lc/schema'
+import type { NodeSchema, PageSchema } from '@lc/schema'
 import type { RuntimeHost } from '@lc/renderer'
 import LcCanvas from '../src/canvas/LcCanvas.vue'
 import { UNI_SHIMS } from '../src/shim/index'
@@ -97,6 +97,50 @@ describe('LcCanvas —— 真物料 + shim 集成（批 1 验收 jsdom 版）', 
     await flushPromises()
     expect(w.find('.lc-text').text()).toBe('你好,张三丰')
 
+    w.unmount()
+  })
+
+  it('空画布：root 无子节点时显示投放引导；有节点后消失', async () => {
+    const host = makeHost()
+    const empty: PageSchema = {
+      schemaVersion: '1.0.0',
+      id: 'p_empty',
+      name: '空页',
+      type: 'form',
+      root: { id: 'root', componentName: 'Page', children: [] },
+    }
+    const w = mount(LcCanvas, {
+      props: { schema: empty, options: { host: host as unknown as RuntimeHost } },
+      global: { components: globalComponents },
+    })
+    await flushPromises()
+    const hint = w.find('[data-testid="canvas-empty"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toContain('把第一个组件放到这里')
+    w.unmount()
+
+    const w2 = mount(LcCanvas, {
+      props: { schema: demoPage(), options: { host: host as unknown as RuntimeHost } },
+      global: { components: globalComponents },
+    })
+    await flushPromises()
+    expect(w2.find('[data-testid="canvas-empty"]').exists()).toBe(false)
+    w2.unmount()
+  })
+
+  it('视图缩放走 zoom（参与布局）：150% 时 stage 带 zoom 1.5', async () => {
+    const host = makeHost()
+    const w = mount(LcCanvas, {
+      props: {
+        schema: demoPage(),
+        zoom: 150,
+        options: { host: host as unknown as RuntimeHost },
+      },
+      global: { components: globalComponents },
+    })
+    await flushPromises()
+    expect(w.find('.lc-canvas__stage').attributes('style')).toContain('zoom: 1.5')
+    expect(w.find('.lc-canvas__page').attributes('style')).toContain('width: 375px')
     w.unmount()
   })
 })

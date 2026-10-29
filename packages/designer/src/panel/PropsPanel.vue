@@ -11,10 +11,40 @@
   <div class="lc-props-panel">
     <div class="panel-head">
       <h3 class="panel-title">属性</h3>
+      <span class="panel-head__meta">{{ store.selectedNode ? '节点' : '页面' }}</span>
     </div>
 
-    <!-- 页面级：类型 + 随类型切换的配置区块（Phase 2 批 2；与选中状态无关，始终可见） -->
-    <div class="lc-props-panel__pagecfg">
+    <!-- 页面级：类型 + 随类型切换的配置区块。
+         2026-10-29：收进底部可折叠区 —— 选中节点时默认折叠，不把页面配置顶在节点属性上方；
+         未选中节点时默认展开，首次进入就能改页面类型。 -->
+    <section class="lc-props-panel__pageset" data-testid="page-settings">
+      <button
+        class="pageset__head"
+        type="button"
+        data-testid="page-settings-toggle"
+        aria-controls="page-settings-body"
+        :aria-expanded="pageOpen"
+        @click="pageOpen = !pageOpen"
+      >
+        <svg
+          class="pageset__chevron"
+          :class="{ 'pageset__chevron--closed': !pageOpen }"
+          viewBox="0 0 16 16"
+          width="12"
+          height="12"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+        </svg>
+        <span class="pageset__title">页面设置</span>
+        <span class="pageset__summary" data-testid="page-settings-summary">{{ pageSummary }}</span>
+      </button>
+      <div id="page-settings-body" v-show="pageOpen" class="lc-props-panel__pagecfg">
       <label class="setter">
         <span class="setter__label">页面类型</span>
         <span class="setter__ctl">
@@ -264,73 +294,181 @@
           <span class="setter__help">1~6 列（缺省 2）；运行时卡片按列均分换行</span>
         </label>
 
-        <div class="cols__head">导航卡片（{{ portalCards.length }}）</div>
-        <div
-          v-for="(card, i) in portalCards"
-          :key="i"
-          class="lc-props-panel__card"
-          :data-testid="`portal-card-${i}`"
-        >
-          <label class="setter">
-            <span class="setter__label">标题</span>
-            <span class="setter__ctl">
-              <input
-                class="setter__input"
-                :data-testid="`portal-card-title-${i}`"
-                type="text"
-                :value="card.title"
-                @input="setCardField(i, 'title', $event)"
-              />
-            </span>
-          </label>
-          <label class="setter">
-            <span class="setter__label">跳转页 id</span>
-            <span class="setter__ctl">
-              <input
-                class="setter__input"
-                :data-testid="`portal-card-page-${i}`"
-                type="text"
-                :value="card.pageId ?? ''"
-                placeholder="低代码页面 id"
-                @input="setCardField(i, 'pageId', $event)"
-              />
-            </span>
-          </label>
-          <label class="setter">
-            <span class="setter__label">图标</span>
-            <span class="setter__ctl">
-              <input
-                class="setter__input"
-                :data-testid="`portal-card-icon-${i}`"
-                type="text"
-                :value="card.icon ?? ''"
-                placeholder="如 home / 新"
-                @input="setCardField(i, 'icon', $event)"
-              />
-            </span>
-          </label>
-          <label class="setter">
-            <span class="setter__label">说明</span>
-            <span class="setter__ctl">
-              <input
-                class="setter__input"
-                :data-testid="`portal-card-desc-${i}`"
-                type="text"
-                :value="card.desc ?? ''"
-                @input="setCardField(i, 'desc', $event)"
-              />
-            </span>
-          </label>
-          <button
-            class="op-btn op-btn--danger"
-            type="button"
-            :data-testid="`portal-card-del-${i}`"
-            @click="removeCard(i)"
+        <div class="lc-props-panel__cards">
+          <div class="cols__head">
+            <span>导航卡片</span>
+            <span class="cols__count">{{ portalCards.length }} 张</span>
+          </div>
+
+          <div
+            v-for="(card, i) in portalCards"
+            :key="i"
+            class="lc-props-panel__card"
+            :class="{ 'lc-props-panel__card--open': isCardOpen(i) }"
+            :data-testid="`portal-card-${i}`"
           >
-            删除卡片
+            <div class="card-row__head">
+              <button
+                class="card-row__toggle"
+                type="button"
+                :aria-expanded="isCardOpen(i)"
+                :data-testid="`portal-card-toggle-${i}`"
+                @click="toggleCard(i)"
+              >
+                <span class="card-row__glyph" aria-hidden="true">{{ cardGlyph(card) }}</span>
+                <span class="card-row__title">{{ card.title || '未命名卡片' }}</span>
+                <span
+                  v-if="cardTargetGlyph(card)"
+                  class="card-row__target"
+                  :title="cardTarget(card)"
+                  :aria-label="cardTarget(card)"
+                >{{ cardTargetGlyph(card) }}</span>
+                <span v-if="card.badge" class="card-row__badge">{{ card.badge }}</span>
+                <svg
+                  class="card-row__chevron"
+                  :class="{ 'card-row__chevron--closed': !isCardOpen(i) }"
+                  viewBox="0 0 16 16"
+                  width="12"
+                  height="12"
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+                </svg>
+              </button>
+              <span class="card-row__ops">
+                <button
+                  class="card-row__op"
+                  type="button"
+                  title="上移"
+                  :disabled="i === 0"
+                  :data-testid="`portal-card-up-${i}`"
+                  @click="moveCard(i, -1)"
+                >↑</button>
+                <button
+                  class="card-row__op"
+                  type="button"
+                  title="下移"
+                  :disabled="i === portalCards.length - 1"
+                  :data-testid="`portal-card-down-${i}`"
+                  @click="moveCard(i, 1)"
+                >↓</button>
+                <button
+                  class="card-row__op"
+                  type="button"
+                  title="复制卡片"
+                  :data-testid="`portal-card-copy-${i}`"
+                  @click="duplicateCard(i)"
+                >⧉</button>
+                <button
+                  class="card-row__op card-row__op--del"
+                  type="button"
+                  title="删除卡片"
+                  :data-testid="`portal-card-del-${i}`"
+                  @click="removeCard(i)"
+                >×</button>
+              </span>
+            </div>
+
+            <div v-show="isCardOpen(i)" class="card-row__body">
+              <label class="setter">
+                <span class="setter__label">标题</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-title-${i}`"
+                    type="text"
+                    :value="card.title"
+                    @input="setCardField(i, 'title', $event)"
+                  />
+                </span>
+              </label>
+              <label class="setter">
+                <span class="setter__label">说明</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-desc-${i}`"
+                    type="text"
+                    :value="card.desc ?? ''"
+                    placeholder="副标题（可空）"
+                    @input="setCardField(i, 'desc', $event)"
+                  />
+                </span>
+              </label>
+              <label class="setter">
+                <span class="setter__label">图标</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-icon-${i}`"
+                    type="text"
+                    :value="card.icon ?? ''"
+                    placeholder="内置名或单个字符"
+                    list="portal-card-icons"
+                    @input="setCardField(i, 'icon', $event)"
+                  />
+                </span>
+              </label>
+              <label class="setter">
+                <span class="setter__label">目标页面</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-page-${i}`"
+                    type="text"
+                    :value="card.pageId ?? ''"
+                    placeholder="低代码页面 id"
+                    list="portal-card-pages"
+                    @input="setCardField(i, 'pageId', $event)"
+                  />
+                </span>
+              </label>
+              <label class="setter">
+                <span class="setter__label">外部链接</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-url-${i}`"
+                    type="text"
+                    :value="card.url ?? ''"
+                    placeholder="https://…（填了优先于页面）"
+                    @input="setCardField(i, 'url', $event)"
+                  />
+                </span>
+              </label>
+              <label class="setter">
+                <span class="setter__label">角标</span>
+                <span class="setter__ctl">
+                  <input
+                    class="setter__input"
+                    :data-testid="`portal-card-badge-${i}`"
+                    type="text"
+                    maxlength="6"
+                    :value="card.badge ?? ''"
+                    placeholder="如 3 / 新（可空）"
+                    @input="setCardField(i, 'badge', $event)"
+                  />
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <button class="op-btn" type="button" data-testid="portal-card-add" @click="addCard">
+            ＋ 添加卡片
           </button>
         </div>
-        <button class="op-btn" type="button" data-testid="portal-card-add" @click="addCard">+ 添加卡片</button>
+
+        <datalist id="portal-card-icons">
+          <option v-for="ic in CARD_ICONS" :key="ic.value" :value="ic.value">{{ ic.label }}</option>
+        </datalist>
+        <datalist id="portal-card-pages">
+          <option v-for="p in store.pages" :key="p.id" :value="p.id">{{ p.name }}</option>
+        </datalist>
       </div>
 
       <panel-state
@@ -343,7 +481,8 @@
         inline
         @action="onRetryModels"
       />
-    </div>
+      </div>
+    </section>
 
     <template v-if="store.selectedNode">
       <div class="lc-props-panel__info">
@@ -371,6 +510,15 @@
           @click="store.moveById(store.selectedId, 1)"
         >
           下移
+        </button>
+        <button
+          class="op-btn"
+          type="button"
+          :disabled="store.isRootSelected"
+          title="复制到当前节点之后"
+          @click="duplicateSelected"
+        >
+          复制
         </button>
         <button
           class="op-btn op-btn--danger"
@@ -405,9 +553,10 @@
         </label>
       </div>
 
-      <!-- 批 5 / D-A13：最小动作绑定（事件 → 动作；仅无参动作可写，有参动作占位 Phase 2） -->
+      <!-- 批 5 / D-A13：动作绑定（事件 → 动作）。
+           2026-10-29：navigate / toast 开放参数编辑；http 等复杂动作仍只读。 -->
       <div v-if="nodeEvents.length && store.selectedNode" class="lc-props-panel__actions">
-        <label v-for="ev in nodeEvents" :key="ev" class="setter">
+        <label v-for="ev in nodeEvents" :key="ev" class="setter setter--stack">
           <span class="setter__label">事件 · {{ ev }}</span>
           <span class="setter__ctl">
             <select
@@ -421,18 +570,51 @@
                 v-for="t in store.selectedMeta?.actionTypes ?? []"
                 :key="t"
                 :value="t"
-                :disabled="!NO_PARAM_ACTIONS.has(t)"
+                :disabled="!CONFIGURABLE_ACTIONS.has(t)"
               >
-                {{ ACTION_LABELS[t] ?? t }}{{ NO_PARAM_ACTIONS.has(t) ? '' : ' · 参数配置 Phase 2' }}
+                {{ ACTION_LABELS[t] ?? t }}{{ CONFIGURABLE_ACTIONS.has(t) ? '' : ' · 参数待补' }}
               </option>
             </select>
           </span>
-          <span class="setter__help">{{ actionHint }}</span>
+
+          <!-- navigate：选目标页面（其余 params 暂保留原值，交给高级 JSON） -->
+          <span v-if="boundAction(ev) === 'navigate'" class="setter__params">
+            <select
+              class="setter__select"
+              :data-testid="`action-${ev}-page`"
+              :value="navigatePageId(ev)"
+              @change="onNavigateTarget(ev, $event)"
+            >
+              <option value="">（选择目标页面）</option>
+              <option v-for="p in store.pages" :key="p.id" :value="p.id">
+                {{ p.name }}（{{ p.id }}）
+              </option>
+            </select>
+          </span>
+
+          <!-- toast：文案 -->
+          <span v-else-if="boundAction(ev) === 'toast'" class="setter__params">
+            <input
+              class="setter__input"
+              type="text"
+              :data-testid="`action-${ev}-text`"
+              :value="toastText(ev)"
+              placeholder="提示文案（可含 $expr: 表达式）"
+              @input="onToastText(ev, $event)"
+            />
+          </span>
+
+          <span class="setter__help">{{ actionHintFor(ev) }}</span>
         </label>
       </div>
 
       <div v-if="settings.length" class="lc-props-panel__settings">
-        <label v-for="s in settings" :key="s.key" class="setter">
+        <label
+          v-for="s in settings"
+          :key="s.key"
+          class="setter"
+          :class="{ 'setter--stack': s.setter === 'json' && !!itemsKind }"
+        >
           <span class="setter__label">
             {{ s.label }}<em v-if="s.required" class="setter__req" title="必填">*</em>
           </span>
@@ -482,6 +664,22 @@
                 {{ p.name }}（{{ p.id }}）
               </option>
             </select>
+            <!-- expression：`$expr:` 前缀走受限表达式语法校验；普通文本视为静态值 -->
+            <span v-else-if="s.setter === 'expression'" class="setter__expr">
+              <input
+                class="setter__input"
+                type="text"
+                :data-testid="`setter-expr-${s.key}`"
+                :value="str(read(s))"
+                :placeholder="s.placeholder ?? '$expr: formData.xxx'"
+                :aria-invalid="exprError[s.key] ? 'true' : undefined"
+                @input="onExpressionInput(s, $event)"
+              />
+              <span v-if="exprError[s.key]" class="setter__expr-err" role="alert">
+                {{ exprError[s.key] }}
+              </span>
+              <span v-else class="setter__expr-hint">静态值，或 $expr: 表达式</span>
+            </span>
             <textarea
               v-else-if="s.setter === 'textarea'"
               class="setter__input setter__textarea"
@@ -490,7 +688,28 @@
               :placeholder="s.placeholder ?? ''"
               @input="onInput(s, $event)"
             />
-            <!-- json：边打边解析；语法错时保留上一次合法值并红字提示（不静默清空配置） -->
+            <!-- json：有对应门户物料时先给可视化条目编辑器，高级 JSON 折在下面；
+                 边打边解析，语法错时保留上一次合法值并红字提示（不静默清空配置） -->
+            <span v-else-if="s.setter === 'json' && itemsKind" class="setter__items-wrap">
+              <items-editor
+                :model-value="read(s)"
+                :kind="itemsKind"
+                :pages="store.pages"
+                @update:model-value="onItemsUpdate(s, $event)"
+              />
+              <details class="items-advanced">
+                <summary class="items-advanced__summary">高级 · 直接编辑 JSON</summary>
+                <textarea
+                  class="setter__input setter__textarea"
+                  rows="4"
+                  :value="jsonDraft[s.key] ?? jsonText(s)"
+                  :placeholder="s.placeholder ?? ''"
+                  :aria-label="`${s.label} JSON`"
+                  @input="onJsonInput(s, $event)"
+                  @blur="onJsonBlur(s)"
+                />
+              </details>
+            </span>
             <textarea
               v-else-if="s.setter === 'json'"
               class="setter__input setter__textarea"
@@ -658,14 +877,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { PageType, SettingDesc, PortalCard, PortalPageConfig } from '@lc/schema'
+import { checkExpr } from '@lc/expression'
 import { useDesignerStore } from '../store/store'
 import { readNodeValue } from '../core/schema-ops'
 import { TOKEN_LITERAL } from '@lc/tokens'
 import PanelState from '../components/PanelState.vue'
+import ItemsEditor, { type ItemKind } from './ItemsEditor.vue'
 
 const store = useDesignerStore()
+
+/** 页面设置折叠态：未选中节点时展开；一旦选中节点就收起，把上方空间让给节点属性 */
+const pageOpen = ref(!store.selectedNode)
+watch(
+  () => store.selectedId,
+  (id) => {
+    pageOpen.value = !id
+  },
+)
 
 /** 选中节点的 settings（Page/未知组件为 []；condition 条件求值属 Phase 2，先全部展示） */
 const settings = computed<SettingDesc[]>(() => store.selectedMeta?.settings ?? [])
@@ -728,6 +958,83 @@ function setDetailBool(key: 'editable' | 'deletable', e: Event): void {
 /** 门户卡片（缺省空数组） */
 const portalCards = computed<PortalCard[]>(() => store.schema.portal?.cards ?? [])
 
+/** 页面设置摘要：折叠时也看得出当前页型与规模 */
+const pageSummary = computed(() => {
+  const t = store.schema.type
+  if (t === 'portal') return `门户 · ${portalCards.value.length} 张卡片`
+  if (t === 'list') {
+    return store.schema.list?.modelId ? `列表 · ${store.schema.list.modelId}` : '列表 · 未选模型'
+  }
+  if (t === 'detail') {
+    return store.schema.detail?.modelId ? `详情 · ${store.schema.detail.modelId}` : '详情 · 未选模型'
+  }
+  return store.submitModelId ? `表单 · 提交到 ${store.submitModelId}` : '表单 · 未配提交模型'
+})
+
+/* ---------------- 门户卡片行：展开态 / 行内操作 ---------------- */
+
+/** 展开态按索引存；增删或换序后清空，避免展开错行 */
+const cardOpen = reactive<Record<number, boolean>>({})
+
+function isCardOpen(i: number): boolean {
+  return cardOpen[i] === true
+}
+
+function toggleCard(i: number): void {
+  cardOpen[i] = !cardOpen[i]
+}
+
+/** 关闭全部，再展开指定行（-1 = 全部关闭） */
+function resetCardOpen(open: number): void {
+  for (const k of Object.keys(cardOpen)) delete cardOpen[Number(k)]
+  if (open >= 0) cardOpen[open] = true
+}
+
+/** 图标输入框的候选（卡片渲染器同款字符集；也允许任意单字） */
+const CARD_ICONS = [
+  { value: 'home', label: '首页' },
+  { value: 'user', label: '用户' },
+  { value: 'set', label: '设置' },
+  { value: 'date', label: '日期' },
+  { value: 'search', label: '搜索' },
+  { value: 'more', label: '更多' },
+  { value: 'success', label: '通过' },
+  { value: 'warn', label: '提醒' },
+  { value: 'info', label: '说明' },
+]
+const CARD_GLYPHS: Record<string, string> = {
+  success: '✓',
+  warn: '⚠',
+  error: '✕',
+  info: 'ℹ',
+  home: '⌂',
+  user: '👤',
+  set: '⚙',
+  date: '📅',
+  search: '🔍',
+  more: '⋯',
+  back: '‹',
+}
+
+function cardGlyph(card: PortalCard): string {
+  const n = (card.icon ?? '').trim()
+  if (!n) return '▦'
+  return CARD_GLYPHS[n] ?? n.slice(0, 1)
+}
+
+function cardTarget(card: PortalCard): string {
+  if (card.url) return '外部链接'
+  if (card.pageId) return '跳转低代码页面'
+  return ''
+}
+
+/** 行尾目标标记：箭头替代「页面 / 外部链接」文字，把宽度留给标题 */
+function cardTargetGlyph(card: PortalCard): string {
+  if (card.url) return '↗'
+  if (card.pageId) return '›'
+  return ''
+}
+
 function setPortalTitle(e: Event): void {
   const v = (e.target as HTMLInputElement).value
   store.setPortalConfig({ title: v || undefined })
@@ -748,11 +1055,33 @@ function setCardField(i: number, key: keyof PortalCard, e: Event): void {
 }
 
 function addCard(): void {
-  store.setPortalConfig({ cards: [...portalCards.value, { title: '新卡片' }] })
+  const cards = [...portalCards.value, { title: '新卡片' }]
+  store.setPortalConfig({ cards })
+  resetCardOpen(cards.length - 1) // 新卡直接展开，省一次点击
 }
 
 function removeCard(i: number): void {
   store.setPortalConfig({ cards: portalCards.value.filter((_, idx) => idx !== i) })
+  resetCardOpen(-1)
+}
+
+function moveCard(i: number, dir: -1 | 1): void {
+  const cards = [...portalCards.value]
+  const to = i + dir
+  if (to < 0 || to >= cards.length) return
+  const [card] = cards.splice(i, 1)
+  if (card) cards.splice(to, 0, card)
+  store.setPortalConfig({ cards })
+  resetCardOpen(-1)
+}
+
+function duplicateCard(i: number): void {
+  const card = portalCards.value[i]
+  if (!card) return
+  const cards = [...portalCards.value]
+  cards.splice(i + 1, 0, { ...card, title: `${card.title} 副本` })
+  store.setPortalConfig({ cards })
+  resetCardOpen(i + 1)
 }
 
 /** 每页条数（失焦提交；1~100 与服务端 size 上限一致，非法回退 10） */
@@ -828,8 +1157,15 @@ function onPerm(e: Event): void {
 
 /* ---------------- 批 5 / D-A13：最小动作绑定 ---------------- */
 
-/** 无参动作（协议 Action 中 `value?` 可选）—— 有参动作的参数编辑器属 Phase 2 */
-const NO_PARAM_ACTIONS = new Set<string>(['submit', 'back', 'scan', 'location'])
+/** 可在右栏直接完成配置的动作；其余复杂动作（http 等）仍只读 */
+const CONFIGURABLE_ACTIONS = new Set<string>([
+  'submit',
+  'back',
+  'scan',
+  'location',
+  'navigate',
+  'toast',
+])
 
 /** 动作类型 → 中文标签（缺省回退 type 原文） */
 const ACTION_LABELS: Record<string, string> = {
@@ -845,19 +1181,77 @@ const ACTION_LABELS: Record<string, string> = {
 /** 物料声明的事件列表（无事件物料不出本区块） */
 const nodeEvents = computed(() => store.selectedMeta?.events ?? [])
 
-const actionHint = computed(() => '选「提交表单」即触发页面提交链路（校验 → 写模型）；带参数的动作 Phase 2 支持')
+/** 当前事件的完整动作（回填参数用；undefined = 未绑定） */
+function boundActionObj(event: string): { type?: unknown; value?: unknown } | undefined {
+  if (!store.selectedNode) return undefined
+  const actions = readNodeValue(store.selectedNode, 'event')
+  if (!Array.isArray(actions)) return undefined
+  return actions.find((a) => (a as { event?: unknown }).event === event) as
+    | { type?: unknown; value?: unknown }
+    | undefined
+}
 
 /** 回填：当前节点在该事件上绑定的动作类型（未绑定 → ''） */
 function boundAction(event: string): string {
-  if (!store.selectedNode) return ''
-  const actions = readNodeValue(store.selectedNode, 'event')
-  if (!Array.isArray(actions)) return ''
-  const hit = actions.find((a) => (a as { event?: unknown }).event === event) as { type?: unknown } | undefined
-  return typeof hit?.type === 'string' ? hit.type : ''
+  const type = boundActionObj(event)?.type
+  return typeof type === 'string' ? type : ''
+}
+
+/** 当前动作的 value 对象（只读副本；非对象按空对象处理） */
+function boundActionValue(event: string): Record<string, unknown> {
+  const v = boundActionObj(event)?.value
+  return v && typeof v === 'object' && !Array.isArray(v) ? { ...(v as Record<string, unknown>) } : {}
+}
+
+function actionHintFor(event: string): string {
+  switch (boundAction(event)) {
+    case 'navigate':
+      return '运行时跳转到所选低代码页面；这里只改 pageId，params 保留原值'
+    case 'toast':
+      return '运行时弹出轻提示；文案支持 $expr: 表达式'
+    case 'submit':
+      return '触发页面提交链路：校验通过后写模型'
+    case 'back':
+      return '返回上一页（历史栈）'
+    default:
+      return 'http 等复杂动作暂只读；其余动作选中即生效'
+  }
 }
 
 function onActionBind(event: string, e: Event): void {
-  store.setNodeAction(store.selectedId, event, (e.target as HTMLSelectElement).value || null)
+  const type = (e.target as HTMLSelectElement).value || null
+  // 切到带参动作时给最小合法骨架；无参动作不带 value
+  const value =
+    type === 'navigate' ? { pageId: '' } : type === 'toast' ? { text: '' } : undefined
+  store.setNodeAction(store.selectedId, event, type, value)
+}
+
+function navigatePageId(event: string): string {
+  return String(boundActionValue(event).pageId ?? '')
+}
+
+function toastText(event: string): string {
+  return String(boundActionValue(event).text ?? '')
+}
+
+function onNavigateTarget(event: string, e: Event): void {
+  store.setNodeAction(store.selectedId, event, 'navigate', {
+    ...boundActionValue(event),
+    pageId: (e.target as HTMLSelectElement).value,
+  })
+}
+
+function onToastText(event: string, e: Event): void {
+  store.setNodeAction(store.selectedId, event, 'toast', {
+    ...boundActionValue(event),
+    text: (e.target as HTMLInputElement).value,
+  })
+}
+
+/** 复制当前节点：copy + paste（粘贴定位在选中节点之后），新节点自动选中 */
+function duplicateSelected(): void {
+  if (store.isRootSelected) return
+  if (store.copyById(store.selectedId)) store.paste()
 }
 
 function read(s: SettingDesc): unknown {
@@ -1021,6 +1415,62 @@ function onColor(s: SettingDesc, e: Event): void {
   store.setProp(store.selectedId, s.key, (e.target as HTMLInputElement).value)
 }
 
+/* ---------------- 2026-10-29：门户物料 items 可视化编辑器 ---------------- */
+
+/** 有 items 的门户物料 → 编辑器形态；其它物料继续走纯 JSON */
+const ITEM_KINDS: Record<string, ItemKind> = {
+  PortalBanner: 'banner',
+  PortalNotice: 'notice',
+  PortalStat: 'stat',
+  PortalTodo: 'todo',
+  PortalFlowList: 'flow',
+}
+
+const itemsKind = computed<ItemKind | undefined>(() => {
+  const name = store.selectedMeta?.name
+  return name ? ITEM_KINDS[name] : undefined
+})
+
+/** 可视化编辑写回：清掉同 key 的 JSON 草稿，避免旧草稿覆盖新值 */
+function onItemsUpdate(s: SettingDesc, value: unknown): void {
+  delete jsonDraft[s.key]
+  delete jsonError[s.key]
+  store.setProp(store.selectedId, s.key, value)
+}
+
+/* ---------------- 2026-10-29：expression setter ---------------- */
+
+const EXPR_PREFIX = '$expr:'
+/** 表达式语法错误提示（按 setter key；空 = 无错） */
+const exprError = reactive<Record<string, string>>({})
+
+/**
+ * 写值 + 校验：
+ *   - 空串 → 清除；
+ *   - 不以 `$expr:` 开头 → 视为静态值，合法；
+ *   - `$expr:` 前缀 → 用受限表达式引擎 checkExpr 校验剩余部分（不做求值）。
+ */
+function onExpressionInput(s: SettingDesc, e: Event): void {
+  const raw = (e.target as HTMLInputElement).value
+  store.setProp(store.selectedId, s.key, raw)
+  const t = raw.trim()
+  if (!t || !t.startsWith(EXPR_PREFIX)) {
+    delete exprError[s.key]
+    return
+  }
+  const body = t.slice(EXPR_PREFIX.length).trim()
+  if (!body) {
+    exprError[s.key] = '表达式为空：$expr: 后面要写表达式'
+    return
+  }
+  const r = checkExpr(body)
+  if (r.ok) {
+    delete exprError[s.key]
+    return
+  }
+  exprError[s.key] = `表达式语法错误${r.pos !== undefined ? `（位置 ${r.pos}）` : ''}：${r.message ?? '无法解析'}`
+}
+
 /* ---------------- 门户组件库（批 2）：json setter ---------------- */
 
 /** 编辑中的 JSON 文本按 setter key 存草稿：边打边解析，但不回写格式化文本（否则光标跳位） */
@@ -1072,6 +1522,8 @@ watch(
   () => {
     for (const k of Object.keys(jsonDraft)) delete jsonDraft[k]
     for (const k of Object.keys(jsonError)) delete jsonError[k]
+    for (const k of Object.keys(exprError)) delete exprError[k]
+    resetCardOpen(-1)
   },
 )
 </script>
@@ -1115,12 +1567,74 @@ watch(
   padding: var(--lc-btn-pad-y) 0;
 }
 
+/* 面板根：flex column 让「页面设置」能靠 order 落到节点属性之后（2026-10-29） */
+.lc-props-panel {
+  display: flex;
+  flex-direction: column;
+}
+
 /* 页面级 / 节点级区块：与 settings 隔离，避免与通用 setter 混排 */
 .lc-props-panel__pagecfg,
 .lc-props-panel__fieldbind {
   padding-bottom: var(--lc-space-3);
   margin-bottom: var(--lc-space-3);
   border-bottom: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-default);
+}
+
+/* 页面设置：底部可折叠区。未选中节点时展开，选中节点时收起为一行摘要。 */
+.lc-props-panel__pageset {
+  order: 2;
+  margin-top: var(--lc-space-3);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.lc-props-panel__pageset .lc-props-panel__pagecfg {
+  padding-bottom: var(--lc-space-1);
+  margin-bottom: 0;
+  border-bottom: none;
+}
+.pageset__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  width: 100%;
+  min-height: 34px;
+  padding: var(--lc-space-1) 0;
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.pageset__head:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: -1px;
+}
+.pageset__chevron {
+  flex: 0 0 12px;
+  color: var(--lc-text-tertiary);
+  transition: transform var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.pageset__chevron--closed {
+  transform: rotate(-90deg);
+}
+.pageset__title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--lc-font-caption);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.pageset__summary {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-tertiary);
+}
+.pageset__head:hover .pageset__summary {
+  color: var(--lc-text-secondary);
 }
 .lc-props-panel__fieldbind {
   margin-top: var(--lc-space-0-5);
@@ -1141,18 +1655,151 @@ watch(
   background: var(--lc-bg-subtle);
 }
 .cols__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lc-space-2);
   margin: var(--lc-space-1) 0 var(--lc-space-1-5);
   font-size: var(--lc-font-caption);
   font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-label);
 }
-/* 门户卡片编辑块（批 4） */
+.cols__count {
+  flex-shrink: 0;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  font-weight: var(--lc-weight-regular);
+  color: var(--lc-text-tertiary);
+}
+
+/* 门户卡片：折叠行 + 展开编辑（2026-10-29）。不再是叠起来的虚线大卡片。 */
 .lc-props-panel__card {
-  margin: var(--lc-space-1-5) 0;
-  padding: var(--lc-space-2);
-  border: var(--lc-border-width) dashed var(--lc-border-default);
+  margin: 0 0 var(--lc-space-1-5);
+  border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-sm);
   background: var(--lc-bg-surface);
+  overflow: hidden;
+}
+.lc-props-panel__card--open {
+  border-color: var(--lc-border-strong);
+}
+.card-row__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+}
+.card-row__toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  height: 34px;
+  padding: 0 var(--lc-space-1) 0 var(--lc-space-2);
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.card-row__toggle:hover {
+  background: var(--lc-bg-subtle);
+}
+.card-row__toggle:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: -1px;
+}
+.card-row__glyph {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+  background: var(--lc-bg-subtle);
+  border-radius: var(--lc-radius-xs);
+}
+.card-row__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--lc-font-caption);
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-primary);
+}
+.card-row__target {
+  flex-shrink: 0;
+  min-width: 10px;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-label);
+  text-align: center;
+  color: var(--lc-text-tertiary);
+}
+.card-row__badge {
+  flex-shrink: 0;
+  padding: 0 var(--lc-space-1);
+  font-size: var(--lc-font-micro);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-danger);
+  background: var(--lc-status-danger-bg);
+  border-radius: var(--lc-radius-xs);
+}
+.card-row__chevron {
+  flex: 0 0 12px;
+  color: var(--lc-text-tertiary);
+  transition: transform var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.card-row__chevron--closed {
+  transform: rotate(-90deg);
+}
+.card-row__ops {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-0-5);
+  padding-right: var(--lc-space-1);
+  flex-shrink: 0;
+}
+.card-row__op {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-label);
+  color: var(--lc-text-secondary);
+  background: none;
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-xs);
+  cursor: pointer;
+}
+.card-row__op:hover:not(:disabled) {
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-subtle);
+  border-color: var(--lc-border-default);
+}
+.card-row__op:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.card-row__op--del:hover:not(:disabled) {
+  color: var(--lc-text-danger);
+  border-color: var(--lc-text-danger);
+}
+.card-row__op:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.card-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-2);
+  padding: var(--lc-space-2);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
 }
 .cols__item {
   display: flex;
@@ -1186,5 +1833,50 @@ watch(
   margin-top: var(--lc-space-1);
   font-size: var(--lc-font-micro);
   color: var(--lc-status-danger);
+}
+
+/* expression setter：输入 + 语法提示 */
+.setter__expr {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.setter__expr-err {
+  font-size: var(--lc-font-micro);
+  line-height: var(--lc-leading-ui);
+  color: var(--lc-text-danger);
+}
+.setter__expr-hint {
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-tertiary);
+}
+
+/* 有可视化编辑器的 items：编辑器 + 折叠的高级 JSON */
+.setter__items-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-2);
+  min-width: 0;
+}
+.items-advanced__summary {
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-tertiary);
+  cursor: pointer;
+}
+.items-advanced__summary:hover {
+  color: var(--lc-text-secondary);
+}
+.items-advanced .setter__textarea {
+  margin-top: var(--lc-space-1);
+}
+
+/* 动作参数（navigate 页面 / toast 文案）：占满整行 */
+.setter__params {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 </style>

@@ -404,4 +404,92 @@ describe('门户组件库（批 2）：物料面板分组 + json setter', () => 
     expect(w.find('.setter__json-err').exists()).toBe(false)
     w.unmount()
   })
+
+  it('PortalStat items 可视化编辑：改标签 / 数值保型 / 增删移动，保留其它键', async () => {
+    const store = useDesignerStore()
+    store.schema = {
+      schemaVersion: '1.0.0',
+      id: 'p_portal_items',
+      name: '门户数据卡',
+      type: 'portal',
+      root: {
+        id: 'root',
+        componentName: 'Page',
+        children: [
+          {
+            id: 'n_stat',
+            componentName: 'PortalStat',
+            props: { items: [{ label: '待办', value: 12, extra: 'keep' }] },
+          },
+        ],
+      },
+      portal: { cards: [] },
+    } as PageSchema
+    store.select('n_stat')
+
+    const w = mount(PropsPanel)
+    await nextTick()
+    expect(w.find('[data-testid="items-stat"]').exists()).toBe(true)
+
+    const items = (): Array<Record<string, unknown>> =>
+      (findNode(store.schema, 'n_stat')!.props as { items: Array<Record<string, unknown>> }).items
+
+    await w.get('[data-testid="items-stat-label-0"]').setValue('已办')
+    expect(items()).toEqual([{ label: '已办', value: 12, extra: 'keep' }])
+
+    // 纯数字写 number，表达式保留字符串
+    await w.get('[data-testid="items-stat-value-0"]').setValue('86')
+    expect(items()[0]!.value).toBe(86)
+    await w.get('[data-testid="items-stat-value-0"]').setValue('$expr: stat.todo')
+    expect(items()[0]!.value).toBe('$expr: stat.todo')
+
+    // 添加 → 上移 → 删除
+    await w.get('[data-testid="items-stat-add"]').trigger('click')
+    expect(items()).toHaveLength(2)
+    expect(items()[1]!.label).toBe('指标')
+    await w.get('[data-testid="items-stat-up-1"]').trigger('click')
+    expect(items()[0]!.label).toBe('指标')
+    await w.get('[data-testid="items-stat-del-1"]').trigger('click')
+    expect(items()).toHaveLength(1)
+
+    // 高级 JSON 文本框仍在（可视化编辑不夺走原有出口）
+    expect(w.find('textarea.setter__textarea').exists()).toBe(true)
+    w.unmount()
+  })
+
+  it('PortalNotice 兼容 string[]：改文本仍是字符串；填目标页后升级对象', async () => {
+    const store = useDesignerStore()
+    store.schema = {
+      schemaVersion: '1.0.0',
+      id: 'p_portal_notice',
+      name: '门户公告',
+      type: 'portal',
+      root: {
+        id: 'root',
+        componentName: 'Page',
+        children: [
+          {
+            id: 'n_notice',
+            componentName: 'PortalNotice',
+            props: { items: ['公告一', '公告二'] },
+          },
+        ],
+      },
+      portal: { cards: [] },
+    } as PageSchema
+    store.select('n_notice')
+
+    const w = mount(PropsPanel)
+    await nextTick()
+
+    const items = (): unknown[] =>
+      (findNode(store.schema, 'n_notice')!.props as { items: unknown[] }).items
+
+    await w.get('[data-testid="items-notice-text-0"]').setValue('新公告')
+    expect(items()).toEqual(['新公告', '公告二'])
+
+    await w.get('[data-testid="items-notice-pageId-0"]').setValue('p_home')
+    expect(items()[0]).toEqual({ text: '新公告', pageId: 'p_home' })
+    w.unmount()
+  })
 })

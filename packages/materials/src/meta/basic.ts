@@ -123,10 +123,10 @@ export const BASIC_META: MaterialSchema[] = [
     settings: [
       {
         key: 'items',
-        label: '轮播项（JSON）',
+        label: '轮播项',
         setter: 'json',
         placeholder: '[{"title":"标题","desc":"说明","image":"/static/a.png"}]',
-        help: 'image 留空显示令牌色占位块；标题/说明渲染在图片下方（不压图，保证暗色可读）',
+        help: '在下方逐项编辑；也可展开「高级」直接改 JSON。image 留空显示令牌色占位块；标题/说明渲染在图片下方（不压图，保证暗色可读）',
       },
       { key: 'height', label: '高度(rpx)', setter: 'number', help: '按屏宽/750 等比换算（300 ≈ 屏宽的 40%）' },
       { key: 'interval', label: '切换间隔(ms)', setter: 'number', help: '<=0 不自动切换；单张不轮播' },
@@ -151,10 +151,10 @@ export const BASIC_META: MaterialSchema[] = [
     settings: [
       {
         key: 'items',
-        label: '公告项（JSON）',
+        label: '公告项',
         setter: 'json',
         placeholder: '["第一条公告","第二条公告"]',
-        help: '字符串数组或 [{"text":"…","pageId":"…"}]；多条按间隔轮换',
+        help: '字符串数组或 [{"text":"…","pageId":"…"}]；多条按间隔轮换。填目标页后该项自动升级为对象，也可展开「高级」直接改 JSON',
       },
       { key: 'text', label: '单条兜底文案', setter: 'input', help: '公告项为空时显示这一条' },
       { key: 'title', label: '左侧标签', setter: 'input', placeholder: '缺省「公告」' },
