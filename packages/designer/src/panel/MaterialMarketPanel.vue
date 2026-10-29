@@ -7,27 +7,38 @@
   - “组件”条目只能引用宿主内置 componentName，插入时复用内置物料，仅应用受信 defaultProps。
 -->
 <template>
-  <div class="lc-market-panel">
-    <div class="market-head">
-      <div>
-        <h3 class="panel-title">物料市场</h3>
-        <p class="market-sub">远程清单只提供受信元数据；组件必须落到宿主内置白名单，不执行远程代码。</p>
+  <div class="lc-market-panel ws-page">
+    <header class="ws-head">
+      <div class="ws-head__text">
+        <h3 class="ws-title">物料市场</h3>
+        <p class="ws-note">远程清单只提供受信元数据；组件必须落到宿主内置白名单，不执行远程代码。</p>
       </div>
-      <button class="op-btn" type="button" :disabled="loading || !configured" data-testid="market-refresh" @click="refresh">
-        {{ loading ? '拉取中…' : '刷新清单' }}
-      </button>
-    </div>
+      <div class="ws-actions">
+        <button class="op-btn" type="button" :disabled="loading || !configured" data-testid="market-refresh" @click="refresh">
+          {{ loading ? '拉取中…' : '刷新清单' }}
+        </button>
+      </div>
+    </header>
 
-    <div v-if="!configured" class="market-empty" data-testid="market-unconfigured">
-      <strong>远程市场未配置</strong>
-      <p>部署时设置以下环境变量后重启设计器：</p>
-      <ul>
-        <li><code>VITE_LC_MATERIAL_MARKET_URL</code>：已签名的 manifest 地址</li>
-        <li><code>VITE_LC_MATERIAL_MARKET_ALLOWLIST</code>：允许的 origin，逗号分隔</li>
-        <li><code>VITE_LC_MATERIAL_MARKET_PUBLIC_KEY</code>：ECDSA P-256 SPKI 公钥 PEM（可用 <code>\n</code> 表示换行）</li>
-      </ul>
+    <section v-if="!configured" class="market-config" data-testid="market-unconfigured">
+      <h4 class="market-config__title">远程市场未配置</h4>
+      <p class="market-config__note">部署时设置以下环境变量后重启设计器：</p>
+      <dl class="market-config__list">
+        <div class="market-config__item">
+          <dt><code>VITE_LC_MATERIAL_MARKET_URL</code></dt>
+          <dd>已签名的 manifest 地址</dd>
+        </div>
+        <div class="market-config__item">
+          <dt><code>VITE_LC_MATERIAL_MARKET_ALLOWLIST</code></dt>
+          <dd>允许的 origin，逗号分隔</dd>
+        </div>
+        <div class="market-config__item">
+          <dt><code>VITE_LC_MATERIAL_MARKET_PUBLIC_KEY</code></dt>
+          <dd>ECDSA P-256 SPKI 公钥 PEM（可用 <code>\n</code> 表示换行）</dd>
+        </div>
+      </dl>
       <p class="market-muted">未配置时不会发起任何网络请求，也不会回退到不安全的市场地址。</p>
-    </div>
+    </section>
 
     <template v-else>
       <div v-if="error" class="market-error" data-testid="market-error">
@@ -38,19 +49,21 @@
       <p v-if="cached" class="market-meta">
         来源 <code>{{ cached.source }}</code> · 拉取于 {{ formatTime(cached.fetchedAt) }} · 清单 {{ cached.manifest.name }}
       </p>
-      <p v-else class="market-muted">尚无已验签缓存，点击「刷新清单」拉取。</p>
+      <p v-else class="market-muted market-meta">尚无已验签缓存，点击「刷新清单」拉取。</p>
 
       <ul v-if="items.length" class="market-list" data-testid="market-list">
-        <li v-for="item in items" :key="item.id" class="market-card">
-          <div class="market-card__head">
-            <strong>{{ item.name }}</strong>
-            <span class="market-tag">{{ item.kind === 'component' ? '受控组件' : '元数据' }}</span>
-            <span class="market-version">v{{ item.version }}</span>
+        <li v-for="item in items" :key="item.id" class="market-row">
+          <div class="market-row__main">
+            <div class="market-row__head">
+              <strong class="market-name">{{ item.name }}</strong>
+              <span class="market-tag">{{ item.kind === 'component' ? '受控组件' : '元数据' }}</span>
+              <span class="market-version">v{{ item.version }}</span>
+            </div>
+            <p class="market-desc">{{ item.description || item.meta.title }}</p>
+            <p class="market-id">
+              {{ item.id }} · {{ item.kind === 'component' ? item.component : item.meta.name }}
+            </p>
           </div>
-          <p class="market-desc">{{ item.description || item.meta.title }}</p>
-          <p class="market-muted">
-            {{ item.id }} · {{ item.kind === 'component' ? item.component : item.meta.name }}
-          </p>
           <div class="market-actions">
             <button
               v-if="!isInstalled(item.id)"
@@ -77,7 +90,16 @@
           </div>
         </li>
       </ul>
-      <div v-else-if="cached" class="market-empty">市场清单为空。</div>
+      <panel-state
+        v-else-if="cached"
+        kind="empty"
+        testid="market-empty"
+        title="市场清单为空"
+        text="清单已验签通过，但发布方还没有登记任何物料。稍后再刷新看看。"
+        action-text="刷新清单"
+        inline
+        @action="refresh"
+      />
     </template>
   </div>
 </template>
@@ -85,6 +107,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { RemoteMaterialRegistry, type RemoteMaterialEntry } from '@lc/materials'
+import PanelState from '../components/PanelState.vue'
 
 const props = defineProps<{
   manifestUrl?: string
@@ -167,105 +190,170 @@ function uninstall(id: string): void {
 </script>
 
 <style scoped>
+/* 工作区骨架（.ws-page / .ws-head / .ws-actions）在 ../styles/panel.css；
+   本块只保留市场配置说明与清单行布局。 */
 .lc-market-panel {
-  padding: var(--lc-space-5) var(--lc-space-6) var(--lc-space-8);
-  height: 100%;
-  overflow: auto;
-  box-sizing: border-box;
   color: var(--lc-text-primary);
 }
-.market-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--lc-space-4);
-}
-.market-sub,
 .market-muted {
-  margin: var(--lc-space-1) 0 0;
-  color: var(--lc-text-secondary);
+  margin: 0;
   font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
 }
-.market-empty,
+
+/* ---------------- 未配置说明 ---------------- */
+
+.market-config {
+  max-width: 720px;
+  margin-top: var(--lc-space-8);
+  padding-top: var(--lc-space-6);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.market-config__title {
+  margin: 0 0 var(--lc-space-2);
+  font-size: var(--lc-font-h3);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.market-config__note {
+  margin: 0 0 var(--lc-space-4);
+  font-size: var(--lc-font-body-sm);
+  color: var(--lc-text-secondary);
+}
+.market-config__list {
+  margin: 0 0 var(--lc-space-4);
+  padding: 0;
+}
+.market-config__item {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: var(--lc-space-4);
+  padding: var(--lc-space-2-5) 0;
+  font-size: var(--lc-font-caption);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.market-config__item:last-child {
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.market-config__item dt {
+  min-width: 0;
+}
+.market-config__item code {
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-primary);
+  word-break: break-all;
+}
+.market-config__item dd {
+  margin: 0;
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
+}
+
+/* ---------------- 提示条 ---------------- */
+
 .market-error,
 .market-notice {
-  margin: var(--lc-space-3) 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2-5);
+  margin-top: var(--lc-space-6);
   padding: var(--lc-space-2-5) var(--lc-space-3);
-  border-radius: var(--lc-radius-md);
   font-size: var(--lc-font-body-sm);
-}
-.market-empty {
-  border: var(--lc-border-width) dashed var(--lc-border-default);
-  color: var(--lc-text-secondary);
-}
-.market-empty ul {
-  margin: var(--lc-space-2) 0;
-  padding-left: var(--lc-space-5);
-}
-.market-empty li {
-  margin: var(--lc-space-1) 0;
+  border-left: 2px solid currentColor;
+  border-radius: var(--lc-radius-xs);
 }
 .market-error {
-  background: var(--lc-status-danger-bg);
   color: var(--lc-status-danger);
-  display: flex;
-  gap: var(--lc-space-2-5);
-  align-items: center;
-  flex-wrap: wrap;
+  background: var(--lc-status-danger-bg);
 }
 .market-notice {
-  background: var(--lc-status-success-bg);
   color: var(--lc-status-success);
+  background: var(--lc-status-success-bg);
 }
+
+/* ---------------- 缓存元信息 + 清单 ---------------- */
+
 .market-meta {
-  margin: var(--lc-space-3) 0 var(--lc-space-1);
+  margin: var(--lc-space-5) 0 0;
   font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
   color: var(--lc-text-secondary);
 }
+.market-meta code {
+  font-family: var(--lc-font-mono);
+}
+
 .market-list {
-  list-style: none;
+  margin: var(--lc-space-6) 0 0;
   padding: 0;
-  margin: var(--lc-space-3) 0 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--lc-space-3);
+  list-style: none;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
 }
-.market-card {
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
-  padding: var(--lc-space-3);
-  background: var(--lc-bg-surface);
-  display: flex;
-  flex-direction: column;
-  gap: var(--lc-space-1);
-}
-.market-card__head {
+.market-row {
   display: flex;
   align-items: center;
-  gap: var(--lc-space-1-5);
+  gap: var(--lc-space-6);
+  padding: var(--lc-space-4) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.market-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.market-row__head {
+  display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--lc-space-2);
+}
+.market-name {
+  font-size: var(--lc-font-body);
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-primary);
 }
 .market-tag {
-  padding: 1px var(--lc-space-1-5);
-  border-radius: var(--lc-radius-pill);
+  padding: 0 var(--lc-space-1);
+  font-size: var(--lc-font-micro);
+  border-radius: var(--lc-radius-xs);
   background: var(--lc-status-info-bg);
   color: var(--lc-text-link);
-  font-size: var(--lc-font-micro);
 }
 .market-version {
-  margin-left: auto;
-  color: var(--lc-text-secondary);
   font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
 }
 .market-desc {
-  margin: 0;
+  margin: var(--lc-space-1) 0 0;
   font-size: var(--lc-font-body-sm);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-primary);
+}
+.market-id {
+  margin: var(--lc-space-1) 0 0;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
 }
 .market-actions {
   display: flex;
-  gap: var(--lc-space-1-5);
+  flex-shrink: 0;
   flex-wrap: wrap;
   align-items: center;
-  margin-top: var(--lc-space-1-5);
+  gap: var(--lc-space-2);
+}
+
+@media (max-width: 767px) {
+  .market-config__item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lc-space-1);
+  }
+  .market-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--lc-space-3);
+  }
 }
 </style>

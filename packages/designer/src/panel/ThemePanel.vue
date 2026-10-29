@@ -7,8 +7,13 @@
   - 面板自持状态（不进 store）：主题非画布协作域，避免 store 膨胀。
 -->
 <template>
-  <div class="lc-theme-panel">
-    <h3 class="panel-title">主题配置</h3>
+  <div class="lc-theme-panel ws-page">
+    <header class="ws-head">
+      <div class="ws-head__text">
+        <h3 class="ws-title">主题配置</h3>
+        <p class="ws-note">品牌主色、圆角与深色策略，保存后设计器与 H5 同步换肤；留空即回落令牌默认。</p>
+      </div>
+    </header>
 
     <panel-state v-if="loading" kind="skeleton" testid="theme-loading" :rows="3" />
     <panel-state
@@ -23,50 +28,52 @@
     />
 
     <template v-else>
-      <label class="setter">
-        <span class="setter__label">品牌主色</span>
-        <span class="theme-color-row">
+      <div class="theme-form">
+        <div class="theme-field">
+          <span class="theme-field__label">品牌主色</span>
+          <div class="theme-color-row">
+            <input
+              class="theme-color"
+              type="color"
+              data-testid="theme-primary-color"
+              :value="colorValue"
+              @input="onColorInput"
+            />
+            <input
+              class="setter__input"
+              type="text"
+              data-testid="theme-primary"
+              :value="primary"
+              placeholder="#RRGGBB（留空 = 令牌默认）"
+              @input="onPrimaryInput"
+            />
+          </div>
+          <span class="theme-field__help">十六进制色值；运行时派生 brand 十档，全站按钮 / 链接 / 焦点跟随。</span>
+        </div>
+
+        <div class="theme-field">
+          <span class="theme-field__label">主圆角（px）</span>
           <input
-            class="theme-color"
-            type="color"
-            data-testid="theme-primary-color"
-            :value="colorValue"
-            @input="onColorInput"
-          />
-          <input
-            class="setter__input"
+            class="setter__input theme-field__short"
             type="text"
-            data-testid="theme-primary"
-            :value="primary"
-            placeholder="#RRGGBB（留空 = 令牌默认）"
-            @input="onPrimaryInput"
+            data-testid="theme-radius"
+            :value="radius"
+            placeholder="如 12（留空 = 令牌默认）"
+            @input="onRadiusInput"
           />
-        </span>
-        <span class="setter__help">十六进制色值；运行时派生 brand 十档，全站按钮 / 链接 / 焦点跟随</span>
-      </label>
+          <span class="theme-field__help">作用于按钮 / 输入框 / 面板三档圆角；仅 H5 端动态生效。</span>
+        </div>
 
-      <label class="setter">
-        <span class="setter__label">主圆角（px）</span>
-        <input
-          class="setter__input"
-          type="text"
-          data-testid="theme-radius"
-          :value="radius"
-          placeholder="如 12（留空 = 令牌默认）"
-          @input="onRadiusInput"
-        />
-        <span class="setter__help">作用于按钮 / 输入框 / 面板三档圆角；仅 H5 端动态生效</span>
-      </label>
-
-      <label class="setter">
-        <span class="setter__label">深色模式</span>
-        <select class="setter__input" data-testid="theme-dark" :value="dark" @change="onDarkChange">
-          <option value="">跟随系统</option>
-          <option value="light">强制浅色</option>
-          <option value="dark">强制深色</option>
-        </select>
-        <span class="setter__help">「跟随系统」= 不落配置，运行时按设备偏好</span>
-      </label>
+        <div class="theme-field">
+          <span class="theme-field__label">深色模式</span>
+          <select class="setter__input theme-field__short" data-testid="theme-dark" :value="dark" @change="onDarkChange">
+            <option value="">跟随系统</option>
+            <option value="light">强制浅色</option>
+            <option value="dark">强制深色</option>
+          </select>
+          <span class="theme-field__help">「跟随系统」= 不落配置，运行时按设备偏好。</span>
+        </div>
+      </div>
 
       <div class="theme-actions">
         <button
@@ -182,17 +189,43 @@ function onRetry(): void {
 </script>
 
 <style scoped>
+/* 三项配置用堆叠标签：标签独占一行，避免共享 .setter 的 72px 标签列截断「主圆角（px）」。 */
+.theme-form {
+  max-width: 560px;
+  margin-top: var(--lc-space-8);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.theme-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1-5);
+  padding: var(--lc-space-5) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.theme-field__label {
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-primary);
+}
+.theme-field__help {
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
+}
+.theme-field__short {
+  max-width: 280px;
+}
+
 .theme-color-row {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
 }
-
 .theme-color {
-  width: 36px;
-  height: 28px;
+  width: 40px;
+  height: var(--lc-input-h);
   padding: 0;
-  border: 1px solid var(--lc-border-default);
+  border: var(--lc-border-width) solid var(--lc-border-default);
   border-radius: var(--lc-radius-xs);
   background: none;
   cursor: pointer;
@@ -203,11 +236,11 @@ function onRetry(): void {
   display: flex;
   align-items: center;
   gap: var(--lc-space-3);
-  margin-top: var(--lc-space-4);
+  margin-top: var(--lc-space-6);
 }
 
 .theme-saved {
-  font-size: 12px;
+  font-size: var(--lc-font-caption);
   color: var(--lc-status-success);
 }
 </style>

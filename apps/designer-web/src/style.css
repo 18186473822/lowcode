@@ -424,15 +424,11 @@ a.top-btn {
   flex: 1;
   overflow: auto;
   background: var(--lc-bg-surface);
-  padding: var(--lc-space-4) var(--lc-space-5);
 }
-/* 门户设计自带工作台留白与最大宽度，外壳只负责滚动 */
+/* 门户设计自带工作台留白与最大宽度，外壳只负责滚动与撑满高度 */
 .designer__models--flush {
-  padding: 0;
-}
-.designer__models > .lc-model-panel,
-.designer__models > .lc-rbac-panel {
-  max-width: 720px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------------- 面板通用 ---------------- */

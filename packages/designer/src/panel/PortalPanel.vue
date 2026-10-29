@@ -726,10 +726,12 @@ function goTo(): void {
 
 .lc-portal-home {
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   gap: var(--lc-space-6);
+  min-height: 0;
   margin: 0 auto;
-  padding: var(--lc-space-8) var(--lc-space-8) var(--lc-space-16);
+  padding: var(--lc-space-8);
 }
 
 /* ---------------- 应用条：身份 + 元信息 ---------------- */
@@ -829,12 +831,17 @@ function goTo(): void {
 
 .portal-home__body {
   display: grid;
+  flex: 1;
   grid-template-columns: minmax(0, 1fr) 224px;
   column-gap: var(--lc-space-10);
   align-items: stretch;
+  min-height: 0;
 }
 .portal-home__main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 /* 侧栏用一条竖线与主区分离，条目之间用横线，不再是一叠等高卡片 */
@@ -1031,6 +1038,8 @@ function goTo(): void {
 /* ---------------- 门户表格 ---------------- */
 
 .portal-table-wrap {
+  flex: 1;
+  min-height: 0;
   margin-top: var(--lc-space-2);
   overflow-x: auto;
 }
@@ -1337,6 +1346,17 @@ function goTo(): void {
 /* ---------------- 响应式：侧栏落到下方，查询行折行 ---------------- */
 
 @media (max-width: 1023px) {
+  /* 单列时侧栏落到主区下方，改回内容高度，避免把两段硬塞进一屏 */
+  .lc-portal-home,
+  .portal-home__body,
+  .portal-home__main,
+  .portal-table-wrap {
+    flex: none;
+    min-height: auto;
+  }
+  .portal-home__main {
+    display: block;
+  }
   .portal-home__body {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--lc-space-6);

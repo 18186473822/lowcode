@@ -52,6 +52,147 @@
 }
 
 /* ============================================================
+ * 工作区页骨架（模型 / 权限 / 主题 / 集成 / 市场共用）
+ *
+ * 与门户首页同一套组织手段：22px 页标题 + 12px 说明、
+ * 18px 区块标题、1px 横线分列；不再一叠灰底卡片。
+ * 面板根节点加 `.ws-page`，页头用 `.ws-head`，列表用 `.ws-list` / `.ws-row`。
+ * ============================================================ */
+
+.ws-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: var(--lc-space-8);
+}
+
+.ws-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lc-space-3) var(--lc-space-4);
+}
+.ws-head__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  min-width: 0;
+}
+.ws-title {
+  margin: 0;
+  font-size: var(--lc-font-h1);
+  font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h1);
+  color: var(--lc-text-primary);
+}
+.ws-note {
+  margin: 0;
+  max-width: 74ch;
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
+}
+.ws-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--lc-space-2);
+}
+
+.ws-section {
+  margin-top: var(--lc-space-8);
+}
+.ws-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lc-space-3);
+  margin-bottom: var(--lc-space-3);
+  padding-bottom: var(--lc-space-2);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.ws-section__title {
+  margin: 0;
+  font-size: var(--lc-font-h2);
+  font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h2);
+  color: var(--lc-text-primary);
+}
+.ws-section__meta {
+  flex-shrink: 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+
+.ws-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.ws-row {
+  display: flex;
+  gap: var(--lc-space-3);
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--lc-space-2) 0;
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+  cursor: pointer;
+  transition: background-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.ws-row:hover {
+  background: var(--lc-bg-subtle);
+}
+.ws-row:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: -2px;
+}
+.ws-row--static {
+  cursor: default;
+}
+.ws-name {
+  font-size: var(--lc-font-body);
+  font-weight: var(--lc-weight-medium);
+  line-height: var(--lc-leading-ui);
+  color: var(--lc-text-primary);
+}
+.ws-id {
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+.ws-meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+  white-space: nowrap;
+}
+.ws-chevron {
+  flex-shrink: 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-tertiary);
+}
+.ws-create {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+}
+.ws-create .setter__input {
+  width: 280px;
+  max-width: 100%;
+}
+
+/* ============================================================
  * 轻量操作按钮（表格内 / 面板内 / 表单底部）
  * 注意：不含 flex 布局 —— 需要等宽平铺的面板自行在 scoped 块里覆盖。
  * ============================================================ */
@@ -66,6 +207,7 @@
   font-family: inherit;
   font-size: var(--lc-font-caption);
   line-height: var(--lc-lh-caption);
+  white-space: nowrap;
   border: var(--lc-border-width) solid var(--lc-btn-default-border);
   border-radius: var(--lc-btn-radius);
   background: var(--lc-btn-default-bg);

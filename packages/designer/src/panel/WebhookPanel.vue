@@ -9,17 +9,17 @@
   密钥只在创建/轮换响应中出现一次；列表/详情始终显示脱敏预览。
 -->
 <template>
-  <div class="lc-webhook-panel">
-    <div class="wh-head">
-      <div>
-        <h3 class="panel-title">Webhook 管理</h3>
-        <p class="wh-sub">订阅业务事件并把签名 JSON 投递到外部系统；失败自动退避重试，多副本 worker 用租约互斥。</p>
+  <div class="lc-webhook-panel ws-page">
+    <header class="ws-head">
+      <div class="ws-head__text">
+        <h3 class="ws-title">Webhook 管理</h3>
+        <p class="ws-note">订阅业务事件并投递签名 JSON；失败自动退避重试，多副本用租约互斥。</p>
       </div>
-      <div class="wh-head-actions">
+      <div class="ws-actions">
         <button class="op-btn" type="button" data-testid="webhook-refresh" @click="loadAll">刷新</button>
         <button class="op-btn op-btn--primary" type="button" data-testid="webhook-new" @click="startCreate">新建订阅</button>
       </div>
-    </div>
+    </header>
 
     <div v-if="error" class="wh-error" data-testid="webhook-error">
       <span>{{ error }}</span>
@@ -42,14 +42,29 @@
       <div class="wh-metric"><span class="wh-metric__label">成功 / 失败</span><strong>{{ metrics.success }} / {{ metrics.failed }}</strong></div>
       <div class="wh-metric"><span class="wh-metric__label">24h 失败率</span><strong>{{ (metrics.failureRate * 100).toFixed(1) }}%</strong></div>
       <div class="wh-metric"><span class="wh-metric__label">最老待投递</span><strong>{{ formatTime(metrics.oldestPendingAt) }}</strong></div>
-      <button class="op-btn" type="button" data-testid="webhook-cleanup" @click="cleanup">清理归档</button>
+      <button class="op-btn wh-metrics__action" type="button" data-testid="webhook-cleanup" @click="cleanup">清理归档</button>
     </section>
     <ul v-if="metrics?.alerts.length" class="wh-alerts" data-testid="webhook-alerts">
       <li v-for="(alert, i) in metrics.alerts" :key="i">{{ alert }}</li>
     </ul>
 
-    <div class="wh-body">
+    <!-- 无订阅且未在新建 → 只有一个空态，不再左右各说一遍 -->
+    <panel-state
+      v-if="!loading && !subscriptions.length && !formVisible"
+      kind="empty"
+      testid="webhook-empty"
+      title="还没有 Webhook 订阅"
+      text="订阅后，业务事件会以签名 JSON 投递到你的系统。先点「新建订阅」填一个接收地址。"
+      action-text="新建订阅"
+      @action="startCreate"
+    />
+
+    <div v-else class="wh-body">
       <aside class="wh-list">
+        <div class="wh-list__head">
+          <h4 class="wh-list__title">订阅</h4>
+          <span class="ws-section__meta">{{ subscriptions.length }} 个</span>
+        </div>
         <div v-if="loading" class="wh-empty">加载中…</div>
         <ul v-else-if="subscriptions.length" data-testid="webhook-list">
           <li v-for="sub in subscriptions" :key="sub.id">
@@ -70,14 +85,12 @@
             </button>
           </li>
         </ul>
-        <div v-else class="wh-empty">
-          还没有 Webhook 订阅。点击右上角「新建订阅」开始。
-        </div>
+        <div v-else class="wh-empty">暂无订阅，点右上角「新建订阅」开始。</div>
       </aside>
 
       <section class="wh-detail">
         <div v-if="!formVisible" class="wh-empty wh-empty--detail">
-          选择左侧订阅进行编辑，或新建一个订阅。
+          从左侧选择一个订阅进行编辑，或点右上角「新建订阅」。
         </div>
 
         <form v-else class="wh-form" @submit.prevent="save">
@@ -244,6 +257,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import PanelState from '../components/PanelState.vue'
 import {
   WEBHOOK_EVENT_OPTIONS,
   type WebhookApi,
@@ -535,60 +549,379 @@ onMounted(loadAll)
 </script>
 
 <style scoped>
-.lc-webhook-panel { padding: var(--lc-space-5) var(--lc-space-6) var(--lc-space-8); color: var(--lc-text-primary); overflow: auto; height: 100%; box-sizing: border-box; }
-.wh-head { display: flex; justify-content: space-between; gap: var(--lc-space-4); align-items: flex-start; }
-.wh-sub { margin: var(--lc-space-1) 0 0; color: var(--lc-text-secondary); font-size: 12px; }
-.wh-head-actions { display: flex; gap: var(--lc-space-2); }
-.wh-error, .wh-notice, .wh-secret { margin: var(--lc-space-3) 0; padding: var(--lc-space-2-5) var(--lc-space-3); border-radius: 8px; font-size: 13px; display: flex; gap: var(--lc-space-2-5); align-items: center; flex-wrap: wrap; }
-.wh-error { background: var(--lc-status-danger-bg); color: var(--lc-status-danger); border: 1px solid var(--lc-status-danger); }
-.wh-notice { background: var(--lc-status-success-bg); color: var(--lc-status-success); border: 1px solid var(--lc-status-success); }
-.wh-secret { background: var(--lc-status-warning-bg); color: var(--lc-status-warning); border: 1px solid var(--lc-status-warning); }
-.wh-secret code { font-family: var(--lc-font-mono); word-break: break-all; }
-.wh-metrics { display: flex; gap: var(--lc-space-2-5); flex-wrap: wrap; margin: 14px 0 var(--lc-space-2); align-items: stretch; }
-.wh-metric { min-width: 120px; padding: var(--lc-space-2-5) var(--lc-space-3); border: 1px solid var(--lc-border-default); border-radius: 10px; background: var(--lc-bg-surface); display: flex; flex-direction: column; gap: var(--lc-space-1); }
-.wh-metric--bad { border-color: var(--lc-status-danger); background: var(--lc-status-danger-bg); }
-.wh-metric__label { font-size: 11px; color: var(--lc-text-secondary); }
-.wh-alerts { margin: var(--lc-space-1) 0 var(--lc-space-3); padding: var(--lc-space-2) var(--lc-space-3) var(--lc-space-2) 28px; color: var(--lc-status-danger); background: var(--lc-status-danger-bg); border-radius: 8px; font-size: 12px; }
-.wh-body { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: var(--lc-space-4); margin-top: 14px; }
-.wh-list { border: 1px solid var(--lc-border-default); border-radius: 10px; overflow: auto; max-height: calc(100vh - 260px); background: var(--lc-bg-surface); }
-.wh-list ul { list-style: none; margin: 0; padding: var(--lc-space-1-5); }
-.wh-list-item { width: 100%; border: 0; background: transparent; text-align: left; padding: var(--lc-space-2-5); border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; gap: var(--lc-space-1); color: inherit; }
-.wh-list-item:hover, .wh-list-item--active { background: var(--lc-bg-subtle); }
-.wh-list-item__name { font-weight: 600; font-size: 13px; }
-.wh-list-item__url { font-size: 11px; color: var(--lc-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wh-list-item__meta { display: flex; gap: var(--lc-space-1-5); flex-wrap: wrap; font-size: 11px; color: var(--lc-text-secondary); align-items: center; }
-.wh-tag { display: inline-block; padding: 1px var(--lc-space-1-5); border-radius: 999px; background: var(--lc-status-success-bg); color: var(--lc-status-success); font-size: 10px; }
-.wh-tag--off, .wh-tag--failed { background: var(--lc-status-danger-bg); color: var(--lc-status-danger); }
-.wh-tag--pending { background: var(--lc-status-warning-bg); color: var(--lc-status-warning); }
-.wh-detail { min-width: 0; }
-.wh-empty { padding: var(--lc-space-6); color: var(--lc-text-secondary); font-size: 13px; }
-.wh-empty--detail { border: 1px dashed var(--lc-border-default); border-radius: 10px; }
-.wh-form { border: 1px solid var(--lc-border-default); border-radius: 10px; padding: var(--lc-space-4); background: var(--lc-bg-surface); }
-.wh-form__title { margin: 0 0 var(--lc-space-3); font-size: 14px; }
-.wh-events { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--lc-space-1-5); margin: var(--lc-space-1) 0; }
-.wh-event { display: flex; align-items: center; gap: var(--lc-space-1-5); font-size: 12px; }
-.wh-textarea { font-family: var(--lc-font-mono); resize: vertical; }
-.wh-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lc-space-2-5); }
-.wh-check { display: flex; align-items: center; gap: var(--lc-space-1-5); font-size: 13px; margin: var(--lc-space-2) 0; }
-.wh-actions { display: flex; gap: var(--lc-space-2); flex-wrap: wrap; align-items: center; margin-top: var(--lc-space-3); }
-.wh-inline { display: flex; align-items: center; gap: var(--lc-space-1-5); font-size: 11px; color: var(--lc-text-secondary); }
-.wh-grace { width: 96px; }
-.wh-meta { margin: var(--lc-space-3) 0 0; font-size: 11px; color: var(--lc-text-secondary); }
-.wh-logs { margin-top: var(--lc-space-4); border: 1px solid var(--lc-border-default); border-radius: 10px; padding: 14px; background: var(--lc-bg-surface); }
-.wh-logs__head { display: flex; justify-content: space-between; gap: var(--lc-space-2-5); align-items: center; }
-.wh-logs__head h4 { margin: 0; font-size: 14px; }
-.wh-logs__filter { display: flex; gap: var(--lc-space-1-5); align-items: center; }
-.wh-log-summary { display: flex; gap: var(--lc-space-2); align-items: center; font-size: 12px; color: var(--lc-text-secondary); margin: var(--lc-space-2) 0; flex-wrap: wrap; }
-.wh-log-list, .wh-attempts { list-style: none; padding: 0; margin: 0; }
-.wh-log { border-top: 1px solid var(--lc-border-default); padding: var(--lc-space-2-5) 0; }
-.wh-log__top { display: flex; gap: var(--lc-space-2); align-items: center; font-size: 12px; flex-wrap: wrap; }
-.wh-log__time { margin-left: auto; color: var(--lc-text-secondary); }
-.wh-log__meta { font-size: 11px; color: var(--lc-text-secondary); margin-top: var(--lc-space-1); }
-.wh-attempts { margin-top: var(--lc-space-1-5); padding-left: var(--lc-space-3); font-size: 11px; color: var(--lc-text-secondary); }
-.wh-attempts li { padding: var(--lc-space-0-5) 0; }
+/* 工作区骨架（.ws-page / .ws-head / .ws-actions）在 ../styles/panel.css；
+   本块只保留 Webhook 的指标条 / 订阅列表 / 表单 / 日志布局。 */
+.lc-webhook-panel {
+  color: var(--lc-text-primary);
+}
+
+/* ---------------- 提示条 ---------------- */
+
+.wh-error,
+.wh-notice,
+.wh-secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2-5);
+  margin-top: var(--lc-space-6);
+  padding: var(--lc-space-2-5) var(--lc-space-3);
+  font-size: var(--lc-font-body-sm);
+  border-left: 2px solid currentColor;
+  border-radius: var(--lc-radius-xs);
+}
+.wh-error {
+  color: var(--lc-status-danger);
+  background: var(--lc-status-danger-bg);
+}
+.wh-notice {
+  color: var(--lc-status-success);
+  background: var(--lc-status-success-bg);
+}
+.wh-secret {
+  color: var(--lc-status-warning);
+  background: var(--lc-status-warning-bg);
+}
+.wh-secret code {
+  font-family: var(--lc-font-mono);
+  word-break: break-all;
+}
+
+/* ---------------- 指标条 ---------------- */
+
+.wh-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-3) var(--lc-space-6);
+  margin-top: var(--lc-space-6);
+  padding: var(--lc-space-3) 0;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.wh-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-0-5);
+  min-width: 96px;
+}
+.wh-metric__label {
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
+}
+.wh-metric strong {
+  font-size: var(--lc-font-body);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.wh-metric--bad strong {
+  color: var(--lc-status-danger);
+}
+.wh-metrics__action {
+  margin-left: auto;
+}
+.wh-alerts {
+  margin: var(--lc-space-3) 0 0;
+  padding: 0 0 0 var(--lc-space-3);
+  list-style: none;
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-status-danger);
+  border-left: 2px solid var(--lc-status-danger);
+}
+.wh-alerts li + li {
+  margin-top: var(--lc-space-1);
+}
+
+/* ---------------- 两栏：订阅列表 + 详情 ---------------- */
+
+.wh-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: var(--lc-space-8);
+  align-items: start;
+  margin-top: var(--lc-space-8);
+}
+.wh-list {
+  min-width: 0;
+  max-height: calc(100vh - 300px);
+  overflow: auto;
+}
+.wh-list__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lc-space-2);
+  padding-bottom: var(--lc-space-2);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.wh-list__title {
+  margin: 0;
+  font-size: var(--lc-font-body);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.wh-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wh-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  width: 100%;
+  padding: var(--lc-space-2-5) var(--lc-space-2);
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: background-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.wh-list-item:hover {
+  background: var(--lc-bg-subtle);
+}
+.wh-list-item--active {
+  background: var(--lc-bg-subtle);
+  border-left-color: var(--lc-action-primary);
+}
+.wh-list-item__name {
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-primary);
+}
+.wh-list-item__url {
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-list-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
+}
+.wh-tag {
+  display: inline-block;
+  padding: 0 var(--lc-space-1);
+  font-size: var(--lc-font-micro);
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-status-success-bg);
+  color: var(--lc-status-success);
+}
+.wh-tag--off,
+.wh-tag--failed {
+  background: var(--lc-status-danger-bg);
+  color: var(--lc-status-danger);
+}
+.wh-tag--pending {
+  background: var(--lc-status-warning-bg);
+  color: var(--lc-status-warning);
+}
+
+.wh-detail {
+  min-width: 0;
+}
+.wh-empty {
+  padding: var(--lc-space-6) 0;
+  font-size: var(--lc-font-body-sm);
+  color: var(--lc-text-secondary);
+}
+.wh-empty--detail {
+  padding-top: var(--lc-space-8);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+
+/* ---------------- 表单 ---------------- */
+
+.wh-form {
+  min-width: 0;
+}
+.wh-form__title {
+  margin: 0 0 var(--lc-space-5);
+  font-size: var(--lc-font-h2);
+  font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h2);
+  color: var(--lc-text-primary);
+}
+/* 表单标签统一堆叠：72px 共享标签列放不下「自定义请求头（JSON）」这类长文案 */
+.wh-form .setter {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--lc-space-1-5);
+  margin-bottom: var(--lc-space-4);
+}
+.wh-form .setter__label {
+  overflow: visible;
+  white-space: normal;
+}
+.wh-events {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: var(--lc-space-1-5) var(--lc-space-2);
+}
+.wh-event {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-label);
+  cursor: pointer;
+}
+.wh-event input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--lc-action-primary);
+  cursor: pointer;
+}
+.wh-textarea {
+  font-family: var(--lc-font-mono);
+  resize: vertical;
+}
+.wh-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lc-space-4);
+}
+.wh-row .setter {
+  margin-bottom: 0;
+}
+.wh-check {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  margin: var(--lc-space-2) 0 var(--lc-space-4);
+  font-size: var(--lc-font-body-sm);
+  color: var(--lc-text-label);
+  cursor: pointer;
+}
+.wh-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--lc-action-primary);
+  cursor: pointer;
+}
+.wh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2);
+  margin-top: var(--lc-space-5);
+  padding-top: var(--lc-space-4);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.wh-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+.wh-grace {
+  width: 96px;
+}
+.wh-meta {
+  margin: var(--lc-space-3) 0 0;
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
+}
+
+/* ---------------- 投递日志 ---------------- */
+
+.wh-logs {
+  margin-top: var(--lc-space-8);
+  padding-top: var(--lc-space-5);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.wh-logs__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lc-space-3);
+}
+.wh-logs__head h4 {
+  margin: 0;
+  font-size: var(--lc-font-h3);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
+.wh-logs__filter {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+}
+.wh-logs__filter .setter__input {
+  width: 132px;
+}
+.wh-log-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2);
+  margin: var(--lc-space-3) 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+.wh-log-list,
+.wh-attempts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wh-log {
+  padding: var(--lc-space-2-5) 0;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.wh-log__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2);
+  font-size: var(--lc-font-caption);
+}
+.wh-log__time {
+  margin-left: auto;
+  color: var(--lc-text-secondary);
+}
+.wh-log__meta {
+  margin-top: var(--lc-space-1);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
+}
+.wh-attempts {
+  margin-top: var(--lc-space-1-5);
+  padding-left: var(--lc-space-3);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
+}
+.wh-attempts li {
+  padding: var(--lc-space-0-5) 0;
+}
+
 @media (max-width: 900px) {
-  .wh-body { grid-template-columns: 1fr; }
-  .wh-list { max-height: 240px; }
-  .wh-row { grid-template-columns: 1fr; }
+  .wh-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lc-space-6);
+  }
+  .wh-list {
+    max-height: 240px;
+  }
+  .wh-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wh-metrics__action {
+    margin-left: 0;
+  }
 }
 </style>

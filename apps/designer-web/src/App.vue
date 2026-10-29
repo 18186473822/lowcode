@@ -24,8 +24,9 @@
         >{{ store.perfText }}</span>
       </div>
       <div class="designer__actions">
-        <!-- 抽屉形态才有（< 1024）：左右栏折叠后需要常驻的呼出入口 -->
-        <template v-if="drawerMode">
+        <!-- 抽屉形态才有（< 1024）：左右栏折叠后需要常驻的呼出入口。
+             只有画布视图有左右栏，门户 / 模型 / 权限等视图下不渲染，避免按钮点了没反应。 -->
+        <template v-if="drawerMode && isCanvasView">
           <button
             class="top-btn"
             type="button"
@@ -348,7 +349,7 @@
       <span v-else class="bottom__ok" />
       <!-- 门户视图下 statusText 还是上一次画布操作留下的（「已打开 xxx」），显示出来语义错位 -->
       <span v-if="isCanvasView" class="bottom__status">{{ store.statusText }}</span>
-      <span v-else class="bottom__status">门户设计 · 选择一行点「页面设计」进入画布</span>
+      <span v-else class="bottom__status">{{ workspaceHint }}</span>
     </footer>
 
     <!-- Phase 2 批 5：版本历史弹层（fixed 定位，不受布局约束） -->
@@ -528,6 +529,17 @@ const STAGE_LABELS = {
   market: '物料市场',
 } as const
 const stageLabel = computed(() => STAGE_LABELS[store.view])
+
+/** 底栏提示 —— 非画布视图下给出当前工作区的一句操作指引（原先把门户文案带到了所有视图） */
+const WORKSPACE_HINTS = {
+  portal: '门户设计 · 选择一行点「页面设计」进入画布',
+  model: '数据模型 · 选择模型进入字段编辑',
+  rbac: '权限管理 · 角色与页面可见性',
+  theme: '主题配置 · 保存后设计器与 H5 同步换肤',
+  webhook: 'Webhook 集成 · 订阅、投递日志与清理',
+  market: '物料市场 · 只加载已验签元数据',
+} as const
+const workspaceHint = computed(() => WORKSPACE_HINTS[store.view as keyof typeof WORKSPACE_HINTS] ?? '')
 
 /** 门户页的面包屑标题（schema.portal.title 缺失时退回页面名 / 编码） */
 const portalTitle = computed(() => {

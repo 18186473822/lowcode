@@ -6,25 +6,32 @@
   - 保存门禁 = model-ops.modelErrors（协议 validateModel 同源 + id 格式），errors 可见不静默。
 -->
 <template>
-  <div class="lc-model-panel">
+  <div class="lc-model-panel ws-page">
     <!-- 列表视图（未选中编辑对象） -->
     <template v-if="!store.editingModel">
-      <h3 class="panel-title">数据模型</h3>
-      <div class="model-new">
-        <input
-          ref="newIdRef"
-          v-model="newId"
-          class="setter__input"
-          type="text"
-          placeholder="新模型 id，如 m_leave"
-          aria-label="新模型 id"
-          data-testid="new-model-id"
-          @keydown.enter="onNew"
-        />
-        <button class="op-btn op-btn--primary" type="button" data-testid="new-model" @click="onNew">
-          新建
-        </button>
-      </div>
+      <header class="ws-head">
+        <div class="ws-head__text">
+          <h3 class="ws-title">数据模型</h3>
+          <p class="ws-note">表单页与列表页的数据源。先建模型，再用「新建页面」按模型生成成组页面。</p>
+        </div>
+        <div class="ws-actions">
+          <div class="ws-create">
+            <input
+              ref="newIdRef"
+              v-model="newId"
+              class="setter__input"
+              type="text"
+              placeholder="新模型 id，如 m_leave"
+              aria-label="新模型 id"
+              data-testid="new-model-id"
+              @keydown.enter="onNew"
+            />
+            <button class="op-btn op-btn--primary" type="button" data-testid="new-model" @click="onNew">
+              新建
+            </button>
+          </div>
+        </div>
+      </header>
       <panel-state
         v-if="store.modelError"
         kind="error"
@@ -41,33 +48,52 @@
         testid="model-list-loading"
         :rows="3"
       />
-      <ul v-else-if="store.models.length" class="model-list" data-testid="model-list">
-        <li v-for="m in store.models" :key="m.id" class="model-item">
-          <button class="model-item__open" type="button" :data-testid="`open-model-${m.id}`" @click="store.openModel(m.id)">
-            <strong class="model-item__name">{{ m.name || m.id }}</strong>
-            <code class="model-item__id">{{ m.id }}</code>
-            <span class="model-item__meta">{{ m.fieldCount ?? '?' }} 字段</span>
-          </button>
-        </li>
-      </ul>
-      <panel-state
-        v-else
-        kind="empty"
-        testid="model-empty"
-        title="还没有数据模型"
-        text="数据模型是表单页与列表页的数据源。先在上方输入一个 id（如 m_employee）再点「新建」。"
-        action-text="去输入 id"
-        inline
-        @action="focusNewId"
-      />
+      <template v-else>
+        <section class="ws-section">
+          <div class="ws-section__head">
+            <h4 class="ws-section__title">全部模型</h4>
+            <span class="ws-section__meta">{{ store.models.length }} 个</span>
+          </div>
+          <ul v-if="store.models.length" class="model-list ws-list" data-testid="model-list">
+            <li v-for="m in store.models" :key="m.id" class="model-item">
+              <button class="model-item__open ws-row" type="button" :data-testid="`open-model-${m.id}`" @click="store.openModel(m.id)">
+                <strong class="model-item__name ws-name">{{ m.name || m.id }}</strong>
+                <code class="model-item__id ws-id">{{ m.id }}</code>
+                <span class="model-item__meta ws-meta">{{ m.fieldCount ?? '?' }} 字段</span>
+                <span class="ws-chevron" aria-hidden="true">→</span>
+              </button>
+            </li>
+          </ul>
+          <panel-state
+            v-else
+            kind="empty"
+            testid="model-empty"
+            title="还没有数据模型"
+            text="先在上方输入一个 id（如 m_employee）再点「新建」。模型建好后，可在页面菜单里按模型生成列表 / 表单 / 详情三页。"
+            action-text="去输入 id"
+            inline
+            @action="focusNewId"
+          />
+        </section>
+      </template>
     </template>
 
     <!-- 编辑视图 -->
     <template v-else>
-      <h3 class="panel-title">
-        模型 <code class="model-head__id">{{ store.editingModel.id }}</code>
-        <span v-if="store.modelDirty" class="model-dirty" data-testid="model-dirty">未保存</span>
-      </h3>
+      <header class="ws-head">
+        <div class="ws-head__text">
+          <h3 class="ws-title">
+            模型 <code class="model-head__id">{{ store.editingModel.id }}</code>
+            <span v-if="store.modelDirty" class="model-dirty" data-testid="model-dirty">未保存</span>
+          </h3>
+          <p class="ws-note">字段 key 与物理表列名一致；保存前会按与服务端同源的规则校验，错误就地列出。</p>
+        </div>
+        <div class="ws-actions">
+          <button class="op-btn" type="button" data-testid="back-list" @click="store.closeModel()">
+            ← 返回列表
+          </button>
+        </div>
+      </header>
 
       <label class="setter">
         <span class="setter__label">名称</span>
@@ -256,9 +282,6 @@
           :disabled="store.modelSaving"
           @click="store.saveModel()"
         >{{ store.modelSaving ? '保存中…' : '保存模型' }}</button>
-        <button class="op-btn" type="button" data-testid="back-list" @click="store.closeModel()">
-          返回列表
-        </button>
       </div>
 
       <ul v-if="store.modelErrors.length" class="model-errors" data-testid="model-errors">
@@ -342,87 +365,66 @@ function onOptions(key: string, e: Event): void {
 /* 令牌：../styles/tokens.css
    共用件（.panel-title / .setter* / .op-btn* / .panel-err / .lc-state*）在 ../styles/panel.css，
    本块只保留 ModelPanel 特有的布局类。 */
-.model-new {
-  display: flex;
-  gap: var(--lc-space-2);
-  margin-bottom: var(--lc-space-3);
-}
-
 .model-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.model-item + .model-item {
-  margin-top: var(--lc-space-1-5);
-}
-
-.model-item__open {
-  display: flex;
-  align-items: center;
-  gap: var(--lc-space-2);
-  width: 100%;
-  padding: var(--lc-space-2) var(--lc-space-2-5);
-  text-align: left;
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-surface);
-  cursor: pointer;
-  transition: border-color var(--lc-duration-fast) var(--lc-ease-standard);
-}
-
-.model-item__open:hover {
-  border-color: var(--lc-action-primary);
-}
-
 .model-item__name {
-  font-size: var(--lc-font-body-sm);
-  color: var(--lc-text-primary);
+  flex-shrink: 0;
 }
 
 .model-item__id,
 .model-head__id {
-  padding: 1px var(--lc-space-1-5);
   font-family: var(--lc-font-mono);
   font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+.model-head__id {
+  margin-left: var(--lc-space-1);
+  padding: var(--lc-space-0-5) var(--lc-space-1-5);
   border-radius: var(--lc-radius-xs);
   background: var(--lc-bg-subtle);
   color: var(--lc-text-link);
 }
 
-.model-item__meta {
-  margin-left: auto;
-  font-size: var(--lc-font-caption);
-  color: var(--lc-text-secondary);
-}
-
 .model-dirty {
   margin-left: var(--lc-space-2);
-  padding: 1px var(--lc-space-1-5);
   font-size: var(--lc-font-caption);
-  border-radius: var(--lc-radius-xs);
-  background: var(--lc-status-warning-bg);
+  font-weight: var(--lc-weight-regular);
   color: var(--lc-status-warning);
+}
+
+.lc-model-panel .setter {
+  margin-bottom: var(--lc-space-2-5);
+}
+.lc-model-panel .ws-head + .setter {
+  margin-top: var(--lc-space-6);
 }
 
 .model-fields__head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin: 14px 0 var(--lc-space-2);
-  padding-top: var(--lc-space-2-5);
+  gap: var(--lc-space-3);
+  margin: var(--lc-space-6) 0 var(--lc-space-3);
+  padding-bottom: var(--lc-space-2);
+  font-size: var(--lc-font-h3);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.model-fields__head .op-btn {
+  flex-shrink: 0;
   font-size: var(--lc-font-caption);
-  color: var(--lc-text-secondary);
-  border-top: var(--lc-border-width) var(--lc-border-dashed) var(--lc-border-default);
+  font-weight: var(--lc-weight-regular);
 }
 
 .model-field {
-  margin-bottom: var(--lc-space-2-5);
-  padding: var(--lc-space-2);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-sm);
-  background: var(--lc-bg-subtle);
+  margin-bottom: 0;
+  padding: var(--lc-space-3) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 
 .model-field__row {
@@ -463,7 +465,7 @@ function onOptions(key: string, e: Event): void {
 .model-actions {
   display: flex;
   gap: var(--lc-space-2);
-  margin-top: 14px;
+  margin-top: var(--lc-space-6);
 }
 
 .model-errors {
@@ -479,17 +481,14 @@ function onOptions(key: string, e: Event): void {
 
 /* 数据权限（dataScope + permissions） */
 .model-perms {
-  margin: 14px 0;
-  padding: var(--lc-space-2-5);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
-  background: var(--lc-bg-subtle);
+  margin: 0;
 }
 .model-perms__row {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
-  margin-top: var(--lc-space-1-5);
+  padding: var(--lc-space-1-5) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .model-perms__label {
   flex: 0 0 40px;
@@ -519,17 +518,14 @@ function onOptions(key: string, e: Event): void {
 
 /* 默认页面（模型 → 页面反向索引） */
 .model-pages {
-  margin: 14px 0;
-  padding: var(--lc-space-2-5);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
-  background: var(--lc-bg-subtle);
+  margin: 0;
 }
 .model-pages__row {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
-  margin-top: var(--lc-space-1-5);
+  padding: var(--lc-space-1-5) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .model-pages__label {
   flex: 0 0 40px;
@@ -548,18 +544,17 @@ function onOptions(key: string, e: Event): void {
 }
 .model-pages__open {
   flex-shrink: 0;
-  padding: 0 var(--lc-space-2);
+  padding: var(--lc-space-1) var(--lc-space-1-5);
   font-family: inherit;
-  font-size: var(--lc-font-micro);
-  line-height: var(--lc-leading-label);
+  font-size: var(--lc-font-caption);
   color: var(--lc-action-primary);
-  background: var(--lc-bg-surface);
-  border: var(--lc-border-width) solid var(--lc-border-default);
+  background: none;
+  border: 0;
   border-radius: var(--lc-radius-xs);
   cursor: pointer;
 }
 .model-pages__open:hover {
-  border-color: var(--lc-action-primary);
+  background: var(--lc-bg-subtle);
 }
 .model-pages__open:focus-visible {
   outline: var(--lc-focus-ring);
