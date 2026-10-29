@@ -131,11 +131,14 @@ describe('loadPortalPages：清单取数 / 排序 / 降级', () => {
     expect(store.portalError).toContain('网络断了')
   })
 
-  it('switchView(portal) 触发清单加载', async () => {
+  it('从别的视图切回 portal 触发清单加载（portal 已是默认首页）', async () => {
     const store = useDesignerStore()
     const api = mockApi([portalRow('p_home')])
     store.setApi(api)
 
+    // 2026-10-28：view 初始就是 portal → 直接 switchView('portal') 是 no-op，
+    // 先切走再切回，才是「进入门户清单」的真实路径。
+    await store.switchView('page')
     await store.switchView('portal')
     expect(store.view).toBe('portal')
     expect(api.listPages).toHaveBeenCalled()

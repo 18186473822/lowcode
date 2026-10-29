@@ -78,6 +78,12 @@
       >刷新</button>
     </div>
 
+    <!-- 下钻失败提示独立于下面的加载/表格分支：不能插进 v-if/v-else-if/v-else 链中间 -->
+    <p v-if="designError" class="panel-err portal-design-err" data-testid="portal-design-error">{{ designError }}</p>
+    <p v-if="pendingSwitchTo" class="portal-hint portal-dirty-hint" data-testid="portal-dirty-hint">
+      当前页有未保存的修改：再点一次「页面设计」会丢弃这些修改。
+    </p>
+
     <p v-if="store.portalError" class="panel-err" data-testid="portal-error">{{ store.portalError }}</p>
     <p v-else-if="store.portalLoading" class="portal-hint" data-testid="portal-loading">加载中…</p>
 
@@ -300,6 +306,10 @@ const jumpTo = ref(1)
 const selected = ref<Set<string>>(new Set())
 const deleteArmed = ref(false)
 const deleting = ref(false)
+/** 下钻失败（openPage 报错）：留在清单就地提示，不带着旧内容进画布 */
+const designError = ref('')
+/** 脏态换页的「上膛」目标：等于某个 pageId 时，再点一次才真的丢弃并打开 */
+const pendingSwitchTo = ref('')
 let disarmTimer: ReturnType<typeof setTimeout> | undefined
 
 function match(name: string, id: string): boolean {
@@ -390,6 +400,8 @@ function resetQuery(): void {
   applyQuery()
 }
 async function reload(): Promise<void> {
+  pendingSwitchTo.value = ''
+  designError.value = ''
   await store.loadPortalPages()
   page.value = 1
 }
@@ -453,10 +465,39 @@ async function doDelete(ids: string[]): Promise<void> {
   }
 }
 
-/** 页面设计：先切回画布并打开该页（store.openPage 会拉最新 schema） */
+/**
+ * 页面设计（下钻到画布）：**先取 schema 成功，再切视图**。
+ *
+ * 旧实现是 `switchView('page')` → `openPage(id)`，有两个坑：
+ * 1. 切视图那一刻画布用的还是上一次的 schema —— 慢网下先闪一帧旧页面 / 空画布；
+ * 2. openPage 失败（页被别处删掉 / 网络错）时用户已经停在画布，`pageLoaded` 仍为 true，
+ *    点「保存」会把旧内容写进新 pageId —— 跨页数据污染，且界面上看不出来。
+ *
+ * 另：换页会整体替换 schema，脏态下必须确认，否则未保存的修改被静默丢弃。
+ */
 async function design(id: string): Promise<void> {
+  designError.value = ''
+  // 回到「上次编辑的那一页」= 继续编辑：保留内存里未保存的 schema，不重新拉服务端覆盖
+  if (id === store.pageId && store.pageLoaded) {
+    pendingSwitchTo.value = ''
+    await store.switchView('page')
+    return
+  }
+  // 换页会整体替换 schema，脏态下先「上膛」、第二次点击才真丢。
+  // 注意必须连 pageLoaded 一起判：`saveState` 的初始值就是 `dirty`（还没有页面可保存），
+  // 只看它会在一进门户、还没打开过任何页时误弹确认。
+  if (store.pageLoaded && store.saveState === 'dirty' && pendingSwitchTo.value !== id) {
+    pendingSwitchTo.value = id
+    return
+  }
+  pendingSwitchTo.value = ''
+  const opened = await store.openPage(id)
+  if (!opened) {
+    // 失败留在清单：进画布只会让人对着旧内容继续编辑
+    designError.value = store.statusText || `打开页面失败：${id}`
+    return
+  }
   await store.switchView('page')
-  await store.openPage(id)
 }
 
 /* ---------------- 新增 / 编辑弹层 ---------------- */
@@ -626,6 +667,13 @@ function goTo(): void {
   margin: var(--lc-space-3) 0 0;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-tertiary);
+}
+.portal-design-err {
+  margin: var(--lc-space-2) 0 0;
+}
+.portal-dirty-hint {
+  margin: var(--lc-space-2) 0 0;
+  color: var(--lc-text-danger);
 }
 
 .portal-table-wrap {

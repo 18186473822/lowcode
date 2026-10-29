@@ -26,6 +26,33 @@ describe('store 初始化', () => {
   })
 })
 
+describe('首屏工作区（2026-10-28 结构调整）', () => {
+  it('默认落在「移动门户」清单，且画布未载入（不再自动打开 demo 页）', () => {
+    const store = useDesignerStore()
+    expect(store.view).toBe('portal')
+    expect(store.pageLoaded).toBe(false)
+    // demo 只是「默认待打开 id」，不代表已经载入 —— 否则保存按钮会写用户看不见的页
+    expect(store.pageId).toBe('demo')
+  })
+
+  it('openPage 成功 / newPage 之后 pageLoaded 置真（画布才允许展示与保存）', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    const loaded = JSON.parse(JSON.stringify(store.schema)) as PageSchema
+    api.getSchema.mockResolvedValue({ schema: loaded, version: 'draft' })
+    store.setApi(api)
+
+    expect(await store.openPage('p_home')).toBe(true)
+    expect(store.pageLoaded).toBe(true)
+
+    setActivePinia(createPinia())
+    const fresh = useDesignerStore()
+    expect(fresh.pageLoaded).toBe(false)
+    fresh.newPage('p_new')
+    expect(fresh.pageLoaded).toBe(true)
+  })
+})
+
 describe('insertMaterial（拖入）', () => {
   it('无 hit → root 末尾插入 + 选中新节点 + defaultProps 生效', () => {
     const store = useDesignerStore()

@@ -244,6 +244,47 @@ a.top-btn {
   margin-right: var(--lc-space-1);
 }
 
+/* 面包屑：门户页从「移动门户」清单下钻进来，返回入口必须常驻（不藏在菜单里） */
+.canvas-crumbs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  height: 32px;
+  padding: 0 var(--lc-space-4);
+  font-size: var(--lc-font-caption);
+  background: var(--lc-bg-surface);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.canvas-crumbs__back {
+  padding: var(--lc-space-0-5) var(--lc-space-1-5);
+  font-family: inherit;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-link);
+  background: none;
+  border: var(--lc-border-width) solid transparent;
+  border-radius: var(--lc-radius-sm);
+  cursor: pointer;
+}
+.canvas-crumbs__back:hover {
+  background: var(--lc-bg-subtle);
+  border-color: var(--lc-border-default);
+}
+.canvas-crumbs__back:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.canvas-crumbs__sep {
+  color: var(--lc-text-tertiary);
+}
+.canvas-crumbs__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-primary);
+}
+
 /* ---------------- 画布工具条（§7.1 高 40 · 白底 · 左设备 / 右缩放与标尺） ---------------- */
 
 .canvas-bar {

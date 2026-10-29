@@ -10,8 +10,8 @@
   <div class="designer">
     <header class="designer__top">
       <div class="designer__brand">
-        <span class="designer__logo" title="移动端低代码平台 · 设计器">
-          移动端低代码平台<span class="designer__logo-sub"> · 设计器</span>
+        <span class="designer__logo" :title="`移动端低代码平台 · ${stageLabel}`">
+          移动端低代码平台<span class="designer__logo-sub"> · {{ stageLabel }}</span>
         </span>
         <!-- 批 5 Profiler（D-P3-14）：Schema 加载 + 画布渲染耗时；悬浮看完整采样 JSON -->
         <span
@@ -43,37 +43,43 @@
           <span class="top-sep" aria-hidden="true" />
         </template>
         <!-- 2026-10-28：换页下拉 + pageId 输入 + 打开 / 新建 / 删除 合并为「页面」菜单。
-             原先五个控件平铺，1076px 窗口下被 flex 压缩、下拉与删除按钮互相重叠。 -->
-        <top-page-menu />
+             原先五个控件平铺，1076px 窗口下被 flex 压缩、下拉与删除按钮互相重叠。
+             2026-10-29：门户设计是**一级首页**，此时还没有「当前页」可管：菜单降级为
+             「工作区」导航（workspaceOnly），页面级操作整体不出现。 -->
+        <top-page-menu :workspace-only="isPortalView" />
         <span class="top-sep" aria-hidden="true" />
-        <button class="top-btn top-btn--primary" type="button" @click="onSave">保存</button>
-        <button class="top-btn" type="button" @click="onPublish">发布</button>
-        <!-- Phase 2 批 4：撤销/重做（窄屏收进「更多」，宽屏常驻） -->
-        <span class="top-sep designer__sep--history" aria-hidden="true" />
-        <div class="designer__history">
-          <button
-            class="top-btn"
-            type="button"
-            data-testid="undo"
-            :disabled="!store.canUndo"
-            title="撤销（Ctrl+Z）"
-            @click="store.undo()"
-          >撤销</button>
-          <button
-            class="top-btn"
-            type="button"
-            data-testid="redo"
-            :disabled="!store.canRedo"
-            title="重做（Ctrl+Shift+Z）"
-            @click="store.redo()"
-          >重做</button>
-        </div>
+        <!-- 页面级动作只在画布视图出现：门户清单 / 模型 / 权限等视图下没有「当前可见页」，
+             留着保存/发布会把用户看不见的页写盘（2026-10-28 结构调整）。 -->
+        <template v-if="isCanvasView">
+          <button class="top-btn top-btn--primary" type="button" @click="onSave">保存</button>
+          <button class="top-btn" type="button" @click="onPublish">发布</button>
+          <!-- Phase 2 批 4：撤销/重做（窄屏收进「更多」，宽屏常驻） -->
+          <span class="top-sep designer__sep--history" aria-hidden="true" />
+          <div class="designer__history">
+            <button
+              class="top-btn"
+              type="button"
+              data-testid="undo"
+              :disabled="!store.canUndo"
+              title="撤销（Ctrl+Z）"
+              @click="store.undo()"
+            >撤销</button>
+            <button
+              class="top-btn"
+              type="button"
+              data-testid="redo"
+              :disabled="!store.canRedo"
+              title="重做（Ctrl+Shift+Z）"
+              @click="store.redo()"
+            >重做</button>
+          </div>
+        </template>
         <!-- 工作区（画布 / 模型 / 权限 / 主题 / Webhook / 物料市场）已并入「页面」菜单，
              顶栏不再单开「工作台」一级菜单。 -->
 
         <!-- 更多：编辑动作 + 帮助 / 资源。窄屏隐藏的撤销、重做、主题也在这里保底可达。 -->
         <top-more-menu label="更多" testid="top-more">
-          <div class="top-menu__group">
+          <div v-if="isCanvasView" class="top-menu__group">
             <span class="top-menu__label">编辑</span>
             <button
               class="top-btn"
@@ -119,14 +125,8 @@
               title="粘贴（Ctrl+V；粘贴位置按选中规则）"
               @click="store.paste()"
             >粘贴</button>
-            <button
-              class="top-btn"
-              type="button"
-              data-testid="open-help"
-              @click="helpOpen = true"
-            >快捷键与帮助</button>
           </div>
-          <div class="top-menu__divider" aria-hidden="true" />
+          <div v-if="isCanvasView" class="top-menu__divider" aria-hidden="true" />
           <div class="top-menu__group">
             <span class="top-menu__label">界面</span>
             <button
@@ -135,6 +135,13 @@
               data-testid="toggle-theme-menu"
               @click="onToggleTheme"
             >切换为{{ theme === 'dark' ? '亮色' : '暗色' }}主题</button>
+            <!-- 帮助不随画布动作隐藏：任何视图都要能查快捷键 -->
+            <button
+              class="top-btn"
+              type="button"
+              data-testid="open-help"
+              @click="helpOpen = true"
+            >快捷键与帮助</button>
           </div>
           <div class="top-menu__divider" aria-hidden="true" />
           <div class="top-menu__group">
@@ -156,7 +163,7 @@
           title="切换主题（亮色 / 暗色）"
           @click="onToggleTheme"
         >{{ theme === 'dark' ? '亮色' : '暗色' }}</button>
-        <span class="save-badge" :class="`save-badge--${store.saveState}`" :title="badgeText">{{ badgeText }}</span>
+        <span v-if="isCanvasView" class="save-badge" :class="`save-badge--${store.saveState}`" :title="badgeText">{{ badgeText }}</span>
       </div>
     </header>
 
@@ -216,6 +223,16 @@
         <outline-tree v-else />
       </aside>
       <main class="designer__main">
+        <!-- 面包屑：画布是从「门户设计」下钻进来的二级页，必须能原路返回。
+             2026-10-29：原先只对 portal 类型页显示，从「页面」菜单打开 list/form 页就没有回门户的路径；
+             改为**所有画布视图**都显示，右侧名字随页型取门户标题或页面名。 -->
+        <div v-if="isCanvasView" class="canvas-crumbs" data-testid="canvas-crumbs">
+          <button class="canvas-crumbs__back" type="button" @click="backToPortal">
+            ← 门户设计
+          </button>
+          <span class="canvas-crumbs__sep" aria-hidden="true">/</span>
+          <span class="canvas-crumbs__name">{{ crumbName }}</span>
+        </div>
         <!-- Phase 2 批 2：标准页（list/detail）提示 —— 配置驱动，画布根容器仅占位 -->
         <div v-if="isStdPage" class="std-hint" data-testid="std-hint">
           <strong>{{ store.schema.type === 'list' ? '列表页' : '详情页' }}</strong>
@@ -310,18 +327,24 @@
     </div>
 
     <footer class="designer__bottom">
-      <span v-if="store.validation.errors.length" class="bottom__errors">
-        ⚠ {{ store.validation.errors.length }} 项校验错误：
-        <span
-          v-for="(err, i) in store.validation.errors.slice(0, 3)"
-          :key="i"
-          class="bottom__err"
-          :title="err.path"
-        >{{ err.message }}</span>
-        <span v-if="store.validation.errors.length > 3" class="bottom__err">…</span>
-      </span>
-      <span v-else class="bottom__ok">✓ 校验通过</span>
-      <span class="bottom__status">{{ store.statusText }}</span>
+      <!-- 校验摘要只属于画布：门户清单 / 模型视图下显示「✓ 校验通过」会指向看不见的页 -->
+      <template v-if="isCanvasView">
+        <span v-if="store.validation.errors.length" class="bottom__errors">
+          ⚠ {{ store.validation.errors.length }} 项校验错误：
+          <span
+            v-for="(err, i) in store.validation.errors.slice(0, 3)"
+            :key="i"
+            class="bottom__err"
+            :title="err.path"
+          >{{ err.message }}</span>
+          <span v-if="store.validation.errors.length > 3" class="bottom__err">…</span>
+        </span>
+        <span v-else class="bottom__ok">✓ 校验通过</span>
+      </template>
+      <span v-else class="bottom__ok" />
+      <!-- 门户视图下 statusText 还是上一次画布操作留下的（「已打开 xxx」），显示出来语义错位 -->
+      <span v-if="isCanvasView" class="bottom__status">{{ store.statusText }}</span>
+      <span v-else class="bottom__status">门户设计 · 选择一行点「页面设计」进入画布</span>
     </footer>
 
     <!-- Phase 2 批 5：版本历史弹层（fixed 定位，不受布局约束） -->
@@ -451,6 +474,43 @@ const isStdPage = computed(() => store.schema.type === 'list' || store.schema.ty
 /** Phase 3 批 4：门户页 —— 画布为拖拽区（卡片由配置驱动），顶部提示条 */
 const isPortalPage = computed(() => store.schema.type === 'portal')
 
+/** 当前是否「画布」视图：页面级动作 / 校验摘要 / 保存徽标只在画布有意义 */
+const isCanvasView = computed(() => store.view === 'page')
+
+/** 门户设计是一级首页：此视图下没有「当前页」，页面菜单与页面级动作整体收敛 */
+const isPortalView = computed(() => store.view === 'portal')
+
+/**
+ * 顶栏副标题 —— 表达**当前层级**。
+ * 门户设计（一级）→ 页面设计 / 数据模型 / …（二级），避免任何视图都自称「设计器」。
+ */
+const STAGE_LABELS = {
+  portal: '门户设计',
+  page: '页面设计',
+  model: '数据模型',
+  rbac: '权限管理',
+  theme: '主题配置',
+  webhook: 'Webhook 集成',
+  market: '物料市场',
+} as const
+const stageLabel = computed(() => STAGE_LABELS[store.view])
+
+/** 门户页的面包屑标题（schema.portal.title 缺失时退回页面名 / 编码） */
+const portalTitle = computed(() => {
+  const named = store.pages.find((p) => p.id === store.pageId)?.name
+  return store.schema.portal?.title || named || store.pageId
+})
+
+/** 面包屑末级：门户页门户优先（它就是那个门户），其它页用页面名 */
+const crumbName = computed(() =>
+  isPortalPage.value ? portalTitle.value : (store.pages.find((p) => p.id === store.pageId)?.name || store.pageId),
+)
+
+/** 回门户：只切视图，不动 schema —— 未保存的改动仍留在 store，重新进入还在 */
+function backToPortal(): void {
+  void store.switchView('portal')
+}
+
 /** 保存状态徽标文案（store.saveState → 人话） */
 const badgeText = computed(() => {
   switch (store.saveState) {
@@ -502,6 +562,9 @@ function onDrop(payload: { source: DragSource; hit: AnchorHit }): void {
 
 /** 全局快捷键：意图分发在 `@lc/designer` resolveKeyIntent（纯函数可单测），这里只接线执行 */
 function onKey(e: KeyboardEvent): void {
+  // 守卫：非画布视图没有可见的选中节点。门户清单里按 Delete 会静默删掉画布残留的节点
+  // （选中态随上次编辑保留），删完界面无任何反馈 —— 这是纯损失，故按视图直接忽略。
+  if (!isCanvasView.value) return
   const intent = resolveKeyIntent(e)
   if (!intent) return
   e.preventDefault()
@@ -532,8 +595,10 @@ function onKey(e: KeyboardEvent): void {
 store.setApi(designerApi)
 
 onMounted(() => {
-  void store.loadPages() // 顶栏「页面」菜单列表（失败只写 pagesError，不阻塞打开默认页）
-  void store.openPage() // 首屏自动打开默认页（不存在 → 提示后可直接保存建档）
+  // 2026-10-28：首屏是「移动门户」清单（view 初始 = portal）。
+  // 这里只预载清单（内部会顺手刷新页面列表，供「页面」菜单用），**不再自动 openPage**：
+  // 旧实现一进来就打开硬编码的 demo 页，用户既没选择过它，保存按钮还会把不可见的内容写盘。
+  void store.loadPortalPages()
   window.addEventListener('keydown', onKey)
 })
 onUnmounted(() => {

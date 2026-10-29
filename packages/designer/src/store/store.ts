@@ -202,6 +202,14 @@ export const useDesignerStore = defineStore('lc-designer', () => {
    * 新建页面从 0 开始；服务端首次建档接受 0。
    */
   const pageRevision = ref(0)
+  /**
+   * 画布是否已真正载入过某个页面（openPage 成功 / 新建过草稿）。
+   *
+   * 2026-10-28：首屏改为「移动门户」后**不再自动打开页面** —— 否则一进来就落到
+   * 某个不可见的页（旧实现硬编码 `demo`），保存按钮还会把用户看不见的内容写盘。
+   * 切到「页面画布」时用 pageLoaded 判断要不要按需拉一次。
+   */
+  const pageLoaded = ref(false)
   /** 保存状态机（顶栏徽标）：demo 是本地 fixture、尚未保存 → 初始 dirty */
   const saveState = ref<SaveState>('dirty')
   /** 最近一次操作结果文本（顶栏徽标旁 / 底栏状态） */
@@ -564,6 +572,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       pageId.value = target
       pageRevision.value = r.revision ?? 0
       replaceSchema(r.schema) // touch → dirty，下一行覆盖为 idle
+      pageLoaded.value = true
       saveState.value = 'idle'
       statusText.value = `已打开 ${target}（${r.version}）`
       // 渲染耗时由 LcCanvas @rendered 异步回填（markRender 合并到同一采样）
@@ -641,6 +650,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     if (!target) return false
     pageId.value = target
     pageRevision.value = 0 // 新建/换页从 0 开始；首次保存由服务端建档
+    pageLoaded.value = true
     const fresh = demoPage()
     fresh.name = target // D-P2-3：name 默认 = pageId —— 模板名「画布演示」残留会致 runtime 菜单多页撞名
     replaceSchema(fresh) // touch → dirty
@@ -678,6 +688,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       const fresh = buildModelPage({ pageId: target, type, model })
       pageId.value = target
       pageRevision.value = 0
+      pageLoaded.value = true
       replaceSchema(fresh)
       // 同步字段缓存：新建后右栏「绑定字段」立即可用，无需再拉一次模型
       modelFields.value = model.fields ?? []
@@ -1197,10 +1208,11 @@ export const useDesignerStore = defineStore('lc-designer', () => {
   /* ---------------- Phase 2 批 1：模型可视化建模（D-P2-1） ---------------- */
 
   /**
-   * 设计器视图：`page` 画布（默认）| `portal` 移动门户清单 | `model` 数据模型管理 |
-   * `rbac` 权限管理 | `theme` 主题配置 | `webhook` 开放集成 | `market` 物料市场
+   * 设计器视图：`portal` 移动门户清单（**默认首页**，云程口径：门户 → 页面设计下钻）|
+   * `page` 画布 | `model` 数据模型管理 | `rbac` 权限管理 | `theme` 主题配置 |
+   * `webhook` 开放集成 | `market` 物料市场
    */
-  const view = ref<'page' | 'portal' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'>('page')
+  const view = ref<'page' | 'portal' | 'model' | 'rbac' | 'theme' | 'webhook' | 'market'>('portal')
   /** 当前编辑的模型（null = 列表视图） */
   const editingModel = ref<ModelSchema | null>(null)
   /** 模型编辑脏态 / 保存中 */
@@ -1515,6 +1527,7 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     schema,
     pageId,
     pageRevision,
+    pageLoaded,
     saveState,
     statusText,
     validation,

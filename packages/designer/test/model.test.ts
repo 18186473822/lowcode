@@ -59,7 +59,7 @@ describe('store：模型编辑 actions', () => {
     const store = useDesignerStore()
     const api = mockApi()
     store.setApi(api)
-    expect(store.view).toBe('page')
+    expect(store.view).toBe('portal') // 2026-10-28：门户清单是默认首页
     await store.switchView('model')
     expect(store.view).toBe('model')
     expect(api.listModels).toHaveBeenCalledTimes(1)

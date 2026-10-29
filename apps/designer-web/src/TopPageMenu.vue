@@ -24,9 +24,11 @@
       :title="triggerTitle"
       @click="toggle"
     >
-      <span class="top-page__title">{{ currentName }}</span>
-      <span class="top-page__type">{{ currentTypeLabel }}</span>
-      <span class="top-page__state">{{ store.currentVersion > 0 ? `v${store.currentVersion}` : '草稿' }}</span>
+      <span v-if="store.view === 'page'" class="top-page__title">{{ currentName }}</span>
+      <span v-else class="top-page__title">{{ viewLabel }}</span>
+      <span v-if="store.view === 'page'" class="top-page__type">{{ currentTypeLabel }}</span>
+      <span v-else class="top-page__type">工作区</span>
+      <span v-if="store.view === 'page'" class="top-page__state">{{ store.currentVersion > 0 ? `v${store.currentVersion}` : '草稿' }}</span>
       <span class="top-page__caret" aria-hidden="true">▾</span>
     </button>
 
@@ -39,7 +41,7 @@
       @click.stop
     >
       <div class="top-page__head">
-        <span class="top-page__heading">页面</span>
+        <span class="top-page__heading">{{ workspaceOnly ? '工作区' : '页面' }}</span>
         <button
           class="top-page__link"
           type="button"
@@ -48,7 +50,9 @@
         >{{ store.pagesLoading ? '加载中…' : '刷新列表' }}</button>
       </div>
 
-      <div class="top-page__open">
+      <!-- 页面级操作（打开 / 新建 / 删除当前页）只在画布里出现：
+           门户清单是首页，此时没有「当前可见页」，暴露删除会把用户看不见的页删掉。 -->
+      <div v-if="!workspaceOnly" class="top-page__open">
         <input
           v-model="draftId"
           class="top-page__input"
@@ -67,7 +71,7 @@
         >打开</button>
       </div>
 
-      <div class="top-page__ops">
+      <div v-if="!workspaceOnly" class="top-page__ops">
         <button
           class="top-btn top-btn--primary"
           type="button"
@@ -87,11 +91,25 @@
 
       <div class="top-page__divider" aria-hidden="true" />
 
-      <!-- 工作区入口：原「工作台」菜单的六项，当前视图带 ✓ -->
+      <!-- 门户设计是**一级首页**，不是并列的工作区：单列为「返回」入口放在工作区之上。
+           已经在门户清单里时隐藏（点了也是原地不动）。 -->
+      <button
+        v-if="!workspaceOnly"
+        class="top-page__nav top-page__nav--home"
+        type="button"
+        data-testid="back-to-portal"
+        @click="switchView('portal')"
+      >
+        <span class="top-page__nav-label">← 返回门户设计</span>
+      </button>
+
+      <div class="top-page__divider" aria-hidden="true" />
+
+      <!-- 工作区入口：服务于「在模型基础上设计页面」的工具，当前视图带 ✓ -->
       <div class="top-page__group" role="group" aria-label="工作区">
         <span class="top-page__group-label">工作区</span>
         <button
-          v-for="v in VIEWS"
+          v-for="v in WORKSPACE_VIEWS"
           :key="v.value"
           class="top-page__nav"
           :class="{ 'top-page__nav--on': store.view === v.value }"
@@ -100,7 +118,7 @@
           :aria-current="store.view === v.value ? 'page' : undefined"
           @click="switchView(v.value)"
         >
-          <span>{{ v.label }}</span>
+          <span class="top-page__nav-label">{{ v.label }}</span>
           <span v-if="store.view === v.value" class="top-page__check" aria-hidden="true">✓</span>
         </button>
       </div>
@@ -117,7 +135,8 @@
       <p v-else-if="store.pagesLoading" class="top-page__hint">加载中…</p>
       <div v-else-if="!store.pages.length" class="top-page__empty">
         <strong>还没有已保存的页面</strong>
-        <span>点「新建页面」选模型，一次生成列表 / 表单 / 详情并自动串联。</span>
+        <span v-if="workspaceOnly">先在「数据模型」里建模型，再回门户或画布生成页面。</span>
+        <span v-else>点「新建页面」选模型，一次生成列表 / 表单 / 详情并自动串联。</span>
       </div>
       <!-- 按模型分组：一个模型 = 一组标准页（云程「模块」口径），未绑定的单独一组 -->
       <div v-else class="top-page__list" role="listbox" aria-label="页面列表">
@@ -163,6 +182,12 @@ import NewPageDialog from './NewPageDialog.vue'
 
 const store = useDesignerStore()
 
+/**
+ * workspaceOnly：只当「工作区导航」用（门户清单首页）。
+ * 此时隐藏页面级操作（打开 / 新建 / 删除当前页）——清单页没有「当前可见页」。
+ */
+const props = defineProps<{ workspaceOnly?: boolean }>()
+
 const open = ref(false)
 /** 模型优先的新建页面弹层 */
 const newOpen = ref(false)
@@ -173,16 +198,19 @@ const draftId = ref(store.pageId)
 const deleteArmed = ref(false)
 let deleteTimer: number | undefined
 
-/** 工作区入口（原「工作台」菜单）：门户清单 + 页面画布 + 五个管理视图 */
+/** 工作区入口（原「工作台」菜单）：**门户设计是首页**（先选门户 → 再进页面设计） */
 const VIEWS = [
-  { value: 'page', label: '页面画布', testid: 'toggle-page' },
   { value: 'portal', label: '门户设计', testid: 'toggle-portal' },
+  { value: 'page', label: '页面画布', testid: 'toggle-page' },
   { value: 'model', label: '数据模型', testid: 'toggle-models' },
   { value: 'rbac', label: '权限管理', testid: 'toggle-rbac' },
   { value: 'theme', label: '主题配置', testid: 'toggle-theme-panel' },
   { value: 'webhook', label: 'Webhook 集成', testid: 'toggle-webhook' },
   { value: 'market', label: '物料市场', testid: 'toggle-market' },
 ] as const
+
+/** 工作区 = 除一级首页（门户设计）以外的入口；门户设计单独做成「返回」按钮 */
+const WORKSPACE_VIEWS = VIEWS.filter((v) => v.value !== 'portal')
 
 const TYPE_LABEL: Record<string, string> = {
   form: '表单',
@@ -196,6 +224,8 @@ const currentName = computed(() => {
   const hit = store.pages.find((p) => p.id === store.pageId)
   return hit?.name ?? (store.pageId || '选择页面')
 })
+/** 非画布视图时顶栏触发器显示工作区名（否则会一直挂着某个看不见的页面名） */
+const viewLabel = computed(() => VIEWS.find((v) => v.value === store.view)?.label ?? '工作区')
 const currentTypeLabel = computed(() => TYPE_LABEL[store.schema.type] ?? '页面')
 /** 当前页绑定的模型：表单取提交模型，列表 / 详情取各自配置 */
 const currentModelId = computed(() => {
@@ -205,6 +235,7 @@ const currentModelId = computed(() => {
   return store.submitModelId ?? ''
 })
 const triggerTitle = computed(() => {
+  if (store.view !== 'page') return `当前工作区：${viewLabel.value}（点此切换页面 / 工作区）`
   if (!store.pageId) return '选择或新建页面'
   return `当前页面：${store.pageId} · ${currentTypeLabel.value}${currentModelId.value ? ` · 模型 ${currentModelId.value}` : ' · 未绑定模型'}`
 })
@@ -304,16 +335,19 @@ function refresh(): void {
   void store.loadPages(true)
 }
 
-/** 打开指定页面；成功后关闭面板，失败保留（底部状态栏同时给出原因）。force=true 时同一页也重载（409 后取最新版本）。 */
+/** 打开指定页面；成功后**切到画布**并关闭面板（在任何工作区里点页面列表都要能看到结果）。 */
 async function openById(id?: string, force = false): Promise<void> {
   const target = (id ?? draftId.value).trim()
   if (!target) return
-  if (target === store.pageId && !force) {
+  if (target === store.pageId && !force && store.view === 'page') {
     close()
     return
   }
   const ok = await store.openPage(target)
-  if (ok) close()
+  if (ok) {
+    await store.switchView('page')
+    close()
+  }
 }
 
 /** 新建页面：关闭菜单并打开「先选模型」弹层（不允许无模型建页） */
@@ -322,10 +356,12 @@ function openNewPage(): void {
   newOpen.value = true
 }
 
-/** 切换工作区视图（原「工作台」菜单的六个入口） */
-function switchView(v: (typeof VIEWS)[number]['value']): void {
+/** 切换工作区视图（原「工作台」菜单的六个入口）。
+ *  切到画布时若还没载入过页面（首屏不再自动打开），按需拉一次当前 pageId —— 否则会看到空画布。 */
+async function switchView(v: (typeof VIEWS)[number]['value']): Promise<void> {
   close()
-  void store.switchView(v)
+  if (v === 'page' && !store.pageLoaded) await store.openPage()
+  await store.switchView(v)
 }
 
 /** 删除当前页：两步确认；删除后刷新列表（store 会自动切到剩余页 / 新草稿） */
@@ -547,6 +583,16 @@ onUnmounted(() => {
 .top-page__nav:focus-visible {
   outline: var(--lc-focus-ring);
   outline-offset: 1px;
+}
+.top-page__nav-label {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+}
+/* 「返回门户设计」是一级导航（门户 → 页面是上下级，不是并列工作区），比工作区项重一档 */
+.top-page__nav--home {
+  margin-bottom: var(--lc-space-1);
+  font-weight: var(--lc-weight-semibold);
 }
 
 .top-page__hint {
