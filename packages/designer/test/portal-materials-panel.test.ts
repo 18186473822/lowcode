@@ -38,6 +38,19 @@ function portalSchema(): PageSchema {
       children: [
         // 一个页面入口节点，用于 pagePicker 测试
         { id: 'n-entry', componentName: 'PortalPageEntry', props: { title: '请假', pageId: '' } },
+        // 一个魔方节点，用于 pageItemList 测试
+        {
+          id: 'n-grid',
+          componentName: 'PortalGrid',
+          props: {
+            title: '',
+            columns: 4,
+            items: [
+              { icon: '考', title: '考勤', pageId: '' },
+              { icon: '报', title: '报销', pageId: 'p_leave' },
+            ],
+          },
+        },
       ],
     },
     portal: { title: '门户首页', columns: 4, cards: [] },
@@ -117,6 +130,60 @@ describe('pagePicker setter（P2）', () => {
 
     await sel.setValue('p_leave')
     expect(findNode(store.schema, 'n-entry')?.props?.pageId).toBe('p_leave')
+    w.unmount()
+  })
+})
+
+describe('pageItemList setter（魔方入口行编辑，P2 收尾）', () => {
+  async function mountGrid() {
+    const store = useDesignerStore()
+    store.setApi(mockApi())
+    store.replaceSchema(portalSchema())
+    await store.loadPages(true)
+    store.select('n-grid')
+    const w = mount(PropsPanel)
+    await flushPromises()
+    return { store, w }
+  }
+
+  const itemsOf = (store: ReturnType<typeof useDesignerStore>) =>
+    (findNode(store.schema, 'n-grid')?.props?.items ?? []) as Array<Record<string, string>>
+
+  it('按行渲染图标/名称/目标页面（目标页是下拉，不是手敲编码）', async () => {
+    const { w } = await mountGrid()
+    expect(w.findAll('[data-testid^="page-item-title-"]')).toHaveLength(2)
+    expect((w.get('[data-testid="page-item-icon-0"]').element as HTMLInputElement).value).toBe('考')
+    const sel = w.get('[data-testid="page-item-page-1"]')
+    expect((sel.element as HTMLSelectElement).value).toBe('p_leave')
+    // 下拉第二项起是已保存页面
+    expect(sel.findAll('option').map((o) => o.text())).toEqual(['不跳转', '请假列表', '门户首页'])
+    w.unmount()
+  })
+
+  it('改名 / 改目标页面写回 props.items，且不丢其它字段', async () => {
+    const { store, w } = await mountGrid()
+    await w.get('[data-testid="page-item-title-0"]').setValue('打卡')
+    await w.get('[data-testid="page-item-page-0"]').setValue('p_home')
+
+    const items = itemsOf(store)
+    expect(items[0]).toEqual({ icon: '考', title: '打卡', pageId: 'p_home' })
+    // 第二行原样
+    expect(items[1]).toEqual({ icon: '报', title: '报销', pageId: 'p_leave' })
+    w.unmount()
+  })
+
+  it('增 / 删 / 排序', async () => {
+    const { store, w } = await mountGrid()
+
+    await w.get('[data-testid="page-item-add"]').trigger('click')
+    expect(itemsOf(store)).toHaveLength(3)
+
+    // 下移第一行 → 顺序交换
+    await w.get('[data-testid="page-item-down-0"]').trigger('click')
+    expect(itemsOf(store).map((i) => i.title)).toEqual(['报销', '考勤', ''])
+
+    await w.get('[data-testid="page-item-del-2"]').trigger('click')
+    expect(itemsOf(store)).toHaveLength(2)
     w.unmount()
   })
 })

@@ -13,6 +13,7 @@ export type SetterType =
   | 'color'
   | 'slider'
   | 'optionList'
+  | 'pageItemList'
   | 'json'
   | 'pagePicker'
   | 'ruleEditor'

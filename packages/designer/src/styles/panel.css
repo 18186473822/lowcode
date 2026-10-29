@@ -248,6 +248,41 @@
   border-color: var(--lc-action-primary);
 }
 
+/* pageItemList setter（魔方 / 入口列表）：图标字 + 名称 + 目标页面 + 排序删除 */
+.setter__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  width: 100%;
+}
+.setter__item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-1);
+  width: 100%;
+}
+.setter__item-icon {
+  flex: 0 0 40px;
+  text-align: center;
+}
+.setter__item-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.setter__item-page {
+  flex: 1 1 96px;
+  min-width: 0;
+}
+.setter__item-ops {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--lc-space-0-5);
+}
+.setter__item-ops .setter__option-del:disabled {
+  color: var(--lc-border-strong);
+  cursor: not-allowed;
+}
+
 /* color setter */
 .setter__color {
   justify-self: start;

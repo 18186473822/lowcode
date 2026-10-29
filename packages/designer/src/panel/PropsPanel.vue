@@ -525,6 +525,75 @@
               </span>
               <button class="setter__option-add" type="button" @click="onOptionAdd(s)">＋ 添加选项</button>
             </span>
+            <span v-else-if="s.setter === 'pageItemList'" class="setter__items" data-testid="setter-page-items">
+              <span
+                v-for="(it, ii) in pageItemRows(s)"
+                :key="ii"
+                class="setter__item-row"
+                :data-testid="`page-item-${ii}`"
+              >
+                <input
+                  class="setter__input setter__item-icon"
+                  type="text"
+                  maxlength="2"
+                  :value="it.icon"
+                  placeholder="字"
+                  :aria-label="`第 ${ii + 1} 项图标`"
+                  :data-testid="`page-item-icon-${ii}`"
+                  @input="onPageItemField(s, ii, 'icon', $event)"
+                />
+                <input
+                  class="setter__input setter__item-title"
+                  type="text"
+                  :value="it.title"
+                  placeholder="名称"
+                  :aria-label="`第 ${ii + 1} 项名称`"
+                  :data-testid="`page-item-title-${ii}`"
+                  @input="onPageItemField(s, ii, 'title', $event)"
+                />
+                <select
+                  class="setter__input setter__item-page"
+                  :value="it.pageId"
+                  :aria-label="`第 ${ii + 1} 项目标页面`"
+                  :data-testid="`page-item-page-${ii}`"
+                  @change="onPageItemField(s, ii, 'pageId', $event)"
+                >
+                  <option value="">不跳转</option>
+                  <option v-for="p in store.pages" :key="p.id" :value="p.id">{{ p.name }}</option>
+                </select>
+                <span class="setter__item-ops">
+                  <button
+                    class="setter__option-del"
+                    type="button"
+                    title="上移"
+                    :disabled="ii === 0"
+                    :data-testid="`page-item-up-${ii}`"
+                    @click="movePageItem(s, ii, -1)"
+                  >↑</button>
+                  <button
+                    class="setter__option-del"
+                    type="button"
+                    title="下移"
+                    :disabled="ii === pageItemRows(s).length - 1"
+                    :data-testid="`page-item-down-${ii}`"
+                    @click="movePageItem(s, ii, 1)"
+                  >↓</button>
+                  <button
+                    class="setter__option-del"
+                    type="button"
+                    title="删除该入口"
+                    :data-testid="`page-item-del-${ii}`"
+                    @click="delPageItem(s, ii)"
+                  >×</button>
+                </span>
+              </span>
+              <button
+                class="setter__option-add"
+                type="button"
+                data-testid="page-item-add"
+                @click="addPageItem(s)"
+              >＋ 添加入口</button>
+            </span>
             <input
               v-else-if="s.setter === 'color'"
               class="setter__color"
@@ -881,9 +950,69 @@ function onOptionAdd(s: SettingDesc): void {
   writeOptionRows(s, [...optionRows(s), { label: '', value: '' }])
 }
 
+/* ---------------- 2026-10-29 P2：pageItemList setter（魔方 / 入口列表） ---------------- */
+
+interface PageItemRow {
+  icon: string
+  title: string
+  pageId: string
+}
+
+/** 读入口行（缺字段按空串，保证编辑时不出现 undefined） */
+function pageItemRows(s: SettingDesc): PageItemRow[] {
+  const v = read(s)
+  if (!Array.isArray(v)) return []
+  return v.map((o) => ({
+    icon: String((o as { icon?: unknown }).icon ?? ''),
+    title: String((o as { title?: unknown }).title ?? ''),
+    pageId: String((o as { pageId?: unknown }).pageId ?? ''),
+  }))
+}
+
+/** 写回：三个键都保留（空串也写），避免「删了图标顺手丢了 pageId」这类合并错误 */
+function writePageItems(s: SettingDesc, rows: PageItemRow[]): void {
+  store.setProp(
+    store.selectedId,
+    s.key,
+    rows.map((r) => ({ icon: r.icon, title: r.title, pageId: r.pageId })),
+  )
+}
+
+function onPageItemField(
+  s: SettingDesc,
+  i: number,
+  field: keyof PageItemRow,
+  e: Event,
+): void {
+  const rows = pageItemRows(s)
+  const row = rows[i]
+  if (!row) return
+  rows[i] = { ...row, [field]: (e.target as HTMLInputElement | HTMLSelectElement).value }
+  writePageItems(s, rows)
+}
+
+function addPageItem(s: SettingDesc): void {
+  writePageItems(s, [...pageItemRows(s), { icon: '', title: '', pageId: '' }])
+}
+
+function delPageItem(s: SettingDesc, i: number): void {
+  writePageItems(
+    s,
+    pageItemRows(s).filter((_, ri) => ri !== i),
+  )
+}
+
+function movePageItem(s: SettingDesc, i: number, dir: -1 | 1): void {
+  const rows = pageItemRows(s)
+  const to = i + dir
+  if (to < 0 || to >= rows.length) return
+  const [item] = rows.splice(i, 1)
+  if (item) rows.splice(to, 0, item)
+  writePageItems(s, rows)
+}
+
 /** color 值兜底（非法/缺失给主品牌色，避免 input[type=color] 报错；
- *  该属性值必须是字面量，故取 tokens.ts 的具名常量而非 CSS 变量） */
-function colorValue(s: SettingDesc): string {
+ *  该属性值必须是字面量，故取 tokens.ts 的具名常量而非 CSS 变量） */function colorValue(s: SettingDesc): string {
   const v = read(s)
   return typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : TOKEN_LITERAL.brand500
 }

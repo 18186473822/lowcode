@@ -184,10 +184,9 @@ export const BASIC_META: MaterialSchema[] = [
     settings: [
       {
         key: 'items',
-        label: '入口项（JSON）',
-        setter: 'json',
-        placeholder: '[{"icon":"考","title":"考勤","pageId":"p_leave"}]',
-        help: 'pageId 填已保存页面编码则点击直达；留空只发 itemClick，由「动作」处理',
+        label: '入口项',
+        setter: 'pageItemList',
+        help: '每行：图标字 + 名称 + 目标页面（留空只发 itemClick，由「动作」处理）',
       },
       { key: 'columns', label: '每行列数', setter: 'number', help: '3 或 4（缺省 4）' },
       { key: 'title', label: '分组标题', setter: 'input', placeholder: '留空不显示标题' },
