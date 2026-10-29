@@ -163,6 +163,46 @@
       </button>
     </div>
 
+    <div v-if="store.flowsSupported" class="portal-config__group">
+      <div class="portal-config__group-head">
+        <span class="portal-config__label">流程入口</span>
+        <span class="portal-config__count">{{ store.flows.length }} 个流程</span>
+      </div>
+      <p class="portal-config__hint">
+        给流程选一张「发起表单页」，门户的「常用流程」物料就会列出它；选「不绑定」则该流程不从门户发起。
+      </p>
+
+      <p v-if="store.flowsError" class="panel-err" data-testid="cfg-flow-error">{{ store.flowsError }}</p>
+      <p v-else-if="store.flowsLoading" class="portal-config__hint">加载流程…</p>
+      <p v-else-if="!store.flows.length" class="portal-config__empty" data-testid="cfg-flow-empty">
+        还没有流程定义。流程经 <code>PUT /flows/:id</code> 创建后，这里就能绑启动页。
+      </p>
+      <ul v-else class="portal-config__flows">
+        <li
+          v-for="f in store.flows"
+          :key="f.flowId"
+          class="portal-config__flow"
+          :data-testid="`cfg-flow-${f.flowId}`"
+        >
+          <span class="portal-config__flow-main">
+            <span class="portal-config__flow-name">{{ f.name }}</span>
+            <span class="portal-config__hint">{{ f.modelId ? `模型 · ${f.modelId}` : f.flowId }}</span>
+          </span>
+          <select
+            class="setter__input portal-config__flow-page"
+            :value="f.startPageId ?? ''"
+            :aria-label="`${f.name} 的启动页`"
+            :data-testid="`cfg-flow-page-${f.flowId}`"
+            :disabled="!!flowBusy[f.flowId]"
+            @change="onFlowPage(f, $event)"
+          >
+            <option value="">不绑定</option>
+            <option v-for="p in pageOptions" :key="p.id" :value="p.id">{{ p.name }}（{{ p.id }}）</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+
     <footer class="portal-config__foot">
       <button
         class="op-btn op-btn--primary"
@@ -180,9 +220,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, watch } from 'vue'
 import type { AppMenuItem } from '@lc/schema'
-import { useDesignerStore, type AppConfigPatch } from '../store/store'
+import { useDesignerStore, type AppConfigPatch, type FlowListItem } from '../store/store'
 
 const store = useDesignerStore()
 
@@ -328,6 +368,25 @@ async function save(): Promise<void> {
   }
   await store.saveAppConfig(patch)
 }
+
+/* ---------------- 流程入口（2026-10-29）：绑 / 解绑启动页 ---------------- */
+
+/** 按 flowId 记「保存中」，只禁用对应那一行的下拉，不锁整节 */
+const flowBusy = reactive<Record<string, boolean>>({})
+
+onMounted(() => {
+  void store.loadFlows()
+})
+
+async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
+  const pageId = (e.target as HTMLSelectElement).value || null
+  flowBusy[f.flowId] = true
+  try {
+    await store.setFlowStartPage(f.flowId, pageId)
+  } finally {
+    flowBusy[f.flowId] = false
+  }
+}
 </script>
 
 <style scoped>
@@ -418,8 +477,7 @@ async function save(): Promise<void> {
 }
 .portal-config__seq {
   width: 16px;
-  font-family: var(--lc-font-mono);
-  font-size: var(--lc-font-micro);
+  font-family: var(--lc-font-mono);  font-size: var(--lc-font-micro);
   color: var(--lc-text-tertiary);
   text-align: center;
 }
@@ -472,5 +530,39 @@ async function save(): Promise<void> {
   display: flex;
   align-items: center;
   gap: var(--lc-space-3);
+}
+
+/* 流程入口：一行一个流程，右侧绑启动页（改完即存，不参与上面的「保存」按钮） */
+.portal-config__flows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.portal-config__flow {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
+  padding: var(--lc-space-1-5) var(--lc-space-2);
+  background: var(--lc-bg-subtle);
+  border: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-sm);
+}
+.portal-config__flow-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--lc-space-0-5);
+  min-width: 0;
+}
+.portal-config__flow-name {
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-primary);
+}
+.portal-config__flow-page {
+  flex: 0 0 176px;
+  min-width: 0;
 }
 </style>

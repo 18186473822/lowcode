@@ -12,7 +12,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import type { AppMenuItem } from '@lc/schema'
-import { useDesignerStore, type AppConfigPatch, type AppSettings, type PageListItem } from '../src/store/store'
+import {
+  useDesignerStore,
+  type AppConfigPatch,
+  type AppSettings,
+  type FlowListItem,
+  type PageListItem,
+} from '../src/store/store'
 import PortalConfigPanel from '../src/panel/PortalConfigPanel.vue'
 
 const PAGES: PageListItem[] = [
@@ -25,7 +31,7 @@ const MENUS: AppMenuItem[] = [
   { id: 'm_leave', name: '请假', type: 'page', pageId: 'p_leave' },
 ]
 
-function mockApi(initial: AppSettings) {
+function mockApi(initial: AppSettings, flows: FlowListItem[] | null = null) {
   let cfg: AppSettings = JSON.parse(JSON.stringify(initial))
   return {
     getSchema: vi.fn().mockResolvedValue({ schema: {}, version: 'draft', revision: 1 }),
@@ -42,6 +48,15 @@ function mockApi(initial: AppSettings) {
     listPages: vi.fn().mockResolvedValue(PAGES),
     deletePage: vi.fn().mockResolvedValue({ removedVersions: 0 }),
     getAppConfig: vi.fn(async () => cfg),
+    ...(flows
+      ? {
+          listFlows: vi.fn(async () => flows),
+          putFlowStartPage: vi.fn(async (flowId: string, startPageId: string | null) => {
+            const hit = flows.find((f) => f.flowId === flowId)
+            if (hit) hit.startPageId = startPageId ?? undefined
+          }),
+        }
+      : {}),
     putAppConfig: vi.fn(async (patch: AppConfigPatch) => {
       const next: Record<string, unknown> = { ...cfg }
       for (const [k, v] of Object.entries(patch)) {
@@ -54,9 +69,12 @@ function mockApi(initial: AppSettings) {
   }
 }
 
-async function setup(initial: AppSettings = { name: '请假管理', icon: '假', entry: { type: 'portal', pageId: 'p_home' }, menus: MENUS }) {
+async function setup(
+  initial: AppSettings = { name: '请假管理', icon: '假', entry: { type: 'portal', pageId: 'p_home' }, menus: MENUS },
+  flows: FlowListItem[] | null = null,
+) {
   const store = useDesignerStore()
-  const api = mockApi(initial)
+  const api = mockApi(initial, flows)
   store.setApi(api)
   await store.loadPages(true)
   await store.loadAppConfig()
@@ -158,5 +176,60 @@ describe('本地校验', () => {
     const { w } = await setup({ menus: [{ id: 'm1', name: '', type: 'page', pageId: 'p_home' }] })
     expect(w.find('[data-testid="cfg-issues"]').text()).toContain('名称为空')
     expect(w.get('[data-testid="cfg-save"]').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('流程入口（P2 收尾）', () => {
+  it('列出流程与当前绑定；未绑定的显示「不绑定」', async () => {
+    const flows: FlowListItem[] = [
+      { flowId: 'f_leave', name: '请假审批', modelId: 'm_leave', startPageId: 'p_home' },
+      { flowId: 'f_ot', name: '加班审批', modelId: 'm_ot' },
+    ]
+    const { w } = await setup(undefined, flows)
+    await flushPromises()
+
+    expect(w.findAll('[data-testid^="cfg-flow-page-"]')).toHaveLength(2)
+    expect((w.get('[data-testid="cfg-flow-page-f_leave"]').element as HTMLSelectElement).value).toBe(
+      'p_home',
+    )
+    expect((w.get('[data-testid="cfg-flow-page-f_ot"]').element as HTMLSelectElement).value).toBe('')
+  })
+
+  it('改绑定 → 立即保存，且不把应用设置标脏', async () => {
+    const flows: FlowListItem[] = [{ flowId: 'f_leave', name: '请假审批' }]
+    const { api, w } = await setup(undefined, flows)
+    await flushPromises()
+
+    await w.get('[data-testid="cfg-flow-page-f_leave"]').setValue('p_leave')
+    await flushPromises()
+
+    expect(api.putFlowStartPage).toHaveBeenCalledWith('f_leave', 'p_leave')
+    expect(flows[0]!.startPageId).toBe('p_leave')
+    // 流程绑定是独立通道，不参与「保存」按钮的脏态
+    expect(w.find('[data-testid="cfg-synced"]').exists()).toBe(true)
+  })
+
+  it('选「不绑定」→ 传 null（解绑）', async () => {
+    const flows: FlowListItem[] = [{ flowId: 'f_leave', name: '请假审批', startPageId: 'p_home' }]
+    const { api, w } = await setup(undefined, flows)
+    await flushPromises()
+
+    await w.get('[data-testid="cfg-flow-page-f_leave"]').setValue('')
+    await flushPromises()
+    expect(api.putFlowStartPage).toHaveBeenCalledWith('f_leave', null)
+  })
+
+  it('没有流程时给明确空态（提到创建方式）', async () => {
+    const { w } = await setup(undefined, [])
+    await flushPromises()
+    const empty = w.get('[data-testid="cfg-flow-empty"]')
+    expect(empty.text()).toContain('PUT /flows')
+  })
+
+  it('宿主未实现流程通道 → 整节不渲染（不是假空态）', async () => {
+    const { w } = await setup()
+    await flushPromises()
+    expect(w.find('[data-testid="cfg-flow-empty"]').exists()).toBe(false)
+    expect(w.findAll('[data-testid^="cfg-flow-page-"]')).toHaveLength(0)
   })
 })

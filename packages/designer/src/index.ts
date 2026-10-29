@@ -40,6 +40,7 @@ export type {
   PortalListItem,
   AppSettings,
   AppConfigPatch,
+  FlowListItem,
   ModelSummary,
   VersionSummary,
   VersionList,

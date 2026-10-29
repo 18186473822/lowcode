@@ -193,6 +193,32 @@ export const designerApi: DesignerApi = {
     })
     return stripTheme((await res.json()) as Record<string, unknown>)
   },
+  /**
+   * 流程定义列表（门户配置「流程入口」）：只投影需要的字段。
+   * 流程定义的其余部分（nodes/onApprove…）设计器不建模，绑定启动页时原样透传。
+   */
+  async listFlows() {
+    const res = await req('/flows')
+    const body = (await res.json()) as { flows?: Array<Record<string, unknown>> }
+    return (Array.isArray(body.flows) ? body.flows : [])
+      .filter((f) => typeof f.flowId === 'string' && f.flowId)
+      .map((f) => ({
+        flowId: String(f.flowId),
+        name: typeof f.name === 'string' && f.name ? f.name : String(f.flowId),
+        modelId: typeof f.modelId === 'string' ? f.modelId : undefined,
+        startPageId: typeof f.startPageId === 'string' ? f.startPageId : undefined,
+      }))
+  },
+  /** 绑 / 解绑启动页：读完整定义 → 只改 startPageId → 原样写回（不重建定义） */
+  async putFlowStartPage(flowId, startPageId) {
+    const path = `/flows/${encodeURIComponent(flowId)}`
+    const got = await req(path)
+    const flow = (await got.json()) as Record<string, unknown>
+    const next: Record<string, unknown> = { ...flow }
+    if (startPageId) next.startPageId = startPageId
+    else delete next.startPageId
+    await req(path, { method: 'PUT', body: JSON.stringify(next) })
+  },
   async getSchema(pageId, version) {
     const qs = version ? `?version=${encodeURIComponent(version)}` : ''
     const res = await req(`/pages/${encodeURIComponent(pageId)}/schema${qs}`)

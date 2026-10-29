@@ -135,6 +135,23 @@ export interface DesignerApi {
   getAppConfig?(): Promise<AppSettings>
   /** 应用设置写入（**可选能力**）：patch 语义，返回合并后的完整设置 */
   putAppConfig?(patch: AppConfigPatch): Promise<AppSettings>
+  /** 流程定义列表（**可选能力**）：门户配置的「流程入口」要给流程绑启动页 */
+  listFlows?(): Promise<FlowListItem[]>
+  /**
+   * 绑定 / 解绑流程启动页（**可选能力**）。
+   *
+   * 传 `null` = 解绑。实现侧负责「读完整定义 → 改 startPageId → 写回」，
+   * 设计器只关心这一件事，不为流程定义的其余字段建模。
+   */
+  putFlowStartPage?(flowId: string, startPageId: string | null): Promise<void>
+}
+
+/** 门户「流程入口」用到的流程摘要（只读需要的三个字段） */
+export interface FlowListItem {
+  flowId: string
+  name: string
+  modelId?: string
+  startPageId?: string
 }
 
 /**
@@ -832,6 +849,50 @@ export const useDesignerStore = defineStore('lc-designer', () => {
       opened ? '，已打开首页' : '，但打开首页失败'
     }${refWarn}`
     return true
+  }
+
+  /* ---------------- 2026-10-29 流程入口（门户配置） ---------------- */
+
+  const flows = ref<FlowListItem[]>([])
+  const flowsLoading = ref(false)
+  const flowsError = ref('')
+  /** 宿主是否支持流程通道（不支持时面板整节不渲染，而不是给一个假的空态） */
+  const flowsSupported = computed(() => !!api?.listFlows && !!api?.putFlowStartPage)
+
+  async function loadFlows(): Promise<boolean> {
+    if (!api?.listFlows) return false
+    flowsLoading.value = true
+    try {
+      flows.value = await api.listFlows()
+      flowsError.value = ''
+      return true
+    } catch (e) {
+      flowsError.value = `流程加载失败：${errMsg(e)}`
+      return false
+    } finally {
+      flowsLoading.value = false
+    }
+  }
+
+  /** 绑 / 解绑启动页：成功后就地更新该行（不整表重拉，避免选择框闪一下） */
+  async function setFlowStartPage(flowId: string, startPageId: string | null): Promise<boolean> {
+    if (!api?.putFlowStartPage) {
+      flowsError.value = '当前宿主不支持修改流程'
+      return false
+    }
+    try {
+      await api.putFlowStartPage(flowId, startPageId)
+      flows.value = flows.value.map((f) =>
+        f.flowId === flowId
+          ? { ...f, ...(startPageId ? { startPageId } : { startPageId: undefined }) }
+          : f,
+      )
+      flowsError.value = ''
+      return true
+    } catch (e) {
+      flowsError.value = `保存失败：${errMsg(e)}`
+      return false
+    }
   }
 
   /* ---------------- 2026-10-29：应用配置（门户首页应用条） ---------------- */
@@ -1632,6 +1693,13 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     appSaveError,
     loadAppConfig,
     saveAppConfig,
+    /* 2026-10-29：流程入口（门户配置） */
+    flows,
+    flowsLoading,
+    flowsError,
+    flowsSupported,
+    loadFlows,
+    setFlowStartPage,
     /* 批 5：Profiler 采样（schema 加载 / 画布渲染） */
     perf,
     perfText,

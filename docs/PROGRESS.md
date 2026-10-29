@@ -244,6 +244,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-29 | 门户物料（P2） | 新增「魔方」（`PortalGrid`，3/4 列入口格）与「页面入口」（`PortalPageEntry`，业务组件口径：从已保存页面里挑一个）；新增 `pagePicker` setter（选项来自 `listPages`，选中写回 `props.pageId`）；画布里的 `uni` 是 PC polyfill（无 `navigateTo`），物料跳转天然 no-op，不会跳走设计器；顶栏「工作区」菜单移除，工作区入口只留首页右栏；designer 411 用例、renderer 364 用例、typecheck、design:check、designer-web 与 H5 构建全绿 |
 | 2026-10-29 | 魔方可视化编辑 | 新增 `pageItemList` setter：入口项按行编辑（图标字 / 名称 / 目标页面下拉 / 上移下移删除），替掉手写 JSON；写回保留三键，不会「改一个丢两个」 |
 | 2026-10-29 | 常用流程（P2 收尾） | `FlowSchema.startPageId` 可选字段 + `E_FLOW_START_PAGE` 校验；新增 `PortalFlowList` 物料（读 `/flows`，只列配了 `startPageId` 的流程，点击进启动表单页，由 `flow.start` 起流程）；空态/错误态明确，静态数据可预览 |
+| 2026-10-29 | 流程入口可配 | 门户配置新增「流程入口」一节：列 `GET /flows`，每条给 `pagePicker` 绑启动页（改完即存，走「读完整定义 → 只改 startPageId → 写回」）；宿主不支持时整节不渲染而不是假空态 |
 
 ---
 
