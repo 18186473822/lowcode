@@ -11,10 +11,10 @@
 <template>
   <section class="portal-config" data-testid="portal-config">
     <header class="portal-config__head">
-      <h3 class="panel-title">门户配置</h3>
+      <h2 class="portal-config__title">门户配置</h2>
       <p class="panel-note">
-        入口页决定登录后先看到哪一页；应用菜单决定运行时首页的顺序与命名。
-        本期不做自绘底部栏（小程序 tabBar 不可运行时改），入口页在运行时首页**置顶并标「主页」**，不自动跳转。
+        入口页决定登录后先看到哪一页，菜单决定首页的顺序与名称；
+        入口页会置顶标注「主页」，不会自动跳转。
       </p>
     </header>
 
@@ -204,6 +204,10 @@
     </div>
 
     <footer class="portal-config__foot">
+      <span v-if="store.appSaveError" class="panel-err" data-testid="cfg-error">{{ store.appSaveError }}</span>
+      <span v-else-if="localIssues.length" class="panel-err" data-testid="cfg-issues">{{ localIssues[0] }}</span>
+      <span v-else-if="dirty" class="portal-config__hint" data-testid="cfg-dirty">有未保存的修改</span>
+      <span v-else class="portal-config__hint" data-testid="cfg-synced">已同步</span>
       <button
         class="op-btn op-btn--primary"
         type="button"
@@ -211,10 +215,6 @@
         :disabled="!dirty || store.appSaving || localIssues.length > 0"
         @click="save"
       >{{ store.appSaving ? '保存中…' : '保存' }}</button>
-      <span v-if="store.appSaveError" class="panel-err" data-testid="cfg-error">{{ store.appSaveError }}</span>
-      <span v-else-if="localIssues.length" class="panel-err" data-testid="cfg-issues">{{ localIssues[0] }}</span>
-      <span v-else-if="dirty" class="portal-config__hint" data-testid="cfg-dirty">有未保存的修改</span>
-      <span v-else class="portal-config__hint" data-testid="cfg-synced">已同步</span>
     </footer>
   </section>
 </template>
@@ -390,39 +390,53 @@ async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
 </script>
 
 <style scoped>
+/*
+ * 门户配置：与门户页面同一套工作台语言 —— 分组用横线分隔，不再把每组包成灰底卡片。
+ */
 .portal-config {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-4);
+  max-width: 760px;
 }
 .portal-config__head {
   display: flex;
   flex-direction: column;
   gap: var(--lc-space-1);
+  margin-bottom: var(--lc-space-5);
+}
+.portal-config__title {
+  margin: 0;
+  font-size: var(--lc-font-h2);
+  font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h2);
+  color: var(--lc-text-primary);
 }
 
 .portal-config__group {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-2);
-  padding: var(--lc-space-3);
-  background: var(--lc-bg-surface);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
+  gap: var(--lc-space-3);
+  padding: var(--lc-space-5) 0;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.portal-config__group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
 }
 .portal-config__group-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: var(--lc-space-3);
 }
 .portal-config__label {
-  font-size: var(--lc-font-caption);
+  font-size: var(--lc-font-body-sm);
   font-weight: var(--lc-weight-semibold);
-  color: var(--lc-text-label);
+  color: var(--lc-text-primary);
 }
 .portal-config__count {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
 }
 .portal-config__row {
   display: flex;
@@ -431,38 +445,47 @@ async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
 }
 .portal-config__field {
   display: flex;
+  flex: 0 1 320px;
   align-items: center;
   gap: var(--lc-space-2);
-  flex: 1 1 220px;
+  min-width: 0;
 }
 .portal-config__field--narrow {
-  flex: 0 0 128px;
+  flex: 0 0 120px;
 }
 .portal-config__key {
   flex-shrink: 0;
+  width: 44px;
   font-size: var(--lc-font-caption);
-  color: var(--lc-text-label);
+  color: var(--lc-text-secondary);
+}
+.portal-config__group > .setter__input {
+  max-width: 360px;
+}
+/* 添加菜单是行内动作，不随 flex 列拉满整行 */
+.portal-config__group > .op-btn {
+  align-self: flex-start;
 }
 .portal-config__hint {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
 }
 .portal-config__empty {
   margin: 0;
-  padding: var(--lc-space-3);
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
-  text-align: center;
-  background: var(--lc-bg-subtle);
-  border-radius: var(--lc-radius-sm);
+  padding: var(--lc-space-3) 0;
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
 }
 
+/* 菜单行：一组字段 + 一条横线，行内不套第二层卡片色块 */
 .portal-config__menus {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-1);
   margin: 0;
   padding: 0;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
   list-style: none;
 }
 .portal-config__menu {
@@ -470,19 +493,18 @@ async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lc-space-2);
-  padding: var(--lc-space-1-5) var(--lc-space-2);
-  background: var(--lc-bg-subtle);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-sm);
+  padding: var(--lc-space-2) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-config__seq {
-  width: 16px;
-  font-family: var(--lc-font-mono);  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
+  width: 20px;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-micro);
+  color: var(--lc-text-secondary);
   text-align: center;
 }
 .portal-config__m-name {
-  flex: 1 1 120px;
+  flex: 1 1 140px;
   min-width: 0;
 }
 .portal-config__m-type {
@@ -506,49 +528,60 @@ async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
   margin-left: auto;
 }
 .portal-config__op {
-  padding: 0 var(--lc-space-1);
+  padding: var(--lc-space-1) var(--lc-space-1-5);
   font-family: inherit;
-  font-size: var(--lc-font-micro);
-  color: var(--lc-action-primary);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
   background: none;
   border: 0;
+  border-radius: var(--lc-radius-xs);
   cursor: pointer;
 }
+.portal-config__op:hover:not(:disabled) {
+  color: var(--lc-action-primary);
+  background: var(--lc-bg-subtle);
+}
 .portal-config__op:disabled {
-  color: var(--lc-text-tertiary);
+  opacity: 0.35;
   cursor: not-allowed;
 }
-.portal-config__op--danger {
+.portal-config__op--danger:hover:not(:disabled) {
   color: var(--lc-text-danger);
+  background: var(--lc-status-danger-bg);
 }
 .portal-config__op:focus-visible {
   outline: var(--lc-focus-ring);
   outline-offset: 1px;
 }
 
+/* 保存栏：状态在左，唯一主按钮在右 */
 .portal-config__foot {
   display: flex;
   align-items: center;
   gap: var(--lc-space-3);
+  margin-top: var(--lc-space-1);
+  padding-top: var(--lc-space-4);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
+}
+.portal-config__foot .op-btn--primary {
+  margin-left: auto;
 }
 
 /* 流程入口：一行一个流程，右侧绑启动页（改完即存，不参与上面的「保存」按钮） */
 .portal-config__flows {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-1);
   margin: 0;
   padding: 0;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
   list-style: none;
 }
 .portal-config__flow {
   display: flex;
   align-items: center;
-  gap: var(--lc-space-2);
-  padding: var(--lc-space-1-5) var(--lc-space-2);
-  background: var(--lc-bg-subtle);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-sm);
+  gap: var(--lc-space-3);
+  padding: var(--lc-space-2) 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-config__flow-main {
   display: flex;
@@ -558,11 +591,27 @@ async function onFlowPage(f: FlowListItem, e: Event): Promise<void> {
   min-width: 0;
 }
 .portal-config__flow-name {
-  font-size: var(--lc-font-caption);
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-medium);
   color: var(--lc-text-primary);
 }
 .portal-config__flow-page {
   flex: 0 0 176px;
   min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .portal-config__field,
+  .portal-config__field--narrow {
+    flex: 1 1 100%;
+  }
+  .portal-config__menu {
+    align-items: stretch;
+  }
+  .portal-config__m-type,
+  .portal-config__m-target,
+  .portal-config__flow-page {
+    flex: 1 1 100%;
+  }
 }
 </style>

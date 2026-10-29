@@ -69,6 +69,13 @@ body {
   color: var(--lc-topbar-text-muted);
   font-weight: var(--lc-weight-regular);
 }
+/* 一级栏目上下文：与产品名之间用竖线分隔，不抢品牌层级 */
+.designer__view {
+  padding-left: var(--lc-space-3);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-topbar-text-muted);
+  border-left: var(--lc-border-width) solid var(--lc-topbar-sep);
+}
 /* 批 5 Profiler 徽标：等宽字体 + 弱化底色，悬浮 title 看 JSON */
 .designer__perf {
   display: inline-flex;
@@ -418,6 +425,10 @@ a.top-btn {
   overflow: auto;
   background: var(--lc-bg-surface);
   padding: var(--lc-space-4) var(--lc-space-5);
+}
+/* 门户设计自带工作台留白与最大宽度，外壳只负责滚动 */
+.designer__models--flush {
+  padding: 0;
 }
 .designer__models > .lc-model-panel,
 .designer__models > .lc-rbac-panel {

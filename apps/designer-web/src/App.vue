@@ -13,6 +13,8 @@
         <span class="designer__logo" :title="`移动端低代码平台 · ${stageLabel}`">
           移动端低代码平台<span class="designer__logo-sub"> · {{ stageLabel }}</span>
         </span>
+        <!-- 门户设计是一级首页：顶栏给出栏目上下文，避免只剩一条空顶栏 -->
+        <span v-if="isPortalView" class="designer__view">门户设计</span>
         <!-- 批 5 Profiler（D-P3-14）：Schema 加载 + 画布渲染耗时；悬浮看完整采样 JSON -->
         <span
           v-if="store.perfText"
@@ -170,7 +172,7 @@
     </header>
 
     <!-- Phase 2 批 1 / D-P2-1：数据模型管理视图（视图切换，与画布互斥） -->
-    <div v-if="store.view === 'portal'" class="designer__models">
+    <div v-if="store.view === 'portal'" class="designer__models designer__models--flush">
       <portal-panel />
     </div>
     <div v-else-if="store.view === 'model'" class="designer__models">

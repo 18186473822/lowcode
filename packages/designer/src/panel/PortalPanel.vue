@@ -14,234 +14,261 @@
 -->
 <template>
   <div class="lc-portal-panel lc-portal-home" data-testid="portal-panel">
-    <!-- 应用条（2026-10-29 P0）：应用身份 + 入口页 + 门户页数 + 最近编辑。
-         数据来自 `GET /apps/config`；宿主未实现时降级为「未命名应用 / 未设置」。 -->
+    <!-- 应用条：应用身份 + 入口页 + 门户页数 + 最近编辑。
+         不使用灰底卡片，靠字号层级与竖线分隔；数据来自 `GET /apps/config`。 -->
     <header class="portal-appbar" data-testid="portal-appbar">
       <span class="portal-appbar__icon" aria-hidden="true">{{ appInitial }}</span>
-      <span class="portal-appbar__name">{{ appName }}</span>
-      <span class="portal-appbar__meta">入口页 {{ entryLabel }}</span>
-      <span class="portal-appbar__meta">{{ store.portalPages.length }} 个门户页</span>
-      <span class="portal-appbar__meta">{{ lastEditedText }}</span>
+      <div class="portal-appbar__id">
+        <h1 class="portal-appbar__name">{{ appName }}</h1>
+        <span class="portal-appbar__kind">门户设计</span>
+      </div>
+      <div class="portal-appbar__facts">
+        <span class="portal-appbar__meta">入口页 {{ entryLabel }}</span>
+        <span class="portal-appbar__meta">{{ store.portalPages.length }} 个门户页</span>
+        <span class="portal-appbar__meta">{{ lastEditedText }}</span>
+      </div>
       <span v-if="store.appConfigError" class="portal-appbar__err">{{ store.appConfigError }}</span>
     </header>
 
+    <!-- 页签：门户页面（清单） / 门户配置（入口页 + 应用菜单） -->
+    <div class="portal-tabs" role="tablist" aria-label="门户设计视图">
+      <button
+        class="portal-tabs__btn"
+        :class="{ 'portal-tabs__btn--on': tab === 'pages' }"
+        type="button"
+        role="tab"
+        :aria-selected="tab === 'pages'"
+        data-testid="portal-tab-pages"
+        @click="tab = 'pages'"
+      >门户页面</button>
+      <button
+        class="portal-tabs__btn"
+        :class="{ 'portal-tabs__btn--on': tab === 'config' }"
+        type="button"
+        role="tab"
+        :aria-selected="tab === 'config'"
+        data-testid="portal-tab-config"
+        @click="tab = 'config'"
+      >门户配置</button>
+    </div>
+
     <div class="portal-home__body">
       <div class="portal-home__main">
-        <!-- 页签：门户页面（清单） / 门户配置（入口页 + 底部栏） -->
-        <div class="portal-tabs" role="tablist" aria-label="门户设计视图">
-          <button
-            class="portal-tabs__btn"
-            :class="{ 'portal-tabs__btn--on': tab === 'pages' }"
-            type="button"
-            role="tab"
-            :aria-selected="tab === 'pages'"
-            data-testid="portal-tab-pages"
-            @click="tab = 'pages'"
-          >门户页面</button>
-          <button
-            class="portal-tabs__btn"
-            :class="{ 'portal-tabs__btn--on': tab === 'config' }"
-            type="button"
-            role="tab"
-            :aria-selected="tab === 'config'"
-            data-testid="portal-tab-config"
-            @click="tab = 'config'"
-          >门户配置</button>
-        </div>
-
         <template v-if="tab === 'pages'">
-    <header class="portal-head">
-      <div class="portal-head__text">
-        <h3 class="panel-title">移动门户</h3>
-        <p class="portal-head__note">
-          一个门户 = 一张 <code>portal</code> 页；卡片在「页面设计」右侧属性面板配置，
-          运行时按手机壳效果渲染。
-        </p>
-      </div>
-      <button class="op-btn op-btn--primary" type="button" data-testid="portal-new" @click="openCreate">
-        ＋ 新增
-      </button>
-    </header>
+          <header class="portal-section-head">
+            <div class="portal-section-head__text">
+              <h2 class="portal-section__title">门户页面</h2>
+              <p class="portal-section__note">
+                每张门户页就是手机上的一个首页。打开「页面设计」，从左侧拖入内容。
+              </p>
+            </div>
+            <div class="portal-section-head__ops">
+              <button
+                class="portal-quiet"
+                type="button"
+                data-testid="portal-refresh"
+                @click="reload"
+              >刷新</button>
+              <button
+                class="op-btn op-btn--primary"
+                type="button"
+                data-testid="portal-new"
+                @click="openCreate"
+              >＋ 新增门户</button>
+            </div>
+          </header>
 
-    <!-- 查询：点「查询」才应用，重置清空草稿与条件 -->
-    <div class="portal-filter" role="group" aria-label="门户查询">
-      <label class="portal-filter__field">
-        <span class="portal-filter__label">页面名称</span>
-        <input
-          v-model="q.name"
-          class="setter__input"
-          type="text"
-          placeholder="模糊匹配"
-          data-testid="portal-q-name"
-          @keydown.enter="applyQuery"
-        />
-      </label>
-      <label class="portal-filter__field">
-        <span class="portal-filter__label">页面编码</span>
-        <input
-          v-model="q.id"
-          class="setter__input"
-          type="text"
-          spellcheck="false"
-          placeholder="如 default_home"
-          data-testid="portal-q-id"
-          @keydown.enter="applyQuery"
-        />
-      </label>
-      <div class="portal-filter__actions">
-        <button class="op-btn op-btn--primary" type="button" data-testid="portal-search" @click="applyQuery">
-          查询
-        </button>
-        <button class="op-btn" type="button" data-testid="portal-reset" @click="resetQuery">重置</button>
-      </div>
-    </div>
-
-    <div class="portal-toolbar">
-      <button
-        class="op-btn op-btn--danger"
-        type="button"
-        data-testid="portal-delete"
-        :disabled="!selectedIds.length || deleting"
-        :title="selectedIds.length ? `删除选中的 ${selectedIds.length} 个门户页` : '先勾选要删除的门户页'"
-        @click="removeSelected"
-      >{{ deleteArmed ? `确认删除 ${selectedIds.length} 个？` : '删除' }}</button>
-      <span class="portal-toolbar__hint">勾选后删除（含历史版本，不可恢复）；系统内置页不可删。</span>
-      <button
-        class="op-btn portal-toolbar__refresh"
-        type="button"
-        data-testid="portal-refresh"
-        @click="reload"
-      >刷新</button>
-    </div>
-
-    <!-- 下钻失败提示独立于下面的加载/表格分支：不能插进 v-if/v-else-if/v-else 链中间 -->
-    <p v-if="designError" class="panel-err portal-design-err" data-testid="portal-design-error">{{ designError }}</p>
-    <p v-if="pendingSwitchTo" class="portal-hint portal-dirty-hint" data-testid="portal-dirty-hint">
-      当前页有未保存的修改：再点一次「页面设计」会丢弃这些修改。
-    </p>
-
-    <p v-if="store.portalError" class="panel-err" data-testid="portal-error">{{ store.portalError }}</p>
-    <p v-else-if="store.portalLoading" class="portal-hint" data-testid="portal-loading">加载中…</p>
-
-    <div v-else class="portal-table-wrap">
-      <table class="portal-table" data-testid="portal-table">
-        <thead>
-          <tr>
-            <th class="portal-col-check">
-              <input
-                type="checkbox"
-                :checked="allDesignSelected"
-                :disabled="!designRows.length"
-                aria-label="全选在线设计页"
-                data-testid="portal-check-all"
-                @change="toggleAll"
-              />
-            </th>
-            <th class="portal-col-idx">序号</th>
-            <th>页面名称</th>
-            <th>页面编码</th>
-            <th class="portal-col-type">页面类型</th>
-            <th class="portal-col-order">排序</th>
-            <th>备注</th>
-            <th class="portal-col-ops">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="row in pagedRows" :key="row.key">
-            <!-- 系统内置：运行体路由，不占页面表 -->
-            <tr v-if="row.kind === 'builtin'" class="portal-row portal-row--builtin">
-              <td class="portal-col-check">
-                <input type="checkbox" disabled aria-label="系统内置页不可选" />
-              </td>
-              <td class="portal-col-idx">{{ row.idx }}</td>
-              <td><span class="portal-name">{{ row.name }}</span></td>
-              <td><code class="portal-id">{{ row.id }}</code></td>
-              <td class="portal-col-type">
-                <span class="portal-badge portal-badge--builtin">系统内置</span>
-              </td>
-              <td class="portal-col-order portal-muted">—</td>
-              <td class="portal-muted">{{ row.note }}</td>
-              <td class="portal-col-ops portal-muted" title="由运行体内置路由提供，不占页面表，故不可编辑 / 删除">
-                —
-              </td>
-            </tr>
-
-            <!-- 在线设计：page 表里 type=portal 的行 -->
-            <tr v-else class="portal-row" :data-testid="`portal-row-${row.page.id}`">
-              <td class="portal-col-check">
+          <!-- 查询：点「查询」才应用，重置清空草稿与条件 -->
+          <div class="portal-tools" role="group" aria-label="门户查询">
+            <div class="portal-tools__search">
+              <label class="portal-field">
+                <span class="portal-field__label">名称</span>
                 <input
-                  type="checkbox"
-                  :checked="selected.has(row.page.id)"
-                  :aria-label="`选择 ${row.page.name}`"
-                  :data-testid="`portal-check-${row.page.id}`"
-                  @change="toggleOne(row.page.id, ($event.target as HTMLInputElement).checked)"
+                  v-model="q.name"
+                  class="setter__input portal-field__input"
+                  type="text"
+                  placeholder="模糊匹配"
+                  data-testid="portal-q-name"
+                  @keydown.enter="applyQuery"
                 />
-              </td>
-              <td class="portal-col-idx">{{ row.idx }}</td>
-              <td><span class="portal-name">{{ row.page.name }}</span></td>
-              <td><code class="portal-id">{{ row.page.id }}</code></td>
-              <td class="portal-col-type">
-                <span class="portal-badge portal-badge--design">在线设计</span>
-              </td>
-              <td class="portal-col-order">{{ row.page.order ?? '—' }}</td>
-              <td class="portal-remark" :title="row.page.remark">{{ row.page.remark || '—' }}</td>
-              <td class="portal-col-ops">
-                <button
-                  class="portal-link"
-                  type="button"
-                  :data-testid="`portal-design-${row.page.id}`"
-                  @click="design(row.page.id)"
-                >页面设计</button>
-                <button
-                  class="portal-link"
-                  type="button"
-                  :data-testid="`portal-edit-${row.page.id}`"
-                  @click="openEdit(row.page)"
-                >编辑</button>
-                <button
-                  class="portal-link portal-link--danger"
-                  type="button"
-                  :data-testid="`portal-remove-${row.page.id}`"
-                  @click="removeOne(row.page.id)"
-                >删除</button>
-              </td>
-            </tr>
-          </template>
+              </label>
+              <label class="portal-field">
+                <span class="portal-field__label">编码</span>
+                <input
+                  v-model="q.id"
+                  class="setter__input portal-field__input"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="如 default_home"
+                  data-testid="portal-q-id"
+                  @keydown.enter="applyQuery"
+                />
+              </label>
+              <button
+                class="portal-quiet portal-quiet--boxed"
+                type="button"
+                data-testid="portal-search"
+                @click="applyQuery"
+              >查询</button>
+              <button
+                class="portal-quiet"
+                type="button"
+                data-testid="portal-reset"
+                @click="resetQuery"
+              >重置</button>
+            </div>
 
-          <tr v-if="!total">
-            <td class="portal-empty" colspan="8" data-testid="portal-empty">
-              没有匹配的门户页。点右上角「＋ 新增」创建第一个门户。
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            <!-- 批量删除只在有勾选时出现，避免常驻一个不可用的危险按钮 -->
+            <div v-if="selectedIds.length" class="portal-tools__bulk">
+              <span class="portal-tools__count">已选 {{ selectedIds.length }} 项</span>
+              <button
+                class="portal-quiet portal-quiet--danger"
+                type="button"
+                data-testid="portal-delete"
+                :disabled="deleting"
+                title="删除含历史版本，不可恢复"
+                @click="removeSelected"
+              >{{ deleteArmed ? `确认删除 ${selectedIds.length} 项` : '删除所选' }}</button>
+            </div>
+          </div>
 
-    <!-- 分页：共 N 条 · 每页条数 · 上一页 / 页码 / 下一页 · 跳页 -->
-    <div class="portal-pager" data-testid="portal-pager">
-      <span class="portal-pager__total">共 <strong>{{ total }}</strong> 条</span>
-      <select v-model.number="pageSize" class="portal-pager__size" aria-label="每页条数">
-        <option :value="10">10 条/页</option>
-        <option :value="20">20 条/页</option>
-        <option :value="50">50 条/页</option>
-      </select>
-      <button class="portal-pager__btn" type="button" :disabled="page <= 1" @click="page--">上一页</button>
-      <span class="portal-pager__now">{{ page }} / {{ pageCount }}</span>
-      <button class="portal-pager__btn" type="button" :disabled="page >= pageCount" @click="page++">下一页</button>
-      <label class="portal-pager__jump">
-        前往
-        <input
-          v-model.number="jumpTo"
-          class="portal-pager__input"
-          type="number"
-          min="1"
-          :max="pageCount"
-          aria-label="跳转页码"
-          @keydown.enter="goTo"
-        />
-        页
-      </label>
-    </div>
+          <!-- 下钻失败提示独立于下面的加载/表格分支：不能插进 v-if/v-else-if/v-else 链中间 -->
+          <p v-if="designError" class="panel-err portal-design-err" data-testid="portal-design-error">{{ designError }}</p>
+          <p v-if="pendingSwitchTo" class="portal-hint portal-dirty-hint" data-testid="portal-dirty-hint">
+            当前页有未保存的修改：再点一次「页面设计」会丢弃这些修改。
+          </p>
+
+          <p v-if="store.portalError" class="panel-err portal-status" data-testid="portal-error">{{ store.portalError }}</p>
+          <p v-else-if="store.portalLoading" class="portal-hint portal-status" data-testid="portal-loading">加载中…</p>
+
+          <div v-else class="portal-table-wrap">
+            <table class="portal-table" data-testid="portal-table">
+              <thead>
+                <tr>
+                  <th class="portal-col-check">
+                    <input
+                      type="checkbox"
+                      :checked="allDesignSelected"
+                      :disabled="!designRows.length"
+                      aria-label="全选在线设计页"
+                      data-testid="portal-check-all"
+                      @change="toggleAll"
+                    />
+                  </th>
+                  <th>门户</th>
+                  <th class="portal-col-type">类型</th>
+                  <th class="portal-col-order">排序</th>
+                  <th class="portal-col-remark">备注</th>
+                  <th class="portal-col-ops">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="row in pagedRows" :key="row.key">
+                  <!-- 系统内置：运行体路由，不占页面表 -->
+                  <tr v-if="row.kind === 'builtin'" class="portal-row portal-row--builtin">
+                    <td class="portal-col-check">
+                      <input type="checkbox" disabled aria-label="系统内置页不可选" />
+                    </td>
+                    <td>
+                      <span class="portal-name">{{ row.name }}</span>
+                      <code class="portal-id">{{ row.id }}</code>
+                    </td>
+                    <td class="portal-col-type">
+                      <span class="portal-type portal-type--builtin">
+                        <span class="portal-type__dot" aria-hidden="true" />系统内置
+                      </span>
+                    </td>
+                    <td class="portal-col-order portal-muted">—</td>
+                    <td class="portal-remark portal-muted">{{ row.note }}</td>
+                    <td class="portal-col-ops portal-muted" title="由运行体内置路由提供，不占页面表，故不可编辑 / 删除">—</td>
+                  </tr>
+
+                  <!-- 在线设计：page 表里 type=portal 的行 -->
+                  <tr v-else class="portal-row" :data-testid="`portal-row-${row.page.id}`">
+                    <td class="portal-col-check">
+                      <input
+                        type="checkbox"
+                        :checked="selected.has(row.page.id)"
+                        :aria-label="`选择 ${row.page.name}`"
+                        :data-testid="`portal-check-${row.page.id}`"
+                        @change="toggleOne(row.page.id, ($event.target as HTMLInputElement).checked)"
+                      />
+                    </td>
+                    <td>
+                      <span class="portal-name">{{ row.page.name }}</span>
+                      <code class="portal-id">{{ row.page.id }}</code>
+                    </td>
+                    <td class="portal-col-type">
+                      <span class="portal-type portal-type--design">
+                        <span class="portal-type__dot" aria-hidden="true" />在线设计
+                      </span>
+                    </td>
+                    <td class="portal-col-order">{{ row.page.order ?? '—' }}</td>
+                    <td class="portal-remark" :title="row.page.remark">{{ row.page.remark || '—' }}</td>
+                    <td class="portal-col-ops">
+                      <button
+                        class="portal-link portal-link--main"
+                        type="button"
+                        :data-testid="`portal-design-${row.page.id}`"
+                        @click="design(row.page.id)"
+                      >页面设计</button>
+                      <button
+                        class="portal-link"
+                        type="button"
+                        :data-testid="`portal-edit-${row.page.id}`"
+                        @click="openEdit(row.page)"
+                      >编辑</button>
+                      <button
+                        class="portal-link portal-link--danger"
+                        type="button"
+                        :data-testid="`portal-remove-${row.page.id}`"
+                        @click="removeOne(row.page.id)"
+                      >删除</button>
+                    </td>
+                  </tr>
+                </template>
+
+                <tr v-if="!total">
+                  <td class="portal-empty" colspan="6" data-testid="portal-empty">
+                    {{ applied.name || applied.id
+                      ? '没有匹配的门户页。换个名称或编码，或重置查询。'
+                      : '还没有门户页。新建一张，开始搭手机首屏。' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 分页：共 N 条 · 每页条数 · 上一页 / 页码 / 下一页 · 跳页 -->
+          <div class="portal-pager" data-testid="portal-pager">
+            <span class="portal-pager__total">共 <strong>{{ total }}</strong> 条</span>
+            <div class="portal-pager__nav">
+              <label class="portal-pager__size-label">
+                每页
+                <select v-model.number="pageSize" class="portal-pager__size" aria-label="每页条数">
+                  <option :value="10">10 条</option>
+                  <option :value="20">20 条</option>
+                  <option :value="50">50 条</option>
+                </select>
+              </label>
+              <button class="portal-pager__btn" type="button" :disabled="page <= 1" @click="page--">上一页</button>
+              <span class="portal-pager__now">{{ page }} / {{ pageCount }}</span>
+              <button class="portal-pager__btn" type="button" :disabled="page >= pageCount" @click="page++">下一页</button>
+              <label class="portal-pager__jump">
+                前往
+                <input
+                  v-model.number="jumpTo"
+                  class="portal-pager__input"
+                  type="number"
+                  min="1"
+                  :max="pageCount"
+                  aria-label="跳转页码"
+                  @keydown.enter="goTo"
+                />
+                页
+              </label>
+            </div>
+          </div>
         </template>
 
         <!-- 门户配置（P1）：应用信息 / 入口页 / 应用菜单，实现在独立面板里 -->
@@ -251,17 +278,19 @@
       <!-- 工作区入口：一级首页上唯一能直达管理视图的地方；画布内仍可用「页面」菜单 -->
       <aside class="portal-home__rail" data-testid="portal-workspace" aria-label="工作区">
         <span class="portal-rail__label">工作区</span>
-        <button
-          v-for="w in WORKSPACES"
-          :key="w.view"
-          class="portal-rail__item"
-          type="button"
-          :data-testid="`portal-ws-${w.view}`"
-          @click="store.switchView(w.view)"
-        >
-          <span class="portal-rail__name">{{ w.name }}</span>
-          <span class="portal-rail__desc">{{ w.desc }}</span>
-        </button>
+        <div class="portal-rail__list">
+          <button
+            v-for="w in WORKSPACES"
+            :key="w.view"
+            class="portal-rail__item"
+            type="button"
+            :data-testid="`portal-ws-${w.view}`"
+            @click="store.switchView(w.view)"
+          >
+            <span class="portal-rail__name">{{ w.name }}</span>
+            <span class="portal-rail__desc">{{ w.desc }}</span>
+          </button>
+        </div>
       </aside>
     </div>
 
@@ -687,85 +716,97 @@ function goTo(): void {
 </script>
 
 <style scoped>
+/*
+ * 门户设计一级首页：单张白色工作台。
+ * 组织手段只有三样 —— 字号层级、留白、1px 分隔线；不再叠灰底卡片、不再用彩色徽标块。
+ */
 .lc-portal-panel {
-  max-width: 1080px;
+  max-width: 1240px;
 }
 
-/* ---------------- 2026-10-29 P0：一级首页骨架（应用条 + 页签 + 工作区右栏） ---------------- */
 .lc-portal-home {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-3);
-  max-width: 1180px;
+  gap: var(--lc-space-6);
+  margin: 0 auto;
+  padding: var(--lc-space-8) var(--lc-space-8) var(--lc-space-16);
 }
+
+/* ---------------- 应用条：身份 + 元信息 ---------------- */
 
 .portal-appbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--lc-space-3);
-  padding: var(--lc-space-3) var(--lc-space-4);
-  background: var(--lc-bg-subtle);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
+  gap: var(--lc-space-3) var(--lc-space-4);
+  min-height: 40px;
 }
 .portal-appbar__icon {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  font-size: var(--lc-font-caption);
+  width: 40px;
+  height: 40px;
+  font-size: var(--lc-font-body-lg);
   font-weight: var(--lc-weight-semibold);
-  color: var(--lc-action-primary);
-  background: var(--lc-status-info-bg);
+  color: var(--lc-text-on-brand);
+  background: var(--lc-action-primary);
   border-radius: var(--lc-radius-sm);
 }
+.portal-appbar__id {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-0-5);
+  min-width: 0;
+}
 .portal-appbar__name {
-  font-size: var(--lc-font-body);
+  margin: 0;
+  font-size: var(--lc-font-h1);
   font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h1);
   color: var(--lc-text-primary);
 }
-.portal-appbar__meta {
+.portal-appbar__kind {
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-compact);
+  color: var(--lc-text-secondary);
+}
+.portal-appbar__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2);
+  margin-left: auto;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
 }
+.portal-appbar__meta + .portal-appbar__meta {
+  padding-left: var(--lc-space-3);
+  border-left: var(--lc-border-width) solid var(--lc-border-default);
+}
 .portal-appbar__err {
-  margin-left: auto;
-  font-size: var(--lc-font-micro);
+  flex-basis: 100%;
+  font-size: var(--lc-font-caption);
   color: var(--lc-text-danger);
 }
 
-.portal-home__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 196px;
-  gap: var(--lc-space-4);
-  align-items: start;
-}
-@media (max-width: 1023px) {
-  .portal-home__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.portal-home__main {
-  min-width: 0;
-}
+/* ---------------- 页签 ---------------- */
 
-/* 页签：与左栏「物料 / 大纲」同构，避免同一产品两套页签长相 */
 .portal-tabs {
   display: flex;
-  gap: var(--lc-space-4);
-  margin-bottom: var(--lc-space-3);
+  gap: var(--lc-space-6);
   border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-tabs__btn {
-  padding: var(--lc-space-2) 0;
+  margin-bottom: -1px;
+  padding: var(--lc-space-2-5) 0 var(--lc-space-3);
   font-family: inherit;
-  font-size: var(--lc-font-caption);
+  font-size: var(--lc-font-body);
+  line-height: var(--lc-leading-ui);
   color: var(--lc-text-secondary);
   background: none;
   border: 0;
-  /* 2px 与 .left-tabs__btn 一致（设计器内页签的唯一视觉语言） */
   border-bottom: 2px solid transparent;
   cursor: pointer;
   transition: color var(--lc-duration-fast) var(--lc-ease-standard);
@@ -781,32 +822,53 @@ function goTo(): void {
 }
 .portal-tabs__btn:focus-visible {
   outline: var(--lc-focus-ring);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
-/* 门户配置的样式已随面板抽到 PortalConfigPanel.vue（scoped），此处不再保留副本 */
+/* ---------------- 主体：主工作区 + 工作区侧栏 ---------------- */
 
-/* 工作区右栏 */
+.portal-home__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 224px;
+  column-gap: var(--lc-space-10);
+  align-items: stretch;
+}
+.portal-home__main {
+  min-width: 0;
+}
+
+/* 侧栏用一条竖线与主区分离，条目之间用横线，不再是一叠等高卡片 */
 .portal-home__rail {
   display: flex;
   flex-direction: column;
-  gap: var(--lc-space-2);
+  gap: var(--lc-space-3);
+  padding-left: var(--lc-space-6);
+  border-left: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-rail__label {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
+  font-size: var(--lc-font-caption);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-secondary);
+}
+.portal-rail__list {
+  display: flex;
+  flex-direction: column;
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-rail__item {
   display: flex;
   flex-direction: column;
   gap: var(--lc-space-0-5);
-  padding: var(--lc-space-2) var(--lc-space-3);
+  margin: 0 calc(var(--lc-space-2) * -1);
+  padding: var(--lc-space-2-5) var(--lc-space-2);
   font-family: inherit;
   text-align: left;
-  background: var(--lc-bg-surface);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
+  background: none;
+  border: 0;
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+  border-radius: var(--lc-radius-xs);
   cursor: pointer;
+  transition: background-color var(--lc-duration-fast) var(--lc-ease-standard);
 }
 .portal-rail__item:hover {
   background: var(--lc-bg-subtle);
@@ -816,191 +878,303 @@ function goTo(): void {
   outline-offset: 1px;
 }
 .portal-rail__name {
-  font-size: var(--lc-font-caption);
+  font-size: var(--lc-font-body-sm);
+  font-weight: var(--lc-weight-medium);
   color: var(--lc-text-primary);
 }
 .portal-rail__desc {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
-}
-
-.portal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--lc-space-3);
-}
-.portal-head__text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lc-space-1);
-}
-.portal-head__note {
-  margin: 0;
   font-size: var(--lc-font-caption);
-  line-height: var(--lc-leading-readable);
-  color: var(--lc-text-tertiary);
-}
-.portal-head__note code {
-  font-family: var(--lc-font-mono);
+  line-height: var(--lc-leading-compact);
   color: var(--lc-text-secondary);
 }
 
-/* 查询区：输入框 + 查询 / 重置 */
-.portal-filter {
+/* ---------------- 区块头 ---------------- */
+
+.portal-section-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--lc-space-3);
-  margin-top: var(--lc-space-3);
-  padding: var(--lc-space-3);
-  background: var(--lc-bg-subtle);
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lc-space-4);
 }
-.portal-filter__field {
+.portal-section-head__text {
   display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-1);
+  min-width: 0;
+}
+.portal-section__title {
+  margin: 0;
+  font-size: var(--lc-font-h2);
+  font-weight: var(--lc-weight-semibold);
+  line-height: var(--lc-lh-h2);
+  color: var(--lc-text-primary);
+}
+.portal-section__note {
+  margin: 0;
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-readable);
+  color: var(--lc-text-secondary);
+}
+.portal-section-head__ops {
+  display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--lc-space-2);
-  flex: 1 1 260px;
-}
-.portal-filter__label {
-  flex-shrink: 0;
-  font-size: var(--lc-font-caption);
-  color: var(--lc-text-label);
-}
-.portal-filter__actions {
-  display: flex;
-  gap: var(--lc-space-2);
-  margin-left: auto;
 }
 
-.portal-toolbar {
+/* ---------------- 查询与批量操作 ---------------- */
+
+.portal-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-3);
+  margin-top: var(--lc-space-5);
+  padding-bottom: var(--lc-space-3);
+  border-bottom: var(--lc-border-width) solid var(--lc-border-default);
+}
+.portal-tools__search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-2);
+}
+.portal-field {
   display: flex;
   align-items: center;
   gap: var(--lc-space-2);
-  margin-top: var(--lc-space-3);
 }
-.portal-toolbar__hint {
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-tertiary);
+.portal-field__label {
+  flex-shrink: 0;
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
 }
-.portal-toolbar__refresh {
+.portal-field__input {
+  width: 168px;
+}
+.portal-tools__bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-2);
   margin-left: auto;
 }
+.portal-tools__count {
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
+}
+
+/* 安静的文字按钮：查询 / 刷新 / 重置 / 批量删除共用 */
+.portal-quiet {
+  padding: var(--lc-space-1) var(--lc-space-1-5);
+  font-family: inherit;
+  font-size: var(--lc-font-body-sm);
+  line-height: var(--lc-leading-ui);
+  color: var(--lc-text-secondary);
+  background: none;
+  border: 0;
+  border-radius: var(--lc-radius-xs);
+  cursor: pointer;
+  transition:
+    color var(--lc-duration-fast) var(--lc-ease-standard),
+    background-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.portal-quiet:hover:not(:disabled) {
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-subtle);
+}
+.portal-quiet:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.portal-quiet:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
+}
+.portal-quiet--boxed {
+  padding: var(--lc-btn-pad-y) var(--lc-btn-pad-x);
+  color: var(--lc-text-label);
+  background: var(--lc-bg-surface);
+  border: var(--lc-border-width) solid var(--lc-btn-default-border);
+  border-radius: var(--lc-btn-radius);
+}
+.portal-quiet--boxed:hover:not(:disabled) {
+  color: var(--lc-action-primary);
+  background: var(--lc-bg-surface);
+  border-color: var(--lc-action-primary);
+}
+.portal-quiet--danger {
+  color: var(--lc-text-danger);
+}
+.portal-quiet--danger:hover:not(:disabled) {
+  color: var(--lc-text-danger);
+  background: var(--lc-status-danger-bg);
+}
+
+/* ---------------- 状态提示 ---------------- */
 
 .portal-hint {
   margin: var(--lc-space-3) 0 0;
   font-size: var(--lc-font-caption);
-  color: var(--lc-text-tertiary);
+  color: var(--lc-text-secondary);
+}
+.portal-status {
+  margin: var(--lc-space-4) 0 0;
 }
 .portal-design-err {
-  margin: var(--lc-space-2) 0 0;
+  margin: var(--lc-space-3) 0 0;
 }
 .portal-dirty-hint {
   margin: var(--lc-space-2) 0 0;
   color: var(--lc-text-danger);
 }
 
+/* ---------------- 门户表格 ---------------- */
+
 .portal-table-wrap {
   margin-top: var(--lc-space-2);
   overflow-x: auto;
-  border: var(--lc-border-width) solid var(--lc-border-default);
-  border-radius: var(--lc-radius-md);
 }
 .portal-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--lc-font-caption);
+  table-layout: fixed;
+  font-size: var(--lc-font-body-sm);
 }
 .portal-table th,
 .portal-table td {
-  padding: var(--lc-space-2) var(--lc-space-3);
+  padding: var(--lc-space-3) var(--lc-space-2);
   text-align: left;
+  vertical-align: middle;
   border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-table th {
-  font-weight: var(--lc-weight-semibold);
-  color: var(--lc-text-label);
-  background: var(--lc-bg-subtle);
-  white-space: nowrap;
+  padding-top: var(--lc-space-2);
+  padding-bottom: var(--lc-space-2);
+  font-size: var(--lc-font-caption);
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-text-secondary);
+}
+.portal-table th:first-child,
+.portal-table td:first-child {
+  padding-left: 0;
+}
+.portal-table th:last-child,
+.portal-table td:last-child {
+  padding-right: 0;
 }
 .portal-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.portal-table input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--lc-action-primary);
+  cursor: pointer;
+}
+.portal-table input[type='checkbox']:disabled {
+  cursor: not-allowed;
+}
+.portal-row {
+  transition: background-color var(--lc-duration-fast) var(--lc-ease-standard);
 }
 .portal-row:hover {
   background: var(--lc-bg-subtle);
 }
 .portal-col-check {
-  width: 40px;
-}
-.portal-col-idx {
-  width: 56px;
-  color: var(--lc-text-tertiary);
+  width: 36px;
 }
 .portal-col-type {
-  width: 108px;
+  width: 92px;
 }
 .portal-col-order {
-  width: 72px;
+  width: 60px;
+}
+.portal-col-remark {
+  width: 24%;
 }
 .portal-col-ops {
-  width: 200px;
-  white-space: nowrap;
+  width: 148px;
+  text-align: right;
+}
+.portal-table td.portal-col-order {
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  color: var(--lc-text-secondary);
 }
 .portal-name {
-  color: var(--lc-text-primary);
-}
-.portal-id {
-  font-family: var(--lc-font-mono);
-  font-size: var(--lc-font-micro);
-  color: var(--lc-text-secondary);
-}
-.portal-remark {
-  max-width: 220px;
+  display: block;
   overflow: hidden;
+  font-size: var(--lc-font-body);
+  font-weight: var(--lc-weight-medium);
+  line-height: var(--lc-leading-ui);
+  color: var(--lc-text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.portal-id {
+  display: block;
+  margin-top: var(--lc-space-0-5);
+  overflow: hidden;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-font-caption);
+  line-height: var(--lc-leading-compact);
   color: var(--lc-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-remark {
+  overflow: hidden;
+  color: var(--lc-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .portal-muted {
-  color: var(--lc-text-tertiary);
-}
-.portal-empty {
-  padding: var(--lc-space-6) var(--lc-space-3);
-  text-align: center;
-  color: var(--lc-text-tertiary);
+  color: var(--lc-text-secondary);
 }
 
-.portal-badge {
-  display: inline-block;
-  padding: 0 var(--lc-space-1-5);
-  font-size: var(--lc-font-micro);
-  line-height: var(--lc-leading-label);
-  border-radius: var(--lc-radius-xs);
-}
-.portal-badge--builtin {
+/* 类型：圆点 + 文字，只让圆点承担颜色 */
+.portal-type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
+  font-size: var(--lc-font-body-sm);
   color: var(--lc-text-label);
-  background: var(--lc-status-warning-bg);
+  white-space: nowrap;
 }
-.portal-badge--design {
-  color: var(--lc-action-primary);
-  background: var(--lc-status-info-bg);
+.portal-type__dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--lc-action-primary);
+  border-radius: var(--lc-radius-pill);
+}
+.portal-type--builtin .portal-type__dot {
+  background: var(--lc-status-warning);
 }
 
 .portal-link {
-  padding: 0 var(--lc-space-1);
+  padding: 0;
   font-family: inherit;
-  font-size: var(--lc-font-micro);
-  color: var(--lc-action-primary);
+  font-size: var(--lc-font-body-sm);
+  line-height: var(--lc-leading-ui);
+  color: var(--lc-text-secondary);
   background: none;
   border: 0;
   cursor: pointer;
+  transition: color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.portal-link + .portal-link {
+  margin-left: var(--lc-space-3);
 }
 .portal-link:hover {
-  text-decoration: underline;
+  color: var(--lc-action-primary);
 }
-.portal-link--danger {
+.portal-link--main {
+  font-weight: var(--lc-weight-medium);
+  color: var(--lc-action-primary);
+}
+.portal-link--danger:hover {
   color: var(--lc-text-danger);
 }
 .portal-link:focus-visible {
@@ -1008,22 +1182,47 @@ function goTo(): void {
   outline-offset: 1px;
 }
 
+.portal-table td.portal-empty {
+  padding: var(--lc-space-16) var(--lc-space-3);
+  font-size: var(--lc-font-body-sm);
+  color: var(--lc-text-secondary);
+  text-align: center;
+}
+
+/* ---------------- 分页 ---------------- */
+
 .portal-pager {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--lc-space-2);
-  margin-top: var(--lc-space-3);
+  gap: var(--lc-space-3);
+  margin-top: var(--lc-space-2);
+  padding-top: var(--lc-space-3);
+  border-top: var(--lc-border-width) solid var(--lc-border-default);
   font-size: var(--lc-font-caption);
   color: var(--lc-text-secondary);
 }
 .portal-pager__total strong {
+  font-weight: var(--lc-weight-semibold);
   color: var(--lc-text-primary);
+}
+.portal-pager__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lc-space-3);
+  margin-left: auto;
+}
+.portal-pager__size-label,
+.portal-pager__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-1-5);
 }
 .portal-pager__size,
 .portal-pager__input {
-  padding: var(--lc-space-0-5) var(--lc-space-1);
+  height: 26px;
+  padding: 0 var(--lc-space-1);
   font-family: inherit;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-primary);
@@ -1032,33 +1231,38 @@ function goTo(): void {
   border-radius: var(--lc-radius-xs);
 }
 .portal-pager__input {
-  width: 56px;
+  width: 44px;
 }
 .portal-pager__btn {
-  padding: var(--lc-space-0-5) var(--lc-space-2);
+  padding: var(--lc-space-1) var(--lc-space-1-5);
   font-family: inherit;
   font-size: var(--lc-font-caption);
   color: var(--lc-text-label);
-  background: var(--lc-bg-surface);
-  border: var(--lc-border-width) solid var(--lc-border-default);
+  background: none;
+  border: 0;
   border-radius: var(--lc-radius-xs);
   cursor: pointer;
+  transition: background-color var(--lc-duration-fast) var(--lc-ease-standard);
+}
+.portal-pager__btn:hover:not(:disabled) {
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-subtle);
 }
 .portal-pager__btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+}
+.portal-pager__btn:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
 }
 .portal-pager__now {
   font-family: var(--lc-font-mono);
   color: var(--lc-text-primary);
 }
-.portal-pager__jump {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lc-space-1);
-}
 
-/* 弹层 */
+/* ---------------- 新增 / 编辑弹层 ---------------- */
+
 .portal-mask {
   position: fixed;
   inset: 0;
@@ -1072,7 +1276,7 @@ function goTo(): void {
 .portal-dialog {
   display: flex;
   flex-direction: column;
-  width: 460px;
+  width: 440px;
   max-width: calc(100vw - var(--lc-space-8));
   background: var(--lc-bg-surface);
   border-radius: var(--lc-radius-lg);
@@ -1082,31 +1286,94 @@ function goTo(): void {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--lc-space-3) var(--lc-space-4);
+  padding: var(--lc-space-4) var(--lc-space-6);
   border-bottom: var(--lc-border-width) solid var(--lc-border-default);
 }
+.portal-dialog__head strong {
+  font-size: var(--lc-font-body-lg);
+  font-weight: var(--lc-weight-semibold);
+  color: var(--lc-text-primary);
+}
 .portal-dialog__close {
-  padding: 0 var(--lc-space-2);
-  font-size: var(--lc-font-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-family: inherit;
+  font-size: var(--lc-font-h2);
+  line-height: var(--lc-leading-label);
   color: var(--lc-text-secondary);
   background: none;
   border: 0;
+  border-radius: var(--lc-radius-xs);
   cursor: pointer;
+}
+.portal-dialog__close:hover {
+  color: var(--lc-text-primary);
+  background: var(--lc-bg-subtle);
+}
+.portal-dialog__close:focus-visible {
+  outline: var(--lc-focus-ring);
+  outline-offset: 1px;
 }
 .portal-dialog__body {
   display: flex;
   flex-direction: column;
   gap: var(--lc-space-3);
-  padding: var(--lc-space-4);
+  padding: var(--lc-space-6);
 }
 .portal-dialog__foot {
   display: flex;
   justify-content: flex-end;
   gap: var(--lc-space-2);
-  padding: var(--lc-space-3) var(--lc-space-4);
+  padding: var(--lc-space-4) var(--lc-space-6);
   border-top: var(--lc-border-width) solid var(--lc-border-default);
 }
 .portal-mono {
   font-family: var(--lc-font-mono);
+}
+
+/* ---------------- 响应式：侧栏落到下方，查询行折行 ---------------- */
+
+@media (max-width: 1023px) {
+  .portal-home__body {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--lc-space-6);
+  }
+  .portal-home__rail {
+    padding-top: var(--lc-space-4);
+    padding-left: 0;
+    border-top: var(--lc-border-width) solid var(--lc-border-default);
+    border-left: 0;
+  }
+  .portal-rail__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--lc-space-4);
+  }
+}
+
+@media (max-width: 767px) {
+  .lc-portal-home {
+    padding: var(--lc-space-5) var(--lc-space-4) var(--lc-space-10);
+  }
+  .portal-appbar__facts {
+    width: 100%;
+    margin-left: 0;
+  }
+  .portal-section-head {
+    flex-direction: column;
+  }
+  .portal-section-head__ops {
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+  .portal-field__input {
+    width: 132px;
+  }
+  .portal-table {
+    min-width: 620px;
+  }
 }
 </style>
