@@ -367,8 +367,20 @@ describe('批 3：校验 touch / 打开 / 保存 / 发布', () => {
     expect(store.pageRevision).toBe(8)
 
     expect(await store.publish()).toBe(true)
-    expect(api.publish).toHaveBeenCalledWith('page-rev', 8)
+    // 第三个参数是版本说明（P3）：不传就是 undefined，由宿主 api 层回落默认文案
+    expect(api.publish).toHaveBeenCalledWith('page-rev', 8, undefined)
     expect(store.pageRevision).toBe(9)
+  })
+
+  it('publish(note)：版本说明原样透传给宿主', async () => {
+    const store = useDesignerStore()
+    const api = mockApi()
+    api.publish.mockResolvedValue({ version: 3, revision: 10 })
+    store.setApi(api)
+    store.pageRevision = 9
+
+    expect(await store.publish('调整门户卡片顺序')).toBe(true)
+    expect(api.publish).toHaveBeenCalledWith(expect.any(String), 9, '调整门户卡片顺序')
   })
 
   it('openPage 失败 → error + 本地内容保留', async () => {

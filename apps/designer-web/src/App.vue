@@ -54,7 +54,7 @@
              留着保存/发布会把用户看不见的页写盘（2026-10-28 结构调整）。 -->
         <template v-if="isCanvasView">
           <button class="top-btn top-btn--primary" type="button" @click="onSave">保存</button>
-          <button class="top-btn" type="button" @click="onPublish">发布</button>
+          <button class="top-btn" type="button" data-testid="publish" @click="openPublish">发布</button>
           <!-- Phase 2 批 4：撤销/重做（窄屏收进「更多」，宽屏常驻） -->
           <span class="top-sep designer__sep--history" aria-hidden="true" />
           <div class="designer__history">
@@ -355,6 +355,16 @@
     <!-- 快捷键与帮助（「更多 → 快捷键与帮助」） -->
     <HelpDialog v-if="helpOpen" @close="helpOpen = false" />
 
+    <!-- 发布版本：填版本说明（2026-10-29 P3） -->
+    <PublishDialog
+      v-if="publishOpen"
+      :current-version="store.currentVersion"
+      :saving="publishSaving"
+      :error="publishError"
+      @close="publishOpen = false"
+      @confirm="onPublish"
+    />
+
     <!-- < 640：设计器不提供完整编辑态（design-system.md §6.1 / §10.3） -->
     <div
       v-if="bp === 'mobile' && !gateDismissed"
@@ -386,6 +396,7 @@ import {
   ModelPanel,
   OutlineTree,
   PortalPanel,
+  PublishDialog,
   PropsPanel,
   RbacPanel,
   ThemePanel,
@@ -443,9 +454,28 @@ async function onSave(): Promise<void> {
   if (await store.save()) void store.loadPages(true)
 }
 
-/** 发布可能内部先保存，成功后同样刷新（版本号 / updatedAt 会变） */
-async function onPublish(): Promise<void> {
-  if (await store.publish()) void store.loadPages(true)
+/** 发布：先让用户填版本说明（历史里要能认出这一版），再走 store.publish */
+const publishOpen = ref(false)
+const publishSaving = ref(false)
+const publishError = ref('')
+
+function openPublish(): void {
+  publishError.value = ''
+  publishOpen.value = true
+}
+
+async function onPublish(note: string): Promise<void> {
+  publishSaving.value = true
+  const ok = await store.publish(note)
+  publishSaving.value = false
+  if (!ok) {
+    // 失败（校验不过 / 网络错）保持弹窗，把原因留在原地——别让用户猜
+    publishError.value = store.statusText
+    return
+  }
+  publishOpen.value = false
+  // 发布可能内部先保存，成功后同样刷新（版本号 / updatedAt 会变）
+  void store.loadPages(true)
 }
 
 /* ---------------- 画布工具条（design-system.md §7.1） ----------------

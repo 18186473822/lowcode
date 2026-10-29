@@ -97,7 +97,11 @@ export interface DesignerApi {
     revision?: number,
   ): Promise<{ revision?: number } | void>
   /** 发布当前草稿为新版本，返回版本号与页面行 revision */
-  publish(pageId: string, revision?: number): Promise<{ version?: number; revision?: number }>
+  publish(
+    pageId: string,
+    revision?: number,
+    note?: string,
+  ): Promise<{ version?: number; revision?: number }>
   /** 列出全部数据模型（批 4：页面级「提交模型」下拉） */
   listModels(): Promise<ModelSummary[]>
   /** 取完整模型定义（批 4：节点级「字段绑定」下拉需要 fields） */
@@ -724,15 +728,20 @@ export const useDesignerStore = defineStore('lc-designer', () => {
     }
   }
 
-  /** 发布：草稿非 idle（有未保存修改）先保存（同受校验门禁），再 POST 固化版本 */
-  async function publish(): Promise<boolean> {
+  /**
+   * 发布：草稿非 idle（有未保存修改）先保存（同受校验门禁），再 POST 固化版本。
+   *
+   * `note` 会写进版本历史（服务端 `PublishBody.note`），空串走服务端默认；
+   * 它的作用不是审计，而是让人事后在历史里认出「这版改了什么」。
+   */
+  async function publish(note?: string): Promise<boolean> {
     if (!api) {
       statusText.value = '未配置服务端 API'
       return false
     }
     if (saveState.value !== 'idle' && !(await save())) return false
     try {
-      const r = await api.publish(pageId.value, pageRevision.value)
+      const r = await api.publish(pageId.value, pageRevision.value, note)
       if (typeof r.revision === 'number') pageRevision.value = r.revision
       statusText.value = `已发布 ${pageId.value} v${r.version ?? '?'}`
       return true

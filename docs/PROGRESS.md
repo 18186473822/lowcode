@@ -246,6 +246,7 @@ GitHub Actions 远端 CI 已实跑全绿。
 | 2026-10-29 | 常用流程（P2 收尾） | `FlowSchema.startPageId` 可选字段 + `E_FLOW_START_PAGE` 校验；新增 `PortalFlowList` 物料（读 `/flows`，只列配了 `startPageId` 的流程，点击进启动表单页，由 `flow.start` 起流程）；空态/错误态明确，静态数据可预览 |
 | 2026-10-29 | 流程入口可配 | 门户配置新增「流程入口」一节：列 `GET /flows`，每条给 `pagePicker` 绑启动页（改完即存，走「读完整定义 → 只改 startPageId → 写回」）；宿主不支持时整节不渲染而不是假空态 |
 | 2026-10-29 | 设计器增强（P3） | 大纲树支持**树内拖拽排序**（before/after 插入线 + 容器 into 高亮；拒绝拖进自己后代）；版本历史支持**两版互比**（勾两版 → 拉两次历史 schema → 结构化 diff）；**修掉 moveByDrop 的同父索引缺陷**（源在目标之前时插入点要减 1，画布拖拽同样受影响） |
+| 2026-10-29 | 发布版本备注 | 「发布」改为先填版本说明（默认「设计器发布」，回车即发、Esc 取消）；`store.publish(note)` → `DesignerApi.publish(..., note)` 透传，失败不关窗、原因就地显示。此前所有版本备注都是写死的「设计器发布」，互比时认不出哪版是哪版 |
 
 ---
 

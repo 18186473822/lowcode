@@ -237,11 +237,12 @@ export const designerApi: DesignerApi = {
     })
     return (await res.json()) as { revision?: number }
   },
-  async publish(pageId, revision) {
+  async publish(pageId, revision, note) {
     const res = await req(`/pages/${encodeURIComponent(pageId)}/publish`, {
       method: 'POST',
       headers: ifMatchFor(pageId, revision),
-      body: JSON.stringify({ note: '设计器发布' }),
+      // 版本说明会进历史列表；空串走服务端默认，避免出现空备注
+      body: JSON.stringify({ note: note?.trim() || '设计器发布' }),
     })
     return (await res.json()) as { version?: number; revision?: number }
   },
