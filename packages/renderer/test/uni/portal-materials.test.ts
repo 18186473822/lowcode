@@ -25,6 +25,7 @@ import LcPortalFlowList from '@lc/materials/src/portal-flow-list/index.vue'
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 /* ------------------------------------------------------------------ */
@@ -159,6 +160,25 @@ describe('PortalNotice（公告条）', () => {
     const w = mount(LcPortalNotice, { props: { items: [{ text: '对象公告' }] } })
     expect(w.find('.lc-notice__text').text()).toBe('对象公告')
     w.unmount()
+  })
+
+  it('对象项 pageId → 点击 emit index 并 navigateTo 目标页；无 pageId 不跳', async () => {
+    const navigateTo = vi.fn()
+    vi.stubGlobal('uni', { navigateTo })
+
+    const w = mount(LcPortalNotice, {
+      props: { items: [{ text: '请假公告', pageId: 'p_leave' }], interval: 0 },
+    })
+    await w.find('.lc-notice').trigger('tap')
+    expect(w.emitted('itemClick')?.[0]).toEqual([0])
+    expect(navigateTo).toHaveBeenCalledWith({ url: '/pages/view/index?pageId=p_leave' })
+    w.unmount()
+
+    const plain = mount(LcPortalNotice, { props: { items: ['纯文本公告'], interval: 0 } })
+    await plain.find('.lc-notice').trigger('tap')
+    expect(plain.emitted('itemClick')?.[0]).toEqual([0])
+    expect(navigateTo).toHaveBeenCalledTimes(1) // 没配 pageId → 只有上一条触发过
+    plain.unmount()
   })
 })
 

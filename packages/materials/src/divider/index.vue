@@ -28,6 +28,11 @@ defineProps<{
   height: 1rpx;
   background: var(--lc-border-default);
 }
+/* direction 生效点：居左/居右时把对侧线收成短线，默认 center 两侧等分 */
+.lc-divider--left .lc-divider__line--left,
+.lc-divider--right .lc-divider__line--right {
+  flex: 0 0 32rpx;
+}
 .lc-divider__text {
   font-size: var(--lc-font-caption);
   color: var(--lc-text-tertiary);

@@ -310,6 +310,29 @@ describe('lc-renderer —— 全链集成（挂载 / 联动刷新 / 动作）', 
     expect(JSON.stringify(host.toast.mock.calls)).toContain('动作已执行')
     w.unmount()
   })
+
+  it('SearchBar confirm → handleEvent 执行 confirm 动作（事件接线回归）', async () => {
+    const schema = page([
+      node({
+        id: 's1',
+        componentName: 'SearchBar',
+        props: { placeholder: '搜索' },
+        actions: [{ event: 'confirm', type: 'toast', value: { text: '搜索已提交' } }],
+      }),
+    ])
+    const host = makeHost()
+    const w = mount(LcRenderer, {
+      props: { schema, options: { host: host as unknown as RuntimeHost } },
+      global: { components: globalComponents },
+    })
+    await flushPromises()
+    // 此前 lc-node 只接了 @update，confirm 事件无监听 → 动作永远不执行
+    w.findComponent({ name: 'lc-search-bar' }).vm.$emit('confirm', { detail: { value: '关键字' } })
+    await flushPromises()
+    expect(host.toast).toHaveBeenCalled()
+    expect(JSON.stringify(host.toast.mock.calls)).toContain('搜索已提交')
+    w.unmount()
+  })
 })
 
 /* ------------------------------------------------------------------ */

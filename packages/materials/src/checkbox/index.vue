@@ -58,12 +58,15 @@ const optionList = computed<Opt[]>(() => (Array.isArray(props.options) ? props.o
 const checkedList = computed<Array<string | number>>(() => (Array.isArray(props.value) ? (props.value as Array<string | number>) : []))
 
 function isChecked(v: string | number): boolean {
-  return checkedList.value.includes(v)
+  // 宽松比较：schema 里 value 可能是 "1"，选项 value 是数字 1（或反之），严格 === 会漏勾
+  return checkedList.value.some((x) => String(x) === String(v))
 }
 
 function toggle(v: string | number): void {
   if (props.disabled) return
-  const next = isChecked(v) ? checkedList.value.filter((x) => x !== v) : [...checkedList.value, v]
+  const next = isChecked(v)
+    ? checkedList.value.filter((x) => String(x) !== String(v))
+    : [...checkedList.value, v]
   emit('update', { name: props.name, value: next })
 }
 </script>

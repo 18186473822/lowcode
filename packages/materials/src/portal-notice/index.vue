@@ -6,7 +6,9 @@
   - items: `string[]` 或 `{ text, pageId? }[]`（json setter / JSON 文本都吃）；
     空则回退 `text` 单条文案 —— 只配一句话也能用。
   - 多条时按 `interval` 轮换（缺省 4s），左侧「公告」标签 + 右侧箭头；
-  - 点击 emit itemClick(index)，动作绑定后由节点响应。
+  - 点击 emit itemClick(index)，动作绑定后由节点响应；
+  - 配了 `pageId` 且运行时有 `uni.navigateTo` 时直接跳转（与 PortalGrid 同口径，
+    画布 polyfill 无 navigateTo → 天然 no-op）。
 
   配色只用令牌：底 = 警示浅底，标签 = 警示色（该「前景/背景」组合已在
   check-contrast 基线内，4.5:1 达标），正文用 text-primary。
@@ -46,19 +48,27 @@ const props = withDefaults(
 
 const emit = defineEmits<{ itemClick: [index: number] }>()
 
-/** 归一为纯文本数组（`{text}` 取 text），过滤空串 */
-const texts = computed<string[]>(() => {
-  const rows = asArray<NoticeItem>(props.items)
-    .map((it) => (typeof it === 'string' ? it : String(it?.text ?? '')))
-    .map((t) => t.trim())
-    .filter(Boolean)
-  if (rows.length) return rows
+interface NoticeRow {
+  text: string
+  pageId: string
+}
+
+/** 归一为 `{text,pageId}` 数组（字符串项 pageId 为空），过滤空文案 */
+const rows = computed<NoticeRow[]>(() => {
+  const list = asArray<NoticeItem>(props.items)
+    .map((it) =>
+      typeof it === 'string'
+        ? { text: it.trim(), pageId: '' }
+        : { text: String(it?.text ?? '').trim(), pageId: String(it?.pageId ?? '').trim() },
+    )
+    .filter((it) => it.text)
+  if (list.length) return list
   const single = (props.text ?? '').trim()
-  return single ? [single] : []
+  return single ? [{ text: single, pageId: '' }] : []
 })
 
 const index = ref(0)
-const current = computed(() => texts.value[index.value] ?? '')
+const current = computed(() => rows.value[index.value]?.text ?? '')
 
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -71,7 +81,7 @@ function stop(): void {
 
 function start(): void {
   stop()
-  const total = texts.value.length
+  const total = rows.value.length
   if (total < 2 || !(props.interval > 0)) return
   timer = setInterval(() => {
     index.value = (index.value + 1) % total
@@ -79,16 +89,23 @@ function start(): void {
 }
 
 function onTap(): void {
+  const row = rows.value[index.value]
   emit('itemClick', index.value)
+  if (!row?.pageId) return
+  // 画布里的 uni 是 PC polyfill（无 navigateTo）→ 这里天然 no-op，不会跳走设计器
+  const api = (globalThis as { uni?: { navigateTo?: (o: { url: string }) => void } }).uni
+  if (api && typeof api.navigateTo === 'function') {
+    api.navigateTo({ url: `/pages/view/index?pageId=${encodeURIComponent(row.pageId)}` })
+  }
 }
 
 onMounted(start)
 onUnmounted(stop)
 
 watch(
-  () => [texts.value.length, props.interval] as const,
+  () => [rows.value.length, props.interval] as const,
   () => {
-    if (index.value >= texts.value.length) index.value = 0
+    if (index.value >= rows.value.length) index.value = 0
     start()
   },
 )

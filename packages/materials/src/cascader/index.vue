@@ -69,7 +69,7 @@ function syncFromValue(): void {
   const idxs: number[] = []
   let nodes = optionList.value
   for (const v of props.value as Array<string | number>) {
-    const i = nodes.findIndex((n) => n.value === v)
+    const i = nodes.findIndex((n) => String(n.value) === String(v))
     if (i < 0) break
     idxs.push(i)
     nodes = nodes[i]?.children ?? []

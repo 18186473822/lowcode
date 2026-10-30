@@ -54,7 +54,11 @@ const emit = defineEmits<{
 
 const optionList = computed<Opt[]>(() => (Array.isArray(props.candidates) ? props.candidates : []))
 const labels = computed(() => optionList.value.map((o) => String(o.label)))
-const index = computed(() => optionList.value.findIndex((o) => o.value === props.value))
+const index = computed(() =>
+  props.value === undefined || props.value === null
+    ? -1
+    : optionList.value.findIndex((o) => String(o.value) === String(props.value)),
+)
 
 function onChange(e: unknown): void {
   const d = (e as { detail?: { value?: number } }).detail

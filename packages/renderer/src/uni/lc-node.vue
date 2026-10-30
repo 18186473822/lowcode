@@ -90,7 +90,7 @@
     </template>
     <!-- 数据 / 导航 / 展示类（Phase 2 批 3） -->
     <template v-else-if="material === 'SearchBar'">
-      <lc-search-bar v-bind="bindProps" @update="onChange" />
+      <lc-search-bar v-bind="bindProps" @update="onChange" @confirm="onItemEvent('confirm', undefined)" />
     </template>
     <template v-else-if="material === 'Detail'">
       <lc-detail v-bind="bindProps" />
